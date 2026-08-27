@@ -1,0 +1,64 @@
+<resources>
+    <string name="app_name">工程水印相机</string>
+    <string name="app_name_en">SiteCam</string>
+
+    <!-- Camera Controls -->
+    <string name="shutter_cd">拍照</string>
+    <string name="flip_camera_cd">切换前后摄像头</string>
+    <string name="flash_auto">闪光灯：自动</string>
+    <string name="flash_on">闪光灯：开启</string>
+    <string name="flash_off">闪光灯：关闭</string>
+    <string name="orientation_auto">方向：自动</string>
+    <string name="orientation_locked">方向：锁定</string>
+    <string name="quick_issue_mode">问题模式</string>
+    <string name="normal_capture_mode">正常模式</string>
+    <string name="gallery_cd">工程相册</string>
+    <string name="settings_cd">设置</string>
+    <string name="projects_cd">工程项目</string>
+
+    <!-- Permissions -->
+    <string name="camera_permission_required">工程水印相机需要使用相机权限进行现场拍照留档。</string>
+    <string name="location_permission_required">获取当前工程地理位置与经纬度水印。</string>
+    <string name="grant_permission">授予权限</string>
+    <string name="permission_denied_warning">未授予相机权限，无法使用拍摄功能。</string>
+    <string name="location_unavailable">定位不可用</string>
+
+    <!-- Project & Category -->
+    <string name="default_project_name">默认工程项目</string>
+    <string name="create_project">新建工程</string>
+    <string name="edit_project">编辑工程</string>
+    <string name="project_name_hint">工程名称（必填）</string>
+    <string name="project_category_hint">工程类型</string>
+    <string name="project_address_hint">工程地点</string>
+    <string name="project_desc_hint">工程备注</string>
+    <string name="switch_project">切换工程</string>
+    <string name="confirm">确认</string>
+    <string name="cancel">取消</string>
+    <string name="save">保存</string>
+    <string name="delete">删除</string>
+
+    <!-- Issues -->
+    <string name="mark_as_issue">标记为工程问题</string>
+    <string name="issue_title">问题标题</string>
+    <string name="issue_desc">问题描述</string>
+    <string name="severity_normal">一般</string>
+    <string name="severity_important">重要</string>
+    <string name="severity_critical">严重</string>
+    <string name="status_pending">待处理</string>
+    <string name="status_in_progress">整改中</string>
+    <string name="status_completed">已完成</string>
+
+    <!-- Gallery & Detail -->
+    <string name="all_media">全部</string>
+    <string name="today">今天</string>
+    <string name="only_issues">仅问题照片</string>
+    <string name="share">分享</string>
+    <string name="delete_confirm_title">删除照片</string>
+    <string name="delete_confirm_msg">确定要删除该照片吗？此操作不可恢复。</string>
+    <string name="no_photos_yet">暂无工程照片，点击拍摄第一张！</string>
+
+    <!-- Diagnostics -->
+    <string name="device_diagnostics">设备诊断信息</string>
+    <string name="copy_diagnostics">复制诊断信息</string>
+    <string name="diagnostics_copied">诊断信息已复制到剪贴板</string>
+</resources>

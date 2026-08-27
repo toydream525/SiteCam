@@ -1,0 +1,16 @@
+.gradle/
+.idea/
+local.properties
+keystore.properties
+sitecam-release.jks
+app/build/
+build/
+*.iml
+.DS_Store
+
+# Local device captures and one-off verification helpers must never be published.
+/*.png
+/*.jpg
+/.capture_*.sh
+/.install_*.sh
+/.rebuild_*.sh

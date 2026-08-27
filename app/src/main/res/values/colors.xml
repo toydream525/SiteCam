@@ -1,0 +1,9 @@
+<resources>
+    <color name="engineering_yellow">#FFB300</color>
+    <color name="engineering_orange">#F57C00</color>
+    <color name="engineering_dark">#121212</color>
+    <color name="engineering_surface">#1E1E1E</color>
+    <color name="engineering_card">#2A2A2A</color>
+    <color name="engineering_text_primary">#FFFFFF</color>
+    <color name="engineering_text_secondary">#B0BEC5</color>
+</resources>
