@@ -9,6 +9,7 @@
 本项目采用 [MIT License](LICENSE) 开源。
 
 - [普通用户使用指南](docs/USER_GUIDE.md)
+- [下载 Android 正式版](https://github.com/toydream525/SiteCam/releases/latest)
 - [作者主页](https://yuriaqua.com)
 
 ## 作者
