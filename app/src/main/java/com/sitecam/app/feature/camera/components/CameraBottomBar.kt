@@ -31,6 +31,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -77,16 +78,34 @@ fun CameraBottomBar(
     onShutterClick: () -> Unit,
     onGalleryClick: () -> Unit,
     onFlipCameraClick: () -> Unit,
+    captureAllowed: Boolean = true,
     isBusy: Boolean = false,
+    shutterSoundEnabled: Boolean = true,
+    thumbnailBounceToken: Long = 0L,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
     val shutterScale = remember { Animatable(1f) }
+    val thumbnailScale = remember { Animatable(1f) }
     val shutterSound = remember { MediaActionSound().apply { load(MediaActionSound.SHUTTER_CLICK) } }
     DisposableEffect(shutterSound) { onDispose { shutterSound.release() } }
 
+    LaunchedEffect(thumbnailBounceToken) {
+        if (thumbnailBounceToken == 0L) return@LaunchedEffect
+        thumbnailScale.snapTo(0.86f)
+        thumbnailScale.animateTo(1.10f, tween(durationMillis = 110))
+        thumbnailScale.animateTo(1f, tween(durationMillis = 90))
+    }
+
     fun fireShutter() {
-        if (captureMode == CaptureMode.PHOTO) shutterSound.play(MediaActionSound.SHUTTER_CLICK)
+        // A photo that is still being saved (or a camera that is not ready)
+        // must not produce a second, misleading shutter sound. Stopping an
+        // active video recording remains allowed while the dock is busy.
+        if (isBusy && !isRecordingVideo) return
+        if (!captureAllowed && !isRecordingVideo) return
+        if (captureMode == CaptureMode.PHOTO && shutterSoundEnabled) {
+            shutterSound.play(MediaActionSound.SHUTTER_CLICK)
+        }
         scope.launch {
             shutterScale.animateTo(0.90f, tween(45))
             shutterScale.animateTo(1f, tween(70))
@@ -104,13 +123,14 @@ fun CameraBottomBar(
             latestThumbnailUri = latestThumbnailUri,
             latestMediaType = latestMediaType,
             captureMode = captureMode,
-            isCapturing = isCapturing,
+            isCapturing = isCapturing || (!captureAllowed && !isRecordingVideo),
             isRecordingVideo = isRecordingVideo,
             recordingDurationSeconds = recordingDurationSeconds,
             zoomPresets = zoomPresets,
             currentZoomRatio = currentZoomRatio,
             isBusy = isBusy,
             shutterScale = shutterScale.value,
+            thumbnailScale = thumbnailScale.value,
             onZoomSelected = onZoomSelected,
             onModeChange = onModeChange,
             onGalleryClick = onGalleryClick,
@@ -126,13 +146,14 @@ fun CameraBottomBar(
             latestThumbnailUri = latestThumbnailUri,
             latestMediaType = latestMediaType,
             captureMode = captureMode,
-            isCapturing = isCapturing,
+            isCapturing = isCapturing || (!captureAllowed && !isRecordingVideo),
             isRecordingVideo = isRecordingVideo,
             recordingDurationSeconds = recordingDurationSeconds,
             zoomPresets = zoomPresets,
             currentZoomRatio = currentZoomRatio,
             isBusy = isBusy,
             shutterScale = shutterScale.value,
+            thumbnailScale = thumbnailScale.value,
             onZoomSelected = onZoomSelected,
             onModeChange = onModeChange,
             onGalleryClick = onGalleryClick,
@@ -155,6 +176,7 @@ private fun PortraitControlDock(
     currentZoomRatio: Float,
     isBusy: Boolean,
     shutterScale: Float,
+    thumbnailScale: Float,
     onZoomSelected: (Float) -> Unit,
     onModeChange: (CaptureMode) -> Unit,
     onGalleryClick: () -> Unit,
@@ -240,6 +262,7 @@ private fun PortraitControlDock(
                     mediaType = latestMediaType,
                     enabled = !isBusy,
                     size = sideButtonSize,
+                    scale = thumbnailScale,
                     onClick = onGalleryClick
                 )
                 ShutterButton(
@@ -273,6 +296,7 @@ private fun LandscapeControlDock(
     currentZoomRatio: Float,
     isBusy: Boolean,
     shutterScale: Float,
+    thumbnailScale: Float,
     onZoomSelected: (Float) -> Unit,
     onModeChange: (CaptureMode) -> Unit,
     onGalleryClick: () -> Unit,
@@ -335,6 +359,7 @@ private fun LandscapeControlDock(
                     mediaType = latestMediaType,
                     enabled = !isBusy,
                     size = sideButtonSize,
+                    scale = thumbnailScale,
                     onClick = onGalleryClick
                 )
                 ShutterButton(
@@ -444,11 +469,13 @@ private fun GalleryButton(
     mediaType: String?,
     enabled: Boolean,
     size: Dp,
+    scale: Float = 1f,
     onClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
             .size(size)
+            .scale(scale)
             .clip(RoundedCornerShape(10.dp))
             .background(Color(0xFF171717))
             .clickable(enabled = enabled, onClick = onClick),

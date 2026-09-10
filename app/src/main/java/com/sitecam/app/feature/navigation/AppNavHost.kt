@@ -1,6 +1,14 @@
 package com.sitecam.app.feature.navigation
 
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.sitecam.app.feature.permissions.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,7 +32,11 @@ import com.sitecam.app.feature.gallery.GalleryScreen
 import com.sitecam.app.feature.gallery.GalleryViewModel
 import com.sitecam.app.feature.gallery.PhotoDetailScreen
 import com.sitecam.app.feature.gallery.PhotoDetailViewModel
-import com.sitecam.app.feature.issue.QuickIssueDialog
+import com.sitecam.app.feature.issue.IssueDialog
+import com.sitecam.app.feature.help.HelpScreen
+import com.sitecam.app.feature.onboarding.OnboardingPreferences
+import com.sitecam.app.feature.onboarding.OnboardingLoadingScreen
+import com.sitecam.app.feature.onboarding.OnboardingScreen
 import com.sitecam.app.feature.projects.ProjectListScreen
 import com.sitecam.app.feature.projects.ProjectViewModel
 import com.sitecam.app.feature.settings.SettingsScreen
@@ -43,13 +55,62 @@ fun AppNavHost(
 ) {
     var quickIssueMediaId by remember { mutableStateOf<Long?>(null) }
     val issueScope = rememberCoroutineScope()
+    val onboardingScope = rememberCoroutineScope()
     val context = LocalContext.current
+    val onboardingPreferences = remember(context) { OnboardingPreferences(context) }
+    val onboardingState by onboardingPreferences.state.collectAsState(initial = null)
+    var startupPermissions by remember { mutableStateOf<CapturePermissions?>(null) }
+    var keepPermissionGuideOpen by remember { mutableStateOf(false) }
+    var permissionGuideFinished by remember { mutableStateOf(false) }
+    val latestRequested by rememberUpdatedState(onboardingState?.requestedPermissions.orEmpty())
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(onboardingState?.requestedPermissions) {
+        startupPermissions = PermissionAccess.read(context, latestRequested)
+    }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) startupPermissions = PermissionAccess.read(context, latestRequested)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(startupPermissions?.allGranted, onboardingState?.hasHandledPermissionGuide) {
+        if (startupPermissions?.allGranted == true && onboardingState?.hasHandledPermissionGuide == false) {
+            onboardingPreferences.markPermissionGuideHandled()
+        }
+    }
+    val effectiveOnboardingState = onboardingState?.let { if (permissionGuideFinished) it.copy(hasHandledPermissionGuide = true) else it }
+    val startupGate = resolveStartupGate(effectiveOnboardingState, startupPermissions, keepPermissionGuideOpen)
 
-    NavHost(
-        navController = navController,
-        startDestination = Screen.Camera.route,
-        modifier = modifier
-    ) {
+    when (startupGate) {
+        StartupGate.LOADING -> OnboardingLoadingScreen(modifier = modifier)
+        StartupGate.FEATURE_GUIDE -> OnboardingScreen(
+            isReplay = false,
+            onFinish = {
+                onboardingScope.launch {
+                    onboardingPreferences.markGuideDismissed()
+                }
+            },
+            modifier = modifier
+        )
+        StartupGate.PERMISSION_GUIDE -> PermissionGuideScreen(
+            preferences = onboardingPreferences,
+            requestedPermissions = onboardingState?.requestedPermissions.orEmpty(),
+            onInteractionStarted = { keepPermissionGuideOpen = true },
+            onContinue = {
+                onboardingScope.launch {
+                    onboardingPreferences.markPermissionGuideHandled()
+                    permissionGuideFinished = true
+                    keepPermissionGuideOpen = false
+                }
+            },
+            modifier = modifier
+        )
+        StartupGate.APP -> NavHost(
+            navController = navController,
+            startDestination = Screen.Camera.route,
+            modifier = modifier
+        ) {
         composable(Screen.Camera.route) {
             val cameraViewModel: CameraViewModel = viewModel(
                 factory = CameraViewModel.provideFactory(appContainer)
@@ -174,17 +235,52 @@ fun AppNavHost(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToWatermarkEditor = { templateId ->
                     navController.navigate(Screen.WatermarkEditor.createRoute(templateId))
+                },
+                onNavigateToHelp = {
+                    navController.navigate(Screen.Help.route)
+                }
+            )
+        }
+
+        composable(Screen.Help.route) {
+            HelpScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onReplayOnboarding = {
+                    navController.navigate(Screen.Onboarding.createRoute(replay = true))
+                }
+            )
+        }
+
+        composable(
+            route = Screen.Onboarding.route,
+            arguments = listOf(
+                navArgument("replay") {
+                    type = NavType.BoolType
+                    defaultValue = false
+                }
+            )
+        ) { backStackEntry ->
+            val replay = backStackEntry.arguments?.getBoolean("replay") ?: false
+            OnboardingScreen(
+                isReplay = replay,
+                onNavigateBack = { navController.popBackStack() },
+                onFinish = {
+                    onboardingScope.launch {
+                        onboardingPreferences.markGuideDismissed()
+                        navController.popBackStack()
+                    }
                 }
             )
         }
     }
+    }
 
     // Quick Issue Dialog if triggered post-capture
-    quickIssueMediaId?.let { mediaId ->
-        QuickIssueDialog(
+    if (startupGate == StartupGate.APP) quickIssueMediaId?.let { mediaId ->
+        IssueDialog(
             mediaId = mediaId,
             onDismiss = { quickIssueMediaId = null },
-            onConfirm = { title, severity, description ->
+            onConfirm = { title, severity, description, status ->
                 issueScope.launch(Dispatchers.IO) {
                     try {
                         val mediaItem = appContainer.database.mediaItemDao().getMediaItemById(mediaId)
@@ -197,7 +293,8 @@ fun AppNavHost(
                                 mediaId = mediaId,
                                 title = title,
                                 severity = severity,
-                                description = description
+                                description = description,
+                                status = status
                             )
                         )
                         withContext(Dispatchers.Main.immediate) {

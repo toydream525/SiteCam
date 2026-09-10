@@ -4,8 +4,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Matrix
-import android.graphics.Paint
-import android.graphics.Typeface
 import android.net.Uri
 import androidx.media3.common.Effect
 import androidx.media3.common.MediaItem
@@ -146,8 +144,8 @@ class VideoWatermarkTranscoder(private val context: Context) {
         }
     }
 
-    private companion object {
-        fun renderDisplayOverlay(
+    companion object {
+        internal fun renderDisplayOverlay(
             codedWidth: Int,
             codedHeight: Int,
             rotationDegrees: Int,
@@ -166,45 +164,7 @@ class VideoWatermarkTranscoder(private val context: Context) {
                 data
             )
 
-            canvas.drawRoundRect(layout.cardRect, 16f, 16f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = layout.cardColor
-                style = Paint.Style.FILL
-            })
-            if (layout.headerRect != null) {
-                canvas.drawRoundRect(layout.headerRect, 16f, 16f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = layout.accentColor
-                    style = Paint.Style.FILL
-                })
-            }
-            if (layout.accentBarRect != null && layout.headerRect == null) {
-                canvas.drawRoundRect(layout.accentBarRect, 8f, 8f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = layout.accentColor
-                    style = Paint.Style.FILL
-                })
-            }
-
-            val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            }
-            val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                color = android.graphics.Color.parseColor("#B0BEC5")
-            }
-            canvas.save()
-            canvas.clipRect(layout.cardRect)
-            for (line in layout.lines) {
-                textPaint.textSize = line.textSize
-                textPaint.color = line.textColor
-                textPaint.isFakeBoldText = line.isBold
-                if (line.label.isNotEmpty()) {
-                    labelPaint.textSize = line.textSize
-                    canvas.drawText(line.label, line.x, line.y, labelPaint)
-                    canvas.drawText(line.value, line.x + labelPaint.measureText(line.label), line.y, textPaint)
-                } else {
-                    canvas.drawText(line.value, line.x, line.y, textPaint)
-                }
-            }
-            canvas.restore()
+            com.sitecam.app.core.watermark.renderer.WatermarkCanvasPainter.draw(canvas, layout)
             return displayBitmap
         }
 
@@ -214,7 +174,7 @@ class VideoWatermarkTranscoder(private val context: Context) {
          * it handles both coded-frame and presentation-frame pipelines while
          * keeping the card in the same physical display corner.
         */
-        fun orientOverlayForInput(
+        internal fun orientOverlayForInput(
             displayBitmap: Bitmap,
             inputWidth: Int,
             inputHeight: Int,

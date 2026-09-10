@@ -1,4 +1,5 @@
 import java.util.Properties
+import org.gradle.api.tasks.Copy
 
 plugins {
     alias(libs.plugins.android.application)
@@ -32,8 +33,8 @@ android {
         applicationId = "com.sitecam.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
-        versionName = "0.2.7"
+        versionCode = 10
+        versionName = "0.2.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -78,11 +79,29 @@ android {
         buildConfig = true
     }
 
+    // Help is read offline from the repository's single guide source. The
+    // generated asset keeps the in-app guide in sync without a second copy.
+    sourceSets {
+        getByName("main") {
+            assets.srcDir(layout.buildDirectory.dir("generated/sitecam-assets"))
+        }
+    }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+}
+
+val syncUserGuideAsset = tasks.register<Copy>("syncUserGuideAsset") {
+    from(rootProject.file("docs/USER_GUIDE.md"))
+    into(layout.buildDirectory.dir("generated/sitecam-assets/docs"))
+    rename { "USER_GUIDE.md" }
+}
+
+tasks.named("preBuild") {
+    dependsOn(syncUserGuideAsset)
 }
 
 // Keep debug builds usable for development, but never silently emit an

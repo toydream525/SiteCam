@@ -35,14 +35,17 @@ import com.sitecam.app.ui.theme.TextSecondaryDark
 import com.sitecam.app.ui.theme.WarningYellow
 
 @Composable
-fun QuickIssueDialog(
+fun IssueDialog(
     mediaId: Long,
     onDismiss: () -> Unit,
-    onConfirm: (title: String, severity: String, description: String) -> Unit
+    existingIssue: com.sitecam.app.core.database.entity.IssueEntity? = null,
+    onRemove: (() -> Unit)? = null,
+    onConfirm: (title: String, severity: String, description: String, status: String) -> Unit
 ) {
-    var title by remember { mutableStateOf("") }
-    var severity by remember { mutableStateOf("NORMAL") } // NORMAL, IMPORTANT, CRITICAL
-    var description by remember { mutableStateOf("") }
+    var title by remember(mediaId) { mutableStateOf(existingIssue?.title.orEmpty()) }
+    var severity by remember { mutableStateOf(existingIssue?.severity ?: "NORMAL") } // NORMAL, IMPORTANT, CRITICAL
+    var description by remember(mediaId) { mutableStateOf(existingIssue?.description.orEmpty()) }
+    var status by remember(mediaId) { mutableStateOf(existingIssue?.status ?: "PENDING") }
     var isTitleError by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -138,6 +141,11 @@ fun QuickIssueDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf("PENDING" to "待处理", "IN_PROGRESS" to "处理中", "COMPLETED" to "已完成").forEach { (value, label) ->
+                        FilterChip(selected = status == value, onClick = { status = value }, label = { Text(label) })
+                    }
+                }
                 // Description Field
                 OutlinedTextField(
                     value = description,
@@ -160,7 +168,7 @@ fun QuickIssueDialog(
                     if (title.isBlank()) {
                         isTitleError = true
                     } else {
-                        onConfirm(title, severity, description)
+                        onConfirm(title.trim(), severity, description.trim(), status)
                     }
                 },
                 colors = ButtonDefaults.buttonColors(
@@ -173,9 +181,18 @@ fun QuickIssueDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消标记（保存为普通媒体）", color = TextSecondaryDark)
+            Row {
+                if (existingIssue != null && onRemove != null) TextButton(onClick = onRemove) { Text("取消问题", color = ErrorRed) }
+                TextButton(onClick = onDismiss) { Text("取消", color = TextSecondaryDark) }
             }
         }
     )
 }
+
+@Composable
+fun QuickIssueDialog(
+    mediaId: Long,
+    onDismiss: () -> Unit,
+    onConfirm: (title: String, severity: String, description: String) -> Unit
+) = IssueDialog(mediaId = mediaId, onDismiss = onDismiss,
+    onConfirm = { title, severity, description, _ -> onConfirm(title, severity, description) })

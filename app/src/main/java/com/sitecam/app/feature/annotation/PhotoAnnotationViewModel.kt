@@ -27,6 +27,7 @@ import com.sitecam.app.feature.annotation.model.AnnotationElement
 import com.sitecam.app.feature.annotation.model.AnnotationTool
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -46,6 +47,9 @@ data class AnnotationUiState(
     val selectedStrokeWidth: Float = 10f,
     val elements: List<AnnotationElement> = emptyList(),
     val undoStack: List<List<AnnotationElement>> = emptyList(),
+    val previewBitmap: Bitmap? = null,
+    val canUndo: Boolean = false,
+    val canRedo: Boolean = false,
     val imageWidth: Int = 0,
     val imageHeight: Int = 0,
     val isSaving: Boolean = false
@@ -68,6 +72,76 @@ class PhotoAnnotationViewModel(
     val saveCompleted: SharedFlow<AnnotationSaveResult> = _saveCompleted.asSharedFlow()
     private val _saveFailed = MutableSharedFlow<String>()
     val saveFailed: SharedFlow<String> = _saveFailed.asSharedFlow()
+
+    private var steps = emptyList<EditStep>()
+    private data class EditState(val steps: List<EditStep>, val elements: List<AnnotationElement>)
+    private val history = mutableListOf<EditState>()
+    private val future = mutableListOf<EditState>()
+    private var sourceUri: Uri? = null
+    private var legacyProduct = false
+    private var viewportWidth = 0f
+    private var viewportHeight = 0f
+    fun viewportChanged(width: Float, height: Float) {
+        if (width <= 0 || height <= 0) return
+        if (viewportWidth > 0 && viewportHeight > 0 && (width != viewportWidth || height != viewportHeight)) {
+            fun bake(state: EditState): EditState = if (state.elements.isEmpty()) state else EditState(state.steps + EditStep.Draw(state.elements, viewportWidth, viewportHeight), emptyList())
+            for (index in history.indices) history[index] = bake(history[index])
+            for (index in future.indices) future[index] = bake(future[index])
+            if (_uiState.value.elements.isNotEmpty()) {
+                steps = steps + EditStep.Draw(_uiState.value.elements, viewportWidth, viewportHeight)
+                _uiState.value = _uiState.value.copy(elements = emptyList())
+                refreshPreview()
+            }
+        }
+        viewportWidth = width; viewportHeight = height
+    }
+    private fun checkpoint() {
+        history.add(EditState(steps, _uiState.value.elements)); future.clear()
+        _uiState.value = _uiState.value.copy(canUndo = true, canRedo = false)
+    }
+    fun applyTransform(kind: String, width: Float, height: Float, crop: androidx.compose.ui.geometry.Rect? = null) {
+        if (_uiState.value.isSaving || width <= 0 || height <= 0) return
+        checkpoint()
+        if (_uiState.value.elements.isNotEmpty()) steps = steps + EditStep.Draw(_uiState.value.elements, width, height)
+        steps = steps + EditStep.Transform(kind, crop?.left ?: 0f, crop?.top ?: 0f, crop?.right ?: 1f, crop?.bottom ?: 1f)
+        _uiState.value = _uiState.value.copy(elements = emptyList())
+        refreshPreview()
+    }
+    private var previewGeneration = 0L
+    private fun refreshPreview() {
+        val generation = ++previewGeneration
+        val recipe = steps
+        _uiState.value = _uiState.value.copy(isSaving = true)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val rendered = renderRecipe(appContainer.appContext, recipe, 1600)
+                if (generation == previewGeneration) {
+                    _uiState.value = _uiState.value.copy(previewBitmap = rendered, imageWidth = rendered.width, imageHeight = rendered.height)
+                } else rendered.recycle()
+            } catch (e: Exception) { _saveFailed.emit(e.message ?: "无法预览编辑") }
+            catch (_: OutOfMemoryError) { _saveFailed.emit("图片太大，无法预览，请关闭其他应用后重试") }
+            finally { if (generation == previewGeneration) _uiState.value = _uiState.value.copy(isSaving = false) }
+        }
+    }
+    private fun renderRecipe(context: Context, recipe: List<EditStep>, decodeLimit: Int = Int.MAX_VALUE): Bitmap {
+        val source = decodeBitmapBounded(context, sourceUri ?: error("原图未就绪"), decodeLimit)
+        var bitmap = source.copy(Bitmap.Config.ARGB_8888, true)
+        source.recycle()
+        for (step in recipe) when (step) {
+            is EditStep.Draw -> {
+                val rect = ImageContentRect.forFit(bitmap.width, bitmap.height, step.width, step.height)
+                val canvas = Canvas(bitmap)
+                canvas.save(); canvas.clipRect(0f, 0f, bitmap.width.toFloat(), bitmap.height.toFloat())
+                step.elements.forEach { renderElementOnCanvas(canvas, it, rect, bitmap.width, bitmap.height) }; canvas.restore()
+            }
+            is EditStep.Transform -> {
+                val next = EditRecipe.transform(bitmap, step)
+                if (next !== bitmap) bitmap.recycle()
+                bitmap = if (next.isMutable) next else next.copy(Bitmap.Config.ARGB_8888, true).also { next.recycle() }
+            }
+        }
+        return bitmap
+    }
 
     init {
         loadMedia()
@@ -97,11 +171,17 @@ class PhotoAnnotationViewModel(
                     options.outWidth to options.outHeight
                 }
             }
+            val annotation = appContainer.database.issueDao().getAnnotationByMediaId(mediaId)
+            val restored = annotation?.vectorDataJson?.let(EditRecipe::decode).orEmpty()
+            legacyProduct = annotation != null && restored.isEmpty()
+            sourceUri = if (legacyProduct) Uri.parse(annotation!!.annotatedContentUri) else Uri.parse(resolvedItem.contentUri)
+            steps = restored
             _uiState.value = _uiState.value.copy(
                 mediaItem = resolvedItem,
                 imageWidth = dimensions.first.coerceAtLeast(0),
                 imageHeight = dimensions.second.coerceAtLeast(0)
             )
+            refreshPreview()
         }
     }
 
@@ -118,35 +198,24 @@ class PhotoAnnotationViewModel(
     }
 
     fun addElement(element: AnnotationElement) {
-        val current = _uiState.value.elements
-        val newUndo = _uiState.value.undoStack + listOf(current)
-        _uiState.value = _uiState.value.copy(
-            elements = current + element,
-            undoStack = newUndo
-        )
+        if (_uiState.value.isSaving) return
+        checkpoint(); _uiState.value = _uiState.value.copy(elements = _uiState.value.elements + element)
     }
-
     fun undo() {
-        val undoStack = _uiState.value.undoStack
-        if (undoStack.isNotEmpty()) {
-            val previousElements = undoStack.last()
-            _uiState.value = _uiState.value.copy(
-                elements = previousElements,
-                undoStack = undoStack.dropLast(1)
-            )
-        }
+        if (_uiState.value.isSaving || history.isEmpty()) return
+        future.add(EditState(steps, _uiState.value.elements))
+        val previous = history.removeAt(history.lastIndex); steps = previous.steps
+        _uiState.value = _uiState.value.copy(elements = previous.elements, canUndo = history.isNotEmpty(), canRedo = true)
+        refreshPreview()
     }
-
-    fun clearAll() {
-        val current = _uiState.value.elements
-        if (current.isNotEmpty()) {
-            val newUndo = _uiState.value.undoStack + listOf(current)
-            _uiState.value = _uiState.value.copy(
-                elements = emptyList(),
-                undoStack = newUndo
-            )
-        }
+    fun redo() {
+        if (_uiState.value.isSaving || future.isEmpty()) return
+        history.add(EditState(steps, _uiState.value.elements))
+        val next = future.removeAt(future.lastIndex); steps = next.steps
+        _uiState.value = _uiState.value.copy(elements = next.elements, canUndo = true, canRedo = future.isNotEmpty())
+        refreshPreview()
     }
+    fun clearAll() { if (!_uiState.value.isSaving) { checkpoint(); steps = emptyList(); _uiState.value = _uiState.value.copy(elements = emptyList()); refreshPreview() } }
 
     fun saveAnnotatedImage(
         context: Context,
@@ -154,40 +223,33 @@ class PhotoAnnotationViewModel(
         viewHeight: Float
     ) {
         val media = _uiState.value.mediaItem ?: return
-        if (viewWidth <= 0 || viewHeight <= 0) return
+        if (_uiState.value.isSaving || viewWidth <= 0 || viewHeight <= 0) return
+        val recipe = steps + if (_uiState.value.elements.isEmpty()) emptyList() else listOf(EditStep.Draw(_uiState.value.elements, viewWidth, viewHeight))
 
         _uiState.value = _uiState.value.copy(isSaving = true)
 
         viewModelScope.launch(Dispatchers.IO) {
+            com.sitecam.app.core.media.MediaOperationCoordinator.withExclusive {
             var originalBitmap: Bitmap? = null
             var annotatedBitmap: Bitmap? = null
             var savedUri: Uri? = null
             try {
-                val inputUri = resolveReadableSourceUri(context, media)
-                originalBitmap = decodeBitmapBounded(context, inputUri)
-
-                val workingBitmap = originalBitmap?.copy(Bitmap.Config.ARGB_8888, true)
-                    ?: throw IllegalStateException("无法创建标注画布")
-                annotatedBitmap = workingBitmap
-                val canvas = Canvas(workingBitmap)
-
-                // ContentScale.Fit leaves letterbox bars. Map from the same
-                // content rectangle used by the preview, not from the whole
-                // Compose view, so saved annotations cannot drift vertically.
-                val contentRect = ImageContentRect.forFit(
-                    imageWidth = workingBitmap.width,
-                    imageHeight = workingBitmap.height,
-                    viewWidth = viewWidth,
-                    viewHeight = viewHeight
-                )
-                canvas.save()
-                canvas.clipRect(0f, 0f, workingBitmap.width.toFloat(), workingBitmap.height.toFloat())
-
-                // Draw all annotations onto full-res Bitmap
-                for (element in _uiState.value.elements) {
-                    renderElementOnCanvas(canvas, element, contentRect, workingBitmap.width, workingBitmap.height)
+                check(appContainer.database.mediaItemDao().getMediaItemById(media.id) != null) { "媒体已删除" }
+                val profile = appContainer.settingsDataStore.photoQualityProfile.first()
+                val gallery = appContainer.settingsDataStore.saveToSystemGallery.first()
+                val sourceSize = _uiState.value.mediaItem?.let { it.width to it.height } ?: (0 to 0)
+                var effectiveWidth = sourceSize.first.toDouble()
+                var effectiveHeight = sourceSize.second.toDouble()
+                recipe.filterIsInstance<EditStep.Transform>().forEach { step ->
+                    if (step.kind == "crop") { effectiveWidth *= step.right - step.left; effectiveHeight *= step.bottom - step.top }
+                    if (step.kind == "rotate") { val swap = effectiveWidth; effectiveWidth = effectiveHeight; effectiveHeight = swap }
                 }
-                canvas.restore()
+                val decodeLimit = if (legacyProduct || profile.maxLongEdge == null || maxOf(effectiveWidth, effectiveHeight) <= 0) Int.MAX_VALUE
+                    else (maxOf(sourceSize.first, sourceSize.second) * minOf(1.0, profile.maxLongEdge.toDouble() / maxOf(effectiveWidth, effectiveHeight))).toInt().coerceAtLeast(1)
+                val rendered = renderRecipe(context, recipe, decodeLimit)
+                originalBitmap = rendered
+                val workingBitmap = com.sitecam.app.core.media.PhotoCompression.resize(rendered, profile)
+                annotatedBitmap = workingBitmap
 
                 val project = appContainer.database.projectDao().getProjectById(media.projectId)
                 val projectName = project?.name ?: "默认工程"
@@ -204,7 +266,8 @@ class PhotoAnnotationViewModel(
                         longitude = media.longitude,
                         addressText = media.addressText
                     ),
-                    quality = 95
+                    quality = profile.jpegQuality,
+                    saveToSystemGallery = gallery
                 )
                 savedUri = saveResult.uri
 
@@ -216,7 +279,8 @@ class PhotoAnnotationViewModel(
                 appContainer.database.issueDao().replaceAnnotation(
                     AnnotationEntity(
                         mediaId = media.id,
-                        annotatedContentUri = saveResult.uri.toString()
+                        annotatedContentUri = saveResult.uri.toString(),
+                        vectorDataJson = if (legacyProduct) "" else EditRecipe.encode(recipe)
                     )
                 )
                 // Ownership is transferred to Room at this point.  The new
@@ -247,6 +311,7 @@ class PhotoAnnotationViewModel(
                 }
                 _uiState.value = _uiState.value.copy(isSaving = false)
             }
+            }
         }
     }
 
@@ -258,44 +323,21 @@ class PhotoAnnotationViewModel(
         }.getOrDefault(false)
         if (originalReadable) return original
 
-        val projection = arrayOf(MediaStore.Images.Media._ID)
-        val (selection, selectionArgs) = if (
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && media.filePath.isNotBlank()
-        ) {
-            "${MediaStore.Images.Media.DISPLAY_NAME} = ? AND ${MediaStore.Images.Media.RELATIVE_PATH} LIKE ?" to
-                arrayOf(media.fileName, "${media.filePath.trimEnd('/')}%")
-        } else {
-            "${MediaStore.Images.Media.DISPLAY_NAME} = ?" to arrayOf(media.fileName)
-        }
-        resolver.query(
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-            projection,
-            selection,
-            selectionArgs,
-            "${MediaStore.Images.Media.DATE_ADDED} DESC"
-        )?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                val id = cursor.getLong(0)
-                val recovered = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
-                val recoveredReadable = runCatching {
-                    resolver.openFileDescriptor(recovered, "r")?.use { true } ?: false
-                }.getOrDefault(false)
-                if (recoveredReadable) return recovered
-            }
-        }
         throw IllegalStateException("无法读取原始图片，请确认照片仍存在于 SiteCam 工程相册")
     }
 
     private fun decodeBitmapBounded(context: Context, uri: Uri, maxDimension: Int = 4096): Bitmap {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        context.contentResolver.openInputStream(uri)?.use {
-            BitmapFactory.decodeStream(it, null, bounds)
-        } ?: throw IllegalStateException("无法读取原始图片")
+        val boundsStream = context.contentResolver.openInputStream(uri)
+            ?: throw IllegalStateException("无法读取原始图片")
+        boundsStream.use { BitmapFactory.decodeStream(it, null, bounds) }
+        // Bounds-only decoding deliberately returns null; only outWidth/outHeight
+        // indicate whether the source was decoded successfully.
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
             throw IllegalStateException("原始图片尺寸无效")
         }
         var sample = 1
-        while (bounds.outWidth / sample > maxDimension || bounds.outHeight / sample > maxDimension) {
+        while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= maxDimension && sample < 128) {
             sample *= 2
         }
         val options = BitmapFactory.Options().apply {

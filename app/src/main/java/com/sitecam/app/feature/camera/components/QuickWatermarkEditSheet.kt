@@ -29,8 +29,6 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
@@ -42,6 +40,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -57,6 +56,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sitecam.app.core.database.entity.WatermarkFieldEntity
 import com.sitecam.app.core.database.entity.WatermarkTemplateEntity
+import com.sitecam.app.core.watermark.model.WatermarkData
+import com.sitecam.app.core.watermark.model.WatermarkStyleCatalog
+import com.sitecam.app.feature.watermark.WatermarkStylePickerDialog
 import com.sitecam.app.ui.theme.DarkBackground
 import com.sitecam.app.ui.theme.DarkCard
 import com.sitecam.app.ui.theme.EngineeringYellow
@@ -76,6 +78,7 @@ private val QUICK_ENGINEERING_TAGS = listOf(
 fun QuickWatermarkEditSheet(
     activeTemplate: WatermarkTemplateEntity?,
     fields: List<WatermarkFieldEntity>,
+    previewData: WatermarkData,
     onDismissRequest: () -> Unit,
     onFieldValueChange: (fieldId: Long, newValue: String) -> Unit,
     onFieldToggle: (fieldId: Long, enabled: Boolean) -> Unit,
@@ -87,6 +90,8 @@ fun QuickWatermarkEditSheet(
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
     var focusedFieldId by remember { mutableStateOf<Long?>(null) }
+    var showStylePicker by remember { mutableStateOf(false) }
+    val currentStyle = WatermarkStyleCatalog.resolve(activeTemplate?.styleType)
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -156,35 +161,41 @@ fun QuickWatermarkEditSheet(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 1. Template Styles Selector Tabs
-            val currentStyle = activeTemplate?.styleType ?: "CLASSIC"
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // 1. Current style entry. The shared picker commits only after confirmation.
+            androidx.compose.material3.Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showStylePicker = true },
+                shape = RoundedCornerShape(10.dp),
+                colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = DarkCard)
             ) {
-                listOf(
-                    "CLASSIC" to "经典工程",
-                    "MINIMAL" to "极简水印",
-                    "INFO_BOARD" to "工程信息板"
-                ).forEach { (styleKey, styleTitle) ->
-                    val isSelected = currentStyle == styleKey
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { onStyleChange(styleKey) },
-                        label = {
-                            Text(
-                                text = styleTitle,
-                                fontSize = 12.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = EngineeringYellow,
-                            selectedLabelColor = Color.Black,
-                            containerColor = DarkCard,
-                            labelColor = TextSecondaryDark
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("当前水印样式", color = TextSecondaryDark, fontSize = 12.sp)
+                        Text(
+                            text = currentStyle.name,
+                            color = EngineeringYellow,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
                         )
-                    )
+                        Text(
+                            text = currentStyle.description,
+                            color = TextSecondaryDark,
+                            fontSize = 11.sp,
+                            maxLines = 1
+                        )
+                    }
+                    TextButton(
+                        onClick = { showStylePicker = true },
+                        colors = ButtonDefaults.textButtonColors(contentColor = EngineeringYellow)
+                    ) {
+                        Text("更换样式")
+                    }
                 }
             }
 
@@ -355,6 +366,18 @@ fun QuickWatermarkEditSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
         }
+    }
+
+    if (showStylePicker) {
+        WatermarkStylePickerDialog(
+            currentStyleId = activeTemplate?.styleType ?: "CLASSIC",
+            previewData = previewData,
+            onDismiss = { showStylePicker = false },
+            onConfirm = { styleId ->
+                onStyleChange(styleId)
+                showStylePicker = false
+            }
+        )
     }
 
     // Add Field Dialog inside bottom sheet

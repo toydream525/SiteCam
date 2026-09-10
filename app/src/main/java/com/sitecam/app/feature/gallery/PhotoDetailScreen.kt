@@ -76,6 +76,15 @@ fun PhotoDetailScreen(
 ) {
     val context = LocalContext.current
     val item by viewModel.mediaItem.collectAsState()
+    val annotation by viewModel.annotation.collectAsState()
+    var showEdited by remember { mutableStateOf(false) }
+    var showIssueDialog by remember { mutableStateOf(false) }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner, viewModel) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event -> if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) viewModel.refreshAnnotation() }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     val issue by viewModel.issue.collectAsState()
     val isRetrying by viewModel.isRetrying.collectAsState()
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -110,6 +119,15 @@ fun PhotoDetailScreen(
         }
     }
 
+    if (showIssueDialog && item != null) {
+        com.sitecam.app.feature.issue.IssueDialog(
+            mediaId = item!!.id, existingIssue = issue,
+            onDismiss = { showIssueDialog = false },
+            onConfirm = { title, severity, description, status -> viewModel.saveIssue(title, severity, description, status); showIssueDialog = false },
+            onRemove = if (issue != null) ({ viewModel.removeIssue(); showIssueDialog = false }) else null
+        )
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = DarkBackground,
@@ -138,7 +156,7 @@ fun PhotoDetailScreen(
                     IconButton(onClick = { showInfoSheet = !showInfoSheet }) {
                         Icon(Icons.Default.Info, contentDescription = "详细信息", tint = Color.White)
                     }
-                    IconButton(onClick = { viewModel.requestShare() }) {
+                    IconButton(onClick = { viewModel.requestShare(showEdited) }) {
                         Icon(Icons.Default.Share, contentDescription = "分享", tint = Color.White)
                     }
                     IconButton(onClick = { showDeleteConfirm = true }) {
@@ -184,15 +202,16 @@ fun PhotoDetailScreen(
                                 }
                             }
                         } else {
-                            AsyncImage(
-                                model = media.contentUri,
-                                contentDescription = media.fileName,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Fit
-                            )
+                            ZoomablePhoto(if (showEdited) annotation?.annotatedContentUri ?: media.contentUri else media.contentUri, media.fileName)
                         }
                     }
 
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        if (media.mediaType != "VIDEO" && annotation != null) {
+                            TextButton(onClick = { showEdited = !showEdited }) { Text(if (showEdited) "查看原图" else "查看编辑成品") }
+                        }
+                        TextButton(onClick = { showIssueDialog = true }) { Text(if (issue == null) "登记问题" else "编辑问题") }
+                    }
                     issue?.let { issueRecord ->
                         IssueSummaryCard(issueRecord, Modifier.fillMaxWidth().padding(12.dp))
                     }
@@ -229,7 +248,9 @@ fun PhotoDetailScreen(
                                     }
                                 }
                             }
-                            Text("文件路径: ${media.filePath}/${media.fileName}", color = TextSecondaryDark, fontSize = 13.sp)
+                            val storageLabel = if (android.net.Uri.parse(media.contentUri).authority == android.provider.MediaStore.AUTHORITY) "系统相册" else "应用相册"
+                            Text("保存位置: $storageLabel", color = TextSecondaryDark, fontSize = 13.sp)
+                            Text("文件名: ${media.fileName}", color = TextSecondaryDark, fontSize = 13.sp)
                         }
                     }
                 }

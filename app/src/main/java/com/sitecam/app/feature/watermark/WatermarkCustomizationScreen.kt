@@ -58,6 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sitecam.app.core.database.entity.WatermarkFieldEntity
+import com.sitecam.app.core.watermark.model.WatermarkStyleCatalog
 import com.sitecam.app.core.watermark.renderer.WatermarkPreviewCanvas
 import com.sitecam.app.ui.theme.DarkBackground
 import com.sitecam.app.ui.theme.DarkCard
@@ -77,6 +78,7 @@ fun WatermarkCustomizationScreen(
     val uiState by viewModel.uiState.collectAsState()
     var showAddFieldDialog by remember { mutableStateOf(false) }
     var editingField by remember { mutableStateOf<WatermarkFieldEntity?>(null) }
+    var showStylePicker by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -85,7 +87,7 @@ fun WatermarkCustomizationScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "${uiState.template?.name ?: "水印"} 样式与字段定制",
+                        text = "水印样式与字段定制",
                         color = TextPrimaryDark,
                         fontWeight = FontWeight.Bold,
                         fontSize = 17.sp
@@ -136,6 +138,30 @@ fun WatermarkCustomizationScreen(
                             watermarkData = uiState.previewData,
                             modifier = Modifier.fillMaxSize()
                         )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                val currentStyle = WatermarkStyleCatalog.resolve(uiState.template?.styleType)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("当前样式", color = TextSecondaryDark, fontSize = 12.sp)
+                        Text(
+                            text = currentStyle.name,
+                            color = EngineeringYellow,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    TextButton(
+                        onClick = { showStylePicker = true },
+                        colors = ButtonDefaults.textButtonColors(contentColor = EngineeringYellow)
+                    ) {
+                        Text("更换样式")
                     }
                 }
             }
@@ -342,6 +368,18 @@ fun WatermarkCustomizationScreen(
                 Spacer(modifier = Modifier.height(24.dp))
             }
         }
+    }
+
+    if (showStylePicker) {
+        WatermarkStylePickerDialog(
+            currentStyleId = uiState.template?.styleType ?: "CLASSIC",
+            previewData = uiState.previewData,
+            onDismiss = { showStylePicker = false },
+            onConfirm = { styleId ->
+                viewModel.updateStyleType(styleId)
+                showStylePicker = false
+            }
+        )
     }
 
     // Add Custom Field Dialog

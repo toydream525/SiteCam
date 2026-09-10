@@ -1,0 +1,24 @@
+{
+  "string": [
+    {
+      "name": "app_name",
+      "value": "工程水印相机"
+    },
+    {
+      "name": "module_desc",
+      "value": "工程拍摄、现场记录与资料归档"
+    },
+    {
+      "name": "permission_camera",
+      "value": "用于拍摄工程照片与视频"
+    },
+    {
+      "name": "permission_microphone",
+      "value": "用于为工程视频录制现场声音"
+    },
+    {
+      "name": "permission_location",
+      "value": "用于在工程水印中记录拍摄位置"
+    }
+  ]
+}

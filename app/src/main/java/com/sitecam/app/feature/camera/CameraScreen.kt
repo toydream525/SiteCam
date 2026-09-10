@@ -1,5 +1,9 @@
 package com.sitecam.app.feature.camera
 
+import com.sitecam.app.feature.permissions.PermissionAccess
+import com.sitecam.app.feature.onboarding.OnboardingPreferences
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -12,6 +16,8 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -64,6 +70,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -100,10 +107,25 @@ fun CameraScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val localView = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val uiState by viewModel.uiState.collectAsState()
+    val permissionPreferences = remember(context) { OnboardingPreferences(context) }
+    val permissionPreferenceState by permissionPreferences.state.collectAsState(initial = null)
+    val permissionScope = rememberCoroutineScope()
+    var requestedHere by remember { mutableStateOf(emptySet<String>()) }
+    val requestedPermissions = permissionPreferenceState?.requestedPermissions.orEmpty() + requestedHere
 
     var showQuickWatermarkSheet by remember { mutableStateOf(false) }
+    var shutterFlashToken by remember { mutableStateOf(0L) }
+    var photoSaveAnimationToken by remember { mutableStateOf(0L) }
+    val previewFlashAlpha = remember { Animatable(0f) }
+
+    LaunchedEffect(shutterFlashToken) {
+        if (shutterFlashToken == 0L) return@LaunchedEffect
+        previewFlashAlpha.snapTo(0.28f)
+        previewFlashAlpha.animateTo(0f, tween(durationMillis = 100))
+    }
 
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -113,17 +135,7 @@ fun CameraScreen(
             ) == PackageManager.PERMISSION_GRANTED
         )
     }
-    var cameraPermissionRequested by remember { mutableStateOf(false) }
     var cameraNeedsSettings by remember { mutableStateOf(false) }
-    val storagePermissionRequired = Build.VERSION.SDK_INT <= Build.VERSION_CODES.P
-    var hasStoragePermission by remember {
-        mutableStateOf(
-            !storagePermissionRequired || ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE
-            ) == PackageManager.PERMISSION_GRANTED
-        )
-    }
     val cameraReady by viewModel.cameraManager.isCameraReady.collectAsState()
     val cameraError by viewModel.cameraManager.cameraError.collectAsState()
 
@@ -141,124 +153,124 @@ fun CameraScreen(
                 ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
         )
     }
-    var pendingVideoStart by remember { mutableStateOf(false) }
-    var locationPermissionRequested by remember { mutableStateOf(false) }
+    var audioNeedsSettings by remember { mutableStateOf(false) }
+    var showOptionalPermissions by remember { mutableStateOf(false) }
     var locationNeedsSettings by remember { mutableStateOf(false) }
 
+    val projectCanCapture = uiState.currentProject?.let { !it.isCaptureLocked && !it.isArchived } == true
     val isCaptureBusy = uiState.isCapturing || uiState.isRecordingVideo
+    val orientationContext = LocalContext.current
+    val orientationActivity = remember(orientationContext) {
+        var candidate: android.content.Context = orientationContext
+        while (candidate is android.content.ContextWrapper && candidate !is android.app.Activity) candidate = candidate.baseContext
+        candidate as? android.app.Activity
+    }
+    DisposableEffect(orientationActivity) {
+        val previous = orientationActivity?.requestedOrientation
+        onDispose { if (previous != null) orientationActivity?.requestedOrientation = previous }
+    }
+    LaunchedEffect(uiState.captureOrientation, uiState.orientationDegrees, isCaptureBusy) {
+        if (!isCaptureBusy) {
+            val requestedOrientation = if (uiState.captureOrientation == com.sitecam.app.core.camera.CaptureOrientation.AUTO) {
+                // Drive AUTO through the three accepted directions explicitly.
+                // Some vendor implementations treat SENSOR as FULL_SENSOR;
+                // updating the activity lock from the filtered sensor value
+                // prevents a reverse-portrait window from ever being shown.
+                when (com.sitecam.app.core.camera.allowedSensorDegrees(uiState.orientationDegrees)) {
+                    90 -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
+                    270 -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                    else -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                }
+            } else {
+                uiState.captureOrientation.requestedOrientation
+            }
+            orientationActivity?.requestedOrientation = requestedOrientation
+        }
+    }
+
     val isCameraBusy = isCaptureBusy || !cameraReady
 
+    fun handleShutterPressed() {
+        // CameraBottomBar filters busy/locked taps before invoking this
+        // callback. The token therefore represents an accepted photo tap and
+        // remains independent from the optional shutter sound setting.
+        if (uiState.captureMode == CaptureMode.PHOTO) {
+            shutterFlashToken += 1L
+        }
+        if (uiState.captureMode == CaptureMode.VIDEO && !uiState.isRecordingVideo) {
+            if (hasAudioPermission) {
+                viewModel.handleShutterAction(context, withAudio = true)
+            } else {
+                Toast.makeText(context, "本次录制无声视频，可点无录音提示开启麦克风", Toast.LENGTH_SHORT).show()
+                viewModel.handleShutterAction(context, withAudio = false)
+            }
+        } else {
+            viewModel.handleShutterAction(context, withAudio = hasAudioPermission)
+        }
+    }
+
     fun refreshPermissions() {
-        hasCameraPermission = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.CAMERA
-        ) == PackageManager.PERMISSION_GRANTED
-        hasAudioPermission = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.RECORD_AUDIO
-        ) == PackageManager.PERMISSION_GRANTED
-        hasLocationPermission = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-        if (hasLocationPermission) locationNeedsSettings = false
-        if (hasCameraPermission) cameraNeedsSettings = false
-        hasStoragePermission = !storagePermissionRequired || ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.WRITE_EXTERNAL_STORAGE
-        ) == PackageManager.PERMISSION_GRANTED
+        val actual = PermissionAccess.read(context, requestedPermissions)
+        hasCameraPermission = actual.camera
+        hasAudioPermission = actual.microphone
+        hasLocationPermission = actual.location
+        cameraNeedsSettings = actual.cameraNeedsSettings
+        locationNeedsSettings = actual.locationNeedsSettings
+        audioNeedsSettings = actual.microphoneNeedsSettings
         viewModel.updateLocationPermission(hasLocationPermission)
         if (!hasCameraPermission) viewModel.cameraManager.unbindCamera()
     }
 
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { permissions ->
-        cameraPermissionRequested = true
-        hasCameraPermission = permissions
-        if (!permissions) {
-            val activity = context as? ComponentActivity
-            cameraNeedsSettings = activity != null &&
-                !androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(
-                    activity,
-                    Manifest.permission.CAMERA
-                )
-            Toast.makeText(
-                context,
-                if (cameraNeedsSettings) "相机权限已永久拒绝，请到系统设置开启" else "未授予相机权限，无法拍摄",
-                Toast.LENGTH_LONG
-            ).show()
-        }
+    fun openPermissionSettings() {
+        context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")))
     }
 
-    val storagePermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        hasStoragePermission = granted
-        if (!granted) {
-            Toast.makeText(context, "未授予存储权限，将保存到应用专属相册目录", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    val audioPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        hasAudioPermission = granted
-        if (pendingVideoStart) {
-            pendingVideoStart = false
-            if (granted) {
-                viewModel.handleShutterAction(context, withAudio = true)
-            } else {
-                Toast.makeText(context, "未授予录音权限，将录制无声视频", Toast.LENGTH_LONG).show()
-                viewModel.handleShutterAction(context, withAudio = false)
-            }
-        }
-    }
-
-    val locationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        hasLocationPermission = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        if (hasLocationPermission) {
-            locationNeedsSettings = false
-            viewModel.startForegroundServices(locationEnabled = true)
-        } else {
-            val activity = context as? ComponentActivity
-            locationNeedsSettings = locationPermissionRequested && activity != null &&
-                !androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(
-                    activity,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                ) && !androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(
-                    activity,
-                    Manifest.permission.ACCESS_FINE_LOCATION
-                )
-            Toast.makeText(context, "未授予定位权限，照片仍可拍摄但不含现场定位", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    LaunchedEffect(Unit) {
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         refreshPermissions()
-        if (!hasCameraPermission) {
-            cameraPermissionRequested = true
+        if (!hasCameraPermission) Toast.makeText(context,
+            if (cameraNeedsSettings) "相机未开启，请到系统设置允许；仍可管理已有资料" else "相机未开启，仍可管理已有资料", Toast.LENGTH_LONG).show()
+    }
+    val audioPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        refreshPermissions()
+        Toast.makeText(context, if (hasAudioPermission) "麦克风已开启，下次录像将包含声音" else "麦克风未开启，仍可录制无声视频", Toast.LENGTH_LONG).show()
+    }
+    val locationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        refreshPermissions()
+        if (hasLocationPermission) viewModel.startForegroundServices(locationEnabled = true)
+        else Toast.makeText(context, "定位未开启，照片仍可拍摄但不含现场定位", Toast.LENGTH_LONG).show()
+    }
+
+    fun requestCameraPermission() {
+        val actual = PermissionAccess.read(context, requestedPermissions)
+        if (actual.camera) { refreshPermissions(); return }
+        if (actual.cameraNeedsSettings) { openPermissionSettings(); return }
+        requestedHere = requestedHere + Manifest.permission.CAMERA
+        permissionScope.launch {
+            permissionPreferences.markPermissionsRequested(listOf(Manifest.permission.CAMERA))
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-        } else {
-            viewModel.startForegroundServices(locationEnabled = hasLocationPermission)
         }
     }
+    fun requestOptionalPermission(forLocation: Boolean) {
+        val actual = PermissionAccess.read(context, requestedPermissions)
+        if (forLocation && !actual.location) {
+            if (actual.locationNeedsSettings) { openPermissionSettings(); return }
+            val permissions = listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+            requestedHere = requestedHere + permissions
+            permissionScope.launch { permissionPreferences.markPermissionsRequested(permissions); locationPermissionLauncher.launch(permissions.toTypedArray()) }
+        } else if (!forLocation && !actual.microphone) {
+            if (actual.microphoneNeedsSettings) { openPermissionSettings(); return }
+            requestedHere = requestedHere + Manifest.permission.RECORD_AUDIO
+            permissionScope.launch { permissionPreferences.markPermissionsRequested(listOf(Manifest.permission.RECORD_AUDIO)); audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }
+        }
+    }
+
+    // Mounting or returning from the guide/settings only reads permission state.
+    // System requests are reserved for the explicit missing-permission controls.
+    LaunchedEffect(requestedPermissions) { refreshPermissions() }
 
     LaunchedEffect(hasCameraPermission, hasLocationPermission) {
         if (hasCameraPermission) {
             viewModel.startForegroundServices(locationEnabled = hasLocationPermission)
-        }
-    }
-
-    LaunchedEffect(hasCameraPermission, hasStoragePermission) {
-        if (hasCameraPermission && storagePermissionRequired && !hasStoragePermission) {
-            storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
     }
 
@@ -301,7 +313,13 @@ fun CameraScreen(
     LaunchedEffect(viewModel) {
         viewModel.uiEvents.collect { event ->
             when (event) {
-                is CameraUiEvent.PhotoCaptured -> {
+                is CameraUiEvent.PhotoSaved -> {
+                    photoSaveAnimationToken += 1L
+                    if (event.showToast) {
+                        Toast.makeText(context, "媒体已保存", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                is CameraUiEvent.VideoSaved -> {
                     Toast.makeText(context, "媒体已保存", Toast.LENGTH_SHORT).show()
                 }
                 is CameraUiEvent.QuickIssuePrompt -> {
@@ -314,6 +332,25 @@ fun CameraScreen(
         }
     }
 
+    if (showOptionalPermissions) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showOptionalPermissions = false },
+            title = { Text("补充可选权限") },
+            text = {
+                androidx.compose.foundation.layout.Column {
+                    Text("不授权也能继续使用：照片不含定位，视频不含声音。")
+                    if (!hasLocationPermission) androidx.compose.material3.TextButton(onClick = {
+                        showOptionalPermissions = false; requestOptionalPermission(forLocation = true)
+                    }) { Text(if (locationNeedsSettings) "去设置开启位置" else "开启位置权限") }
+                    if (!hasAudioPermission) androidx.compose.material3.TextButton(onClick = {
+                        showOptionalPermissions = false; requestOptionalPermission(forLocation = false)
+                    }) { Text(if (audioNeedsSettings) "去设置开启麦克风" else "开启麦克风权限") }
+                }
+            },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { showOptionalPermissions = false }) { Text("暂时不用") } }
+        )
+    }
+
     if (!hasCameraPermission) {
         Box(
             modifier = Modifier
@@ -321,32 +358,24 @@ fun CameraScreen(
                 .background(DarkBackground),
             contentAlignment = Alignment.Center
         ) {
-            Box(modifier = Modifier.padding(24.dp)) {
+            androidx.compose.foundation.layout.Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Button(
-                    onClick = {
-                        if (cameraNeedsSettings) {
-                            context.startActivity(
-                                Intent(
-                                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                    Uri.parse("package:${context.packageName}")
-                                )
-                            )
-                        } else {
-                            cameraPermissionRequested = true
-                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                        }
-                    },
+                    onClick = ::requestCameraPermission,
+                    enabled = permissionPreferenceState != null,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = EngineeringYellow,
                         contentColor = DarkBackground
                     )
                 ) {
                     Text(
-                        text = "授予相机权限",
+                        text = if (cameraNeedsSettings) "去系统设置开启相机" else "开启相机权限",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
+                androidx.compose.material3.TextButton(onClick = onNavigateToProjects) { Text("管理工程") }
+                androidx.compose.material3.TextButton(onClick = { onNavigateToGallery(null) }) { Text("浏览相册") }
+                androidx.compose.material3.TextButton(onClick = onNavigateToSettings) { Text("设置与使用教程") }
             }
         }
         return
@@ -487,12 +516,16 @@ fun CameraScreen(
         LaunchedEffect(previewViewRef, previewViewSize) {
             val preview = previewViewRef ?: return@LaunchedEffect
             if (previewViewSize.width <= 0 || previewViewSize.height <= 0) return@LaunchedEffect
-            if (uiState.isRecordingVideo) return@LaunchedEffect
-            val targetRotation = resolveCameraTargetRotation(
-                orientationDegrees = uiState.orientationDegrees,
-                windowIsLandscape = isLandscape,
-                displayRotation = preview.display?.rotation ?: Surface.ROTATION_0
-            )
+            if (isCaptureBusy) return@LaunchedEffect
+            val targetRotation = if (uiState.captureOrientation == com.sitecam.app.core.camera.CaptureOrientation.AUTO) {
+                resolveCameraTargetRotation(
+                    orientationDegrees = uiState.orientationDegrees,
+                    windowIsLandscape = isLandscape,
+                    displayRotation = localView.display?.rotation ?: Surface.ROTATION_0
+                )
+            } else {
+                uiState.captureOrientation.targetRotation(uiState.orientationDegrees)
+            }
             viewModel.cameraManager.initializeCamera(
                 lifecycleOwner = lifecycleOwner,
                 previewView = preview,
@@ -502,14 +535,18 @@ fun CameraScreen(
             viewModel.cameraManager.updateTargetRotation(targetRotation)
         }
 
-        LaunchedEffect(uiState.orientationDegrees, previewViewRef, uiState.isRecordingVideo, isLandscape) {
-            if (!uiState.isRecordingVideo) {
-                previewViewRef?.let { preview ->
-                    val targetRotation = resolveCameraTargetRotation(
-                        orientationDegrees = uiState.orientationDegrees,
-                        windowIsLandscape = isLandscape,
-                        displayRotation = preview.display?.rotation ?: Surface.ROTATION_0
-                    )
+        LaunchedEffect(uiState.captureOrientation, uiState.orientationDegrees, previewViewRef, isCaptureBusy, isLandscape, localView.display?.rotation) {
+            if (!isCaptureBusy) {
+                previewViewRef?.let {
+                    val targetRotation = if (uiState.captureOrientation == com.sitecam.app.core.camera.CaptureOrientation.AUTO) {
+                        resolveCameraTargetRotation(
+                            orientationDegrees = uiState.orientationDegrees,
+                            windowIsLandscape = isLandscape,
+                            displayRotation = localView.display?.rotation ?: Surface.ROTATION_0
+                        )
+                    } else {
+                        uiState.captureOrientation.targetRotation(uiState.orientationDegrees)
+                    }
                     viewModel.cameraManager.updateTargetRotation(
                         targetRotation
                     )
@@ -562,15 +599,28 @@ fun CameraScreen(
             )
         }
 
+        if (previewFlashAlpha.value > 0f) {
+            Box(
+                modifier = previewFrameModifier
+                    .background(Color.White.copy(alpha = previewFlashAlpha.value))
+            )
+        }
+
         // 3. Focus Ring
         FocusRing(
             position = focusPosition,
             onAnimationEnd = { focusPosition = null }
         )
 
+        if (!projectCanCapture) {
+            Text("${uiState.currentProject?.name ?: "当前工程不可用"}：禁止拍摄，请解锁或切换工程", color = EngineeringYellow,
+                modifier = Modifier.align(Alignment.Center).background(Color.Black.copy(alpha = 0.75f)).padding(12.dp))
+        }
         // 4. Top Controls Bar
         CameraTopBar(
-            projectName = uiState.currentProject?.name ?: "默认工程项目",
+            projectName = (uiState.currentProject?.name ?: "默认工程项目") + if (uiState.currentProject?.isCaptureLocked == true) " · 已锁定" else "",
+            orientationLabel = uiState.captureOrientation.label,
+            onOrientationSelected = viewModel::setCaptureOrientation,
             flashMode = uiState.flashMode,
             isQuickIssueMode = uiState.isQuickIssueMode,
             onProjectClick = onNavigateToProjects,
@@ -578,7 +628,7 @@ fun CameraScreen(
             onFlashLongPress = { viewModel.toggleTorchMode() },
             onQuickIssueToggle = { viewModel.toggleQuickIssueMode() },
             onSettingsClick = onNavigateToSettings,
-            isBusy = isCameraBusy,
+            isBusy = isCaptureBusy,
             isLandscape = isLandscape,
             modifier = if (isLandscape) {
                 Modifier
@@ -604,26 +654,7 @@ fun CameraScreen(
                     )
                     .clip(androidx.compose.foundation.shape.RoundedCornerShape(18.dp))
                     .background(Color.Black.copy(alpha = 0.78f))
-                    .clickable(enabled = !hasLocationPermission && !isCameraBusy) {
-                        if (!hasLocationPermission) {
-                            if (locationNeedsSettings) {
-                                context.startActivity(
-                                    Intent(
-                                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                        Uri.parse("package:${context.packageName}")
-                                    )
-                                )
-                            } else {
-                                locationPermissionRequested = true
-                                locationPermissionLauncher.launch(
-                                    arrayOf(
-                                        Manifest.permission.ACCESS_FINE_LOCATION,
-                                        Manifest.permission.ACCESS_COARSE_LOCATION
-                                    )
-                                )
-                            }
-                        }
-                    }
+                    .clickable(enabled = !isCaptureBusy && permissionPreferenceState != null) { showOptionalPermissions = true }
                     .padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -634,9 +665,12 @@ fun CameraScreen(
                     modifier = Modifier.size(17.dp)
                 )
                 Text(
-                    text = if (!hasLocationPermission) {
-                        if (locationNeedsSettings) "无定位 · 去设置" else "无定位 · 可拍摄"
-                    } else "无录音 · 录像无声",
+                    text = when {
+                        uiState.currentProject?.isArchived == true -> "工程已归档"
+                        uiState.currentProject?.isCaptureLocked == true -> "工程已锁定"
+                        !hasLocationPermission -> if (locationNeedsSettings) "无定位 · 去设置" else "无定位 · 可拍摄"
+                        else -> if (audioNeedsSettings) "无录音 · 去设置" else "无录音 · 点此开启"
+                    },
                     color = Color.White,
                     fontSize = 11.sp,
                     maxLines = 1
@@ -651,6 +685,7 @@ fun CameraScreen(
             CameraBottomBar(
                 latestThumbnailUri = uiState.latestThumbnailUri,
                 isCapturing = uiState.isCapturing,
+                captureAllowed = projectCanCapture,
                 captureMode = uiState.captureMode,
                 isRecordingVideo = uiState.isRecordingVideo,
                 recordingDurationSeconds = uiState.recordingDurationSeconds,
@@ -660,18 +695,7 @@ fun CameraScreen(
                 isLandscape = true,
                 landscapeBarWidth = landscapeControlWidth,
                 onModeChange = { mode -> viewModel.setCaptureMode(mode) },
-                onShutterClick = {
-                    if (uiState.captureMode == CaptureMode.VIDEO && !uiState.isRecordingVideo) {
-                        if (hasAudioPermission) {
-                            viewModel.handleShutterAction(context, withAudio = true)
-                        } else {
-                            pendingVideoStart = true
-                            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                        }
-                    } else {
-                        viewModel.handleShutterAction(context, withAudio = hasAudioPermission)
-                    }
-                },
+                onShutterClick = ::handleShutterPressed,
                 onGalleryClick = { onNavigateToGallery(uiState.currentProject?.id) },
                 onFlipCameraClick = {
                     val preview = previewViewRef
@@ -687,12 +711,15 @@ fun CameraScreen(
                         )
                     ),
                 isBusy = isCameraBusy,
-                latestMediaType = uiState.latestMediaType
+                latestMediaType = uiState.latestMediaType,
+                shutterSoundEnabled = uiState.shutterSoundEnabled,
+                thumbnailBounceToken = photoSaveAnimationToken,
             )
         } else {
             CameraBottomBar(
                 latestThumbnailUri = uiState.latestThumbnailUri,
                 isCapturing = uiState.isCapturing,
+                captureAllowed = projectCanCapture,
                 captureMode = uiState.captureMode,
                 isRecordingVideo = uiState.isRecordingVideo,
                 recordingDurationSeconds = uiState.recordingDurationSeconds,
@@ -701,18 +728,7 @@ fun CameraScreen(
                 onZoomSelected = { ratio -> viewModel.setZoomRatio(ratio) },
                 isLandscape = false,
                 onModeChange = { mode -> viewModel.setCaptureMode(mode) },
-                onShutterClick = {
-                    if (uiState.captureMode == CaptureMode.VIDEO && !uiState.isRecordingVideo) {
-                        if (hasAudioPermission) {
-                            viewModel.handleShutterAction(context, withAudio = true)
-                        } else {
-                            pendingVideoStart = true
-                            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                        }
-                    } else {
-                        viewModel.handleShutterAction(context, withAudio = hasAudioPermission)
-                    }
-                },
+                onShutterClick = ::handleShutterPressed,
                 onGalleryClick = { onNavigateToGallery(uiState.currentProject?.id) },
                 onFlipCameraClick = {
                     val preview = previewViewRef
@@ -730,7 +746,9 @@ fun CameraScreen(
                         )
                     ),
                 isBusy = isCameraBusy,
-                latestMediaType = uiState.latestMediaType
+                latestMediaType = uiState.latestMediaType,
+                shutterSoundEnabled = uiState.shutterSoundEnabled,
+                thumbnailBounceToken = photoSaveAnimationToken,
             )
         }
 
@@ -739,6 +757,7 @@ fun CameraScreen(
             QuickWatermarkEditSheet(
                 activeTemplate = uiState.activeTemplate,
                 fields = uiState.watermarkFields,
+                previewData = uiState.watermarkData,
                 onDismissRequest = { showQuickWatermarkSheet = false },
                 onFieldValueChange = { fieldId, newVal ->
                     viewModel.updateWatermarkFieldValue(fieldId, newVal)

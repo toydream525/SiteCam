@@ -18,24 +18,32 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FlashAuto
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.ReportProblem
+import androidx.compose.material.icons.filled.RotateLeft
+import androidx.compose.material.icons.filled.RotateRight
+import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.StayCurrentPortrait
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sitecam.app.core.camera.CaptureOrientation
+import com.sitecam.app.ui.theme.DarkCard
 import com.sitecam.app.ui.theme.EngineeringYellow
 import com.sitecam.app.ui.theme.ErrorRed
 
@@ -50,6 +58,8 @@ fun CameraTopBar(
     onFlashLongPress: () -> Unit,
     onQuickIssueToggle: () -> Unit,
     onSettingsClick: () -> Unit,
+    orientationLabel: String = "自动",
+    onOrientationSelected: (CaptureOrientation) -> Unit = {},
     isBusy: Boolean = false,
     isLandscape: Boolean = false,
     modifier: Modifier = Modifier
@@ -78,6 +88,7 @@ fun CameraTopBar(
                 onFlashLongPress
             )
             ToolIcon(Icons.Default.ReportProblem, if (isQuickIssueMode) ErrorRed else Color.White, "重点问题", !isBusy, onQuickIssueToggle)
+            OrientationSelector(orientationLabel, !isBusy, onOrientationSelected)
             ToolIcon(Icons.Default.Settings, Color.White, "设置", !isBusy, onSettingsClick)
         }
     } else {
@@ -88,7 +99,7 @@ fun CameraTopBar(
         ) {
             Row(
                 modifier = Modifier
-                    .widthIn(max = 154.dp)
+                    .widthIn(max = 125.dp)
                     .height(48.dp)
                     .clip(RoundedCornerShape(24.dp))
                     .background(Color(0xFF1B1B1B))
@@ -109,7 +120,7 @@ fun CameraTopBar(
                 )
                 Icon(Icons.Default.ArrowDropDown, null, tint = Color.White.copy(alpha = 0.72f), modifier = Modifier.size(17.dp))
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(horizontalArrangement = Arrangement.spacedBy(0.dp), verticalAlignment = Alignment.CenterVertically) {
                 ToolIcon(
                     flashIcon,
                     if (flashSelected) EngineeringYellow else Color.White,
@@ -119,6 +130,7 @@ fun CameraTopBar(
                     onFlashLongPress
                 )
                 ToolIcon(Icons.Default.ReportProblem, if (isQuickIssueMode) ErrorRed else Color.White, "重点问题", !isBusy, onQuickIssueToggle)
+                OrientationSelector(orientationLabel, !isBusy, onOrientationSelected)
                 ToolIcon(Icons.Default.Settings, Color.White, "设置", !isBusy, onSettingsClick)
             }
         }
@@ -154,4 +166,66 @@ private fun ToolIcon(
     ) {
         Icon(icon, description, tint = tint, modifier = Modifier.size(25.dp))
     }
+}
+
+@Composable
+private fun OrientationSelector(label: String, enabled: Boolean, onSelect: (CaptureOrientation) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val current = CaptureOrientation.entries.firstOrNull { it.label == label } ?: CaptureOrientation.AUTO
+    Box {
+        ToolIcon(
+            icon = orientationIcon(current),
+            tint = EngineeringYellow,
+            description = "拍摄方向：${current.label}",
+            enabled = enabled,
+            onClick = { expanded = true }
+        )
+        androidx.compose.material3.DropdownMenu(
+            expanded = expanded && enabled,
+            onDismissRequest = { expanded = false },
+            containerColor = DarkCard
+        ) {
+            CaptureOrientation.entries.forEach { mode ->
+                androidx.compose.material3.DropdownMenuItem(
+                    text = {
+                        Row(
+                            modifier = Modifier.widthIn(min = 164.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = orientationIcon(mode),
+                                contentDescription = mode.label,
+                                tint = if (mode == current) EngineeringYellow else Color.White
+                            )
+                            androidx.compose.foundation.layout.Spacer(Modifier.size(10.dp))
+                            Text(
+                                text = mode.label,
+                                color = if (mode == current) EngineeringYellow else Color.White
+                            )
+                            androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                            if (mode == current) {
+                                Icon(
+                                    imageVector = androidx.compose.material.icons.Icons.Default.Check,
+                                    contentDescription = "当前选择",
+                                    tint = EngineeringYellow,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    },
+                    onClick = {
+                        expanded = false
+                        onSelect(mode)
+                    }
+                )
+            }
+        }
+    }
+}
+
+private fun orientationIcon(mode: CaptureOrientation): ImageVector = when (mode) {
+    CaptureOrientation.AUTO -> androidx.compose.material.icons.Icons.Default.ScreenRotation
+    CaptureOrientation.PORTRAIT -> androidx.compose.material.icons.Icons.Default.StayCurrentPortrait
+    CaptureOrientation.LANDSCAPE_LEFT -> androidx.compose.material.icons.Icons.Default.RotateLeft
+    CaptureOrientation.LANDSCAPE_RIGHT -> androidx.compose.material.icons.Icons.Default.RotateRight
 }

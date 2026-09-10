@@ -19,6 +19,7 @@ class CameraRotationTest {
         assertTrue(normalizeDisplayRotation(-1) == Surface.ROTATION_0)
         assertFalse(isQuarterTurnDisplayRotation(Surface.ROTATION_0))
         assertFalse(isQuarterTurnDisplayRotation(Surface.ROTATION_180))
+        assertTrue(safeCameraTargetRotation(Surface.ROTATION_180) == Surface.ROTATION_0)
     }
 
     @Test
@@ -71,7 +72,19 @@ class CameraRotationTest {
                 orientationDegrees = 90,
                 windowIsLandscape = false,
                 displayRotation = Surface.ROTATION_180
-            ) == Surface.ROTATION_180
+            ) == Surface.ROTATION_0
         )
+    }
+
+    @Test
+    fun upsideDownDisplayRotationIsNeverPropagatedToCameraTargets() {
+        assertTrue(
+            resolveCameraTargetRotation(
+                orientationDegrees = 180,
+                windowIsLandscape = false,
+                displayRotation = Surface.ROTATION_180
+            ) == Surface.ROTATION_0
+        )
+        assertTrue(CaptureOrientation.AUTO.targetRotation(180) != Surface.ROTATION_180)
     }
 }

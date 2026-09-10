@@ -50,7 +50,8 @@ data class FolderExportResult(
     val copiedFileCount: Int,
     val missingMediaCount: Int,
     val copiedAnnotationCount: Int,
-    val missingAnnotationCount: Int
+    val missingAnnotationCount: Int,
+    val destinationFailureCount: Int = 0
 )
 
 /** RFC 4180-compatible CSV field escaping. */
@@ -65,307 +66,246 @@ class ProjectExportEngine(
     private val database: AppDatabase
 ) {
 
-    suspend fun exportProjectToZip(
-        projectId: Long,
-        onProgress: (current: Int, total: Int, currentFileName: String) -> Unit = { _, _, _ -> }
-    ): ExportResult = withContext(Dispatchers.IO) {
-        val project = database.projectDao().getProjectById(projectId)
-            ?: throw IllegalArgumentException("Project with id $projectId not found")
-        val mediaList: List<MediaItemEntity> = database.mediaItemDao().getMediaItemsByProject(projectId).first()
-        val issueList: List<IssueEntity> = database.issueDao().getIssuesByProject(projectId).first()
-        val issueMap = issueList.associateBy { it.mediaId }
-        val annotations = mediaList.associate { it.id to database.issueDao().getAnnotationByMediaId(it.id) }
+    suspend fun exportProjectToZip(projectId: Long,
+        onProgress: (Int, Int, String) -> Unit = { _, _, _ -> }): ExportResult =
+        exportProjectsToZip(setOf(projectId), onProgress = onProgress)
 
-        val totalPhotos = mediaList.count { it.mediaType == "PHOTO" }
-        val totalVideos = mediaList.count { it.mediaType == "VIDEO" }
-        val burnedVideos = mediaList.count { it.mediaType == "VIDEO" && it.processingStatus == "READY" }
-        val totalIssues = mediaList.count { it.isIssue }
-        val timestamp = System.currentTimeMillis()
-        val timeStr = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date(timestamp))
-        val sanitizedName = NamingEngine.sanitizeFileName(project.name)
-        val zipName = "p${project.id}_${sanitizedName}_${timeStr}.zip"
-        val target = createExportTarget(zipName)
+    suspend fun exportProjectToFolder(projectId: Long, treeUri: Uri,
+        onProgress: (Int, Int, String) -> Unit = { _, _, _ -> }): FolderExportResult =
+        exportProjectsToFolder(setOf(projectId), treeUri, onProgress = onProgress)
 
-        var copiedFileCount = 0
-        var missingMediaCount = 0
-        var copiedAnnotationCount = 0
-        var missingAnnotationCount = 0
-        val missingNames = mutableListOf<String>()
-
-        try {
-            ZipOutputStream(BufferedOutputStream(target.outputStream)).use { zos ->
-                val jsonContent = JSONObject().apply {
-                put("projectId", project.id)
-                put("projectName", project.name)
-                put("category", project.categoryName)
-                put("address", project.address)
-                put("description", project.description)
-                put("exportTimestamp", timestamp)
-                put("totalPhotos", totalPhotos)
-                put("totalVideos", totalVideos)
-                put("totalIssues", totalIssues)
-                put("videoWatermarkBurnIn", burnedVideos == totalVideos)
-                put("videoWatermarkBurnedCount", burnedVideos)
-                put("videoWatermarkPendingCount", totalVideos - burnedVideos)
-                put(
-                    "videoWatermarkNote",
-                    if (burnedVideos == totalVideos) "视频均已完成录制后烧录水印。"
-                    else "转码失败的视频保留原片，并附 watermark.json 供重试后处理；未伪称已烧录。"
-                )
+    suspend fun exportProjectsToZip(projectIds: Set<Long>, mediaIds: Set<Long>? = null,
+        options: ExportOptions = ExportOptions(),
+        onProgress: (Int, Int, String) -> Unit = { _, _, _ -> }): ExportResult =
+        com.sitecam.app.core.media.MediaOperationCoordinator.withExclusive {
+            withContext(Dispatchers.IO) {
+                val staged = stage(projectIds, mediaIds, options, onProgress)
+                try {
+                    val name = "工程档案_${System.currentTimeMillis()}.zip"
+                    val target = createExportTarget(name)
+                    try {
+                        ZipOutputStream(BufferedOutputStream(target.outputStream)).use { zip ->
+                            val files = staged.root.walkTopDown().filter { it.isFile }.toList()
+                            files.forEachIndexed { index, file ->
+                                onProgress(index + 1, files.size, "写入压缩包：${file.name}")
+                                zip.putNextEntry(ZipEntry(file.relativeTo(staged.root).invariantSeparatorsPath))
+                                file.inputStream().use { it.copyTo(zip) }
+                                zip.closeEntry()
+                            }
+                        }
+                        target.finishSuccess()
+                    } catch (t: Throwable) { target.cleanupFailure(); throw t }
+                    ExportResult(target.uri, name, staged.photos, staged.videos, staged.issues,
+                        staged.copied, staged.missing, staged.annotations, staged.missingAnnotations)
+                } finally { staged.root.deleteRecursively() }
             }
-                putTextEntry(zos, "project_info.json", jsonContent.toString(2))
+        }
 
-                val csv = StringBuilder().append('\uFEFF')
-                csv.appendLine(
-                CsvEncoder.row(
-                    listOf("序号", "文件名", "类型", "拍摄时间", "工程地点", "GPS坐标", "是否为问题", "问题等级", "问题标题", "整改要求", "标注成品", "媒体导出状态")
-                )
-            )
-                val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                mediaList.forEachIndexed { index, item ->
-                val issue = issueMap[item.id]
-                val annotation = annotations[item.id]
-                csv.appendLine(
-                    CsvEncoder.row(
-                        listOf(
-                            index + 1,
-                            item.fileName,
-                            item.mediaType,
-                            dateFormat.format(Date(item.captureTimestamp)),
-                            item.addressText,
-                            if (item.latitude != null && item.longitude != null) String.format(Locale.US, "%.6f, %.6f", item.latitude, item.longitude) else "",
-                            if (item.isIssue) "是" else "否",
-                            when (issue?.severity) {
-                                "CRITICAL" -> "严重"
-                                "IMPORTANT" -> "重要"
-                                else -> if (item.isIssue) "一般" else ""
-                            },
-                            issue?.title.orEmpty(),
-                            issue?.description.orEmpty(),
-                            if (annotation != null) "Annotations/${annotatedName(item)}" else "",
-                            item.processingStatus
-                        )
-                    )
-                )
-            }
-                putTextEntry(zos, "photo_index.csv", csv.toString())
-
-                val totalEntries = mediaList.size + mediaList.count { annotations[it.id] != null }
-                var progress = 0
-                for (item in mediaList) {
-                progress++
-                onProgress(progress, totalEntries.coerceAtLeast(1), item.fileName)
-                val folder = if (item.mediaType == "VIDEO") "Videos" else "Photos"
-                if (copyUriEntry(zos, Uri.parse(item.contentUri), "$folder/${item.fileName}")) {
-                    copiedFileCount++
-                } else {
-                    missingMediaCount++
-                    missingNames += item.fileName
-                }
-
-                annotations[item.id]?.let { annotation ->
-                    progress++
-                    onProgress(progress, totalEntries.coerceAtLeast(1), annotatedName(item))
-                    if (copyUriEntry(zos, Uri.parse(annotation.annotatedContentUri), "Annotations/${annotatedName(item)}")) {
-                        copiedAnnotationCount++
-                    } else {
-                        missingAnnotationCount++
-                        missingNames += annotatedName(item)
-                    }
-                }
-
-                // Honest runnable fallback: downstream tools receive the
-                // source metadata needed to burn a watermark during transcode.
-                if (item.mediaType == "VIDEO" && item.processingStatus != "READY") {
-                    val sidecar = JSONObject().apply {
-                        put("sourceFile", item.fileName)
-                        put("width", item.width)
-                        put("height", item.height)
-                        put("durationMs", item.duration)
-                        put("rotation", item.orientation)
-                        put("captureTimestamp", item.captureTimestamp)
-                        put("watermarkBurnedIn", false)
-                        put("processingStatus", item.processingStatus)
-                        put("projectName", project.name)
-                        put("category", project.categoryName)
-                        put("address", item.addressText)
-                        put("latitude", item.latitude ?: JSONObject.NULL)
-                        put("longitude", item.longitude ?: JSONObject.NULL)
-                        if (item.watermarkSnapshotJson.isNotBlank()) {
-                            runCatching { put("watermarkSnapshot", JSONObject(item.watermarkSnapshotJson)) }
+    suspend fun exportProjectsToFolder(projectIds: Set<Long>, treeUri: Uri, mediaIds: Set<Long>? = null,
+        options: ExportOptions = ExportOptions(),
+        onProgress: (Int, Int, String) -> Unit = { _, _, _ -> }): FolderExportResult =
+        com.sitecam.app.core.media.MediaOperationCoordinator.withExclusive {
+            withContext(Dispatchers.IO) {
+                val staged = stage(projectIds, mediaIds, options, onProgress)
+                try {
+                    val name = "工程档案_${System.currentTimeMillis()}"
+                    val parent = DocumentsContract.buildDocumentUriUsingTree(treeUri, DocumentsContract.getTreeDocumentId(treeUri))
+                    val root = createUniqueDirectory(parent, name)
+                    val dirs = mutableMapOf("" to root)
+                    val files = staged.root.walkTopDown().filter { it.isFile }.sortedBy { if(it.name in setOf("project_info.json", "photo_index.csv", "export_report.json")) 1 else 0 }.toList()
+                    val destinationFailures = mutableListOf<String>()
+                    files.forEachIndexed { index, file ->
+                        val relative = file.relativeTo(staged.root).invariantSeparatorsPath
+                        onProgress(index + 1, files.size, "写入文件夹：${file.name}")
+                        try {
+                            var path = ""
+                            var documentParent = root
+                            relative.substringBeforeLast('/', "").split('/').filter { it.isNotBlank() }.forEach { segment ->
+                                path = if (path.isEmpty()) segment else "$path/$segment"
+                                documentParent = dirs.getOrPut(path) { createUniqueDirectory(documentParent, segment) }
+                            }
+                            val mime = when(file.extension) { "jpg" -> "image/jpeg"; "mp4" -> "video/mp4"; "csv" -> "text/csv"; else -> "application/json" }
+                            val target = createUniqueDocument(documentParent, file.name, mime)
+                            try {
+                                context.contentResolver.openOutputStream(target, "w")?.use { out -> file.inputStream().use { it.copyTo(out) } }
+                                    ?: error("无法写入 ${file.name}")
+                            } catch (e: Exception) { runCatching { DocumentsContract.deleteDocument(context.contentResolver, target) }; throw e }
+                        } catch (e: Exception) {
+                            destinationFailures += "$relative: ${e.message}"
+                            val projectDir = File(staged.root, relative.substringBefore('/'))
+                            val relativeMedia = relative.substringAfter('/')
+                            val csvFile = File(projectDir, "photo_index.csv")
+                            if(csvFile.exists()) csvFile.writeText(csvFile.readLines().joinToString("\n", postfix = "\n") { line ->
+                                if(line.contains(CsvEncoder.field(relativeMedia))) line.replace("\"COPIED\"", "\"FAILED\"") else line
+                            })
+                            val reportFile = File(projectDir, "export_report.json")
+                            if(reportFile.exists()) {
+                                val report = JSONObject(reportFile.readText())
+                                val failures = report.optJSONArray("deliveryFailures") ?: org.json.JSONArray()
+                                failures.put("$relativeMedia: ${e.message}"); report.put("deliveryFailures", failures)
+                                val records = report.optJSONArray("files")
+                                if(records != null) for(i in 0 until records.length()) {
+                                    val record = records.getJSONObject(i)
+                                    if(record.optString("exportPath") == relativeMedia && record.optBoolean("success")) {
+                                        record.put("success", false); record.put("deliveryStatus", "FAILED")
+                                        report.put("copiedMedia", report.optInt("copiedMedia") - 1); report.put("missingMedia", report.optInt("missingMedia") + 1)
+                                    }
+                                    if(record.optString("annotationExportPath") == relativeMedia && record.optBoolean("annotationSuccess")) {
+                                        record.put("annotationSuccess", false)
+                                        report.put("copiedAnnotations", report.optInt("copiedAnnotations") - 1); report.put("missingAnnotations", report.optInt("missingAnnotations") + 1)
+                                    }
+                                }
+                                reportFile.writeText(report.toString(2))
+                            }
+                            if (relative.contains("/Photos/") || relative.contains("/Videos/") && !relative.endsWith(".json")) { staged.copied--; staged.missing++ }
+                            if (relative.contains("/Annotations/")) { staged.annotations--; staged.missingAnnotations++ }
                         }
                     }
-                    putTextEntry(zos, "Videos/${item.fileName}.watermark.json", sidecar.toString(2))
-                }
+                    writeTextDocument(root, "export_report.json", JSONObject().apply {
+                        put("copiedMedia", staged.copied); put("missingMedia", staged.missing)
+                        put("copiedAnnotations", staged.annotations); put("missingAnnotations", staged.missingAnnotations)
+                        put("destinationFailures", org.json.JSONArray(destinationFailures))
+                    }.toString(2))
+                    FolderExportResult(root, name, staged.photos, staged.videos, staged.issues,
+                        staged.copied, staged.missing, staged.annotations, staged.missingAnnotations,
+                        destinationFailures.size)
+                } finally { staged.root.deleteRecursively() }
             }
-
-                val report = JSONObject().apply {
-                put("copiedMedia", copiedFileCount)
-                put("missingMedia", missingMediaCount)
-                put("copiedAnnotations", copiedAnnotationCount)
-                put("missingAnnotations", missingAnnotationCount)
-                put("missingNames", missingNames)
-            }
-                putTextEntry(zos, "export_report.json", report.toString(2))
-            }
-            target.finishSuccess()
-        } catch (t: Throwable) {
-            target.cleanupFailure()
-            throw t
         }
 
-        ExportResult(
-            zipUri = target.uri,
-            zipName = zipName,
-            totalPhotos = totalPhotos,
-            totalVideos = totalVideos,
-            totalIssues = totalIssues,
-            copiedFileCount = copiedFileCount,
-            missingMediaCount = missingMediaCount,
-            copiedAnnotationCount = copiedAnnotationCount,
-            missingAnnotationCount = missingAnnotationCount
-        )
+    private data class Staged(val root: File, var photos: Int = 0, var videos: Int = 0, var issues: Int = 0,
+        var copied: Int = 0, var missing: Int = 0, var annotations: Int = 0, var missingAnnotations: Int = 0)
+
+    private suspend fun stage(projectIds: Set<Long>, mediaIds: Set<Long>?, options: ExportOptions,
+        onProgress: (Int, Int, String) -> Unit): Staged {
+        require(projectIds.isNotEmpty()) { "请选择工程" }
+        require(mediaIds == null || mediaIds.isNotEmpty()) { "请选择媒体" }
+        val root = File(context.cacheDir, "export_${java.util.UUID.randomUUID()}").apply { mkdirs() }
+        val result = Staged(root)
+        try {
+            val projects = projectIds.sorted().map { database.projectDao().getProjectById(it) ?: error("工程 $it 已不存在") }
+            val all = database.mediaItemDao().getAllMediaItems().first()
+            val chosen = selectExportMedia(all, projectIds, mediaIds)
+            require(mediaIds == null || chosen.size == mediaIds.size) { "部分选中媒体已删除或移动，请刷新后重试" }
+            val total = chosen.size.coerceAtLeast(1)
+            var progress = 0
+            for (project in projects) {
+                val dir = File(root, "${NamingEngine.sanitizeFileName(project.name)}_p${project.id}").apply { mkdirs() }
+                val items = chosen.filter { it.projectId == project.id }
+                val annotationsBefore = result.annotations
+                val missingAnnotationsBefore = result.missingAnnotations
+                val issues = database.issueDao().getIssuesByProject(project.id).first().associateBy { it.mediaId }
+                result.photos += items.count { it.mediaType == "PHOTO" }; result.videos += items.count { it.mediaType == "VIDEO" }
+                result.issues += items.count { issues.containsKey(it.id) }
+                File(dir, "project_info.json").writeText(JSONObject().apply {
+                    put("projectId", project.id); put("projectName", project.name); put("routeName", project.routeName)
+                    put("category", project.categoryName); put("address", project.address); put("description", project.description)
+                    put("isCaptureLocked", project.isCaptureLocked); put("isArchived", project.isArchived)
+                    put("createdAt", project.createdAt); put("updatedAt", project.updatedAt)
+                    val videos = items.filter { it.mediaType == "VIDEO" }
+                    val burned = videos.count { it.processingStatus == "READY" }
+                    put("videoWatermarkBurnIn", burned == videos.size)
+                    put("videoWatermarkBurnedCount", burned); put("videoWatermarkPendingCount", videos.size - burned)
+                    put("videoWatermarkNote", if(burned == videos.size) "视频均已完成录制后烧录水印。" else "转码失败的视频保留原片，并附 watermark.json 供重试后处理；未伪称已烧录。")
+                    put("firstCaptureTimestamp", items.minOfOrNull { it.captureTimestamp } ?: JSONObject.NULL)
+                    put("lastCaptureTimestamp", items.maxOfOrNull { it.captureTimestamp } ?: JSONObject.NULL)
+                    put("exportTimestamp", System.currentTimeMillis()); put("photoProfile", options.photoProfile?.name ?: "KEEP_ORIGINAL")
+                    put("totalPhotos", items.count { it.mediaType == "PHOTO" }); put("totalVideos", items.count { it.mediaType == "VIDEO" })
+                    put("totalIssues", items.count { issues.containsKey(it.id) })
+                }.toString(2))
+                val csv = StringBuilder("\uFEFF").appendLine(CsvEncoder.row(listOf("序号", "文件名", "类型", "拍摄时间", "工程地点", "GPS坐标", "是否为问题", "问题等级", "问题标题", "整改要求", "标注成品", "媒体导出状态", "媒体ID", "工程", "线路", "整改状态", "导出文件", "实际宽", "实际高", "实际字节", "文件交付状态")))
+                val failures = mutableListOf<String>()
+                val records = org.json.JSONArray()
+                for (item in items) {
+                    onProgress(++progress, total, item.fileName)
+                    val folder = if (item.mediaType == "VIDEO") "Videos" else "Photos"
+                    val file = File(dir, "$folder/${item.id}_${NamingEngine.sanitizeFileName(item.fileName)}")
+                    var dimensions: Pair<Int, Int>? = null
+                    val copied = runCatching {
+                        dimensions = copySource(Uri.parse(item.contentUri), file, if(item.mediaType == "PHOTO") options.photoProfile else null)
+                    }.onFailure { failures += "${item.fileName}: ${it.message}"; file.delete() }.isSuccess
+                    if(copied) result.copied++ else result.missing++
+                    var annotationPath = ""
+                    database.issueDao().getAnnotationByMediaId(item.id)?.let { annotation ->
+                        val annotated = File(dir, "Annotations/${item.id}_${annotatedName(item)}")
+                        if(runCatching { copySource(Uri.parse(annotation.annotatedContentUri), annotated, options.photoProfile) }.isSuccess) {
+                            result.annotations++; annotationPath = annotated.relativeTo(dir).invariantSeparatorsPath
+                        } else { result.missingAnnotations++; failures += "标注 ${item.fileName}"; annotated.delete() }
+                    }
+                    if (item.mediaType == "VIDEO" && item.processingStatus != "READY") {
+                        File(dir, "$folder/${file.name}.watermark.json").apply { parentFile?.mkdirs() }.writeText(JSONObject().apply {
+                            put("sourceFile", file.name); put("watermarkBurnedIn", false); put("processingStatus", item.processingStatus)
+                            put("captureTimestamp", item.captureTimestamp); put("width", item.width); put("height", item.height)
+                            put("durationMs", item.duration); put("rotation", item.orientation)
+                            put("watermarkSnapshotJson", item.watermarkSnapshotJson)
+                        }.toString(2))
+                    }
+                    val issue = issues[item.id]
+                    csv.appendLine(CsvEncoder.row(listOf(items.indexOf(item) + 1, item.fileName, item.mediaType,
+                        SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(item.captureTimestamp)),
+                        item.addressText, if(item.latitude != null && item.longitude != null) String.format(Locale.US, "%.6f, %.6f", item.latitude, item.longitude) else "",
+                        if(item.isIssue) "是" else "否", when(issue?.severity) { "CRITICAL" -> "严重"; "IMPORTANT" -> "重要"; "NORMAL" -> "一般"; else -> "" },
+                        issue?.title.orEmpty(), issue?.description.orEmpty(), annotationPath, item.processingStatus,
+                        item.id, project.name, project.routeName, when(issue?.status) { "PENDING" -> "待处理"; "IN_PROGRESS" -> "处理中"; "COMPLETED" -> "已完成"; else -> "" },
+                        if(copied) file.relativeTo(dir).invariantSeparatorsPath else "",
+                        dimensions?.first ?: item.width, dimensions?.second ?: item.height,
+                        if(copied) file.length() else 0, if(copied) "COPIED" else "FAILED")))
+                    records.put(JSONObject().apply { put("mediaId", item.id); put("exportPath", file.relativeTo(dir).invariantSeparatorsPath); put("annotationExportPath", annotationPath); put("annotationSuccess", annotationPath.isNotBlank()); put("success", copied); put("bytes", if(copied) file.length() else 0)
+                        put("width", dimensions?.first ?: item.width); put("height", dimensions?.second ?: item.height)
+                        put("issueStatus", issue?.status ?: JSONObject.NULL) })
+                }
+                File(dir, "photo_index.csv").writeText(csv.toString())
+                File(dir, "export_report.json").writeText(JSONObject().apply {
+                    put("files", records); put("failures", org.json.JSONArray(failures)); put("missingNames", org.json.JSONArray(failures))
+                    val copied = (0 until records.length()).count { records.getJSONObject(it).getBoolean("success") }
+                    put("copiedMedia", copied); put("missingMedia", records.length() - copied)
+                    put("copiedAnnotations", result.annotations - annotationsBefore); put("missingAnnotations", result.missingAnnotations - missingAnnotationsBefore)
+                    put("photoProfile", options.photoProfile?.name ?: "KEEP_ORIGINAL")
+                    put("jpegQuality", options.photoProfile?.jpegQuality ?: JSONObject.NULL)
+                }.toString(2))
+            }
+            return result
+        } catch(t: Throwable) { root.deleteRecursively(); throw t }
     }
 
-    /**
-     * Export the same archive contents as real files below a user-selected
-     * SAF tree. This path is usable on Huawei Android and HarmonyOS devices
-     * whose file managers cannot open or unpack a downloaded ZIP.
-     */
-    suspend fun exportProjectToFolder(
-        projectId: Long,
-        treeUri: Uri,
-        onProgress: (current: Int, total: Int, currentFileName: String) -> Unit = { _, _, _ -> }
-    ): FolderExportResult = withContext(Dispatchers.IO) {
-        val project = database.projectDao().getProjectById(projectId)
-            ?: throw IllegalArgumentException("Project with id $projectId not found")
-        val mediaList = database.mediaItemDao().getMediaItemsByProject(projectId).first()
-        val issueList = database.issueDao().getIssuesByProject(projectId).first()
-        val issueMap = issueList.associateBy { it.mediaId }
-        val annotations = mediaList.associate { it.id to database.issueDao().getAnnotationByMediaId(it.id) }
-        val timestamp = System.currentTimeMillis()
-        val timeStr = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date(timestamp))
-        val folderName = "p${project.id}_${NamingEngine.sanitizeFileName(project.name)}_$timeStr"
-        // ACTION_OPEN_DOCUMENT_TREE returns a tree URI. DocumentsContract's
-        // createDocument APIs require the corresponding document URI as the
-        // parent, which is not interchangeable on all vendor providers.
-        val rootParent = runCatching {
-            DocumentsContract.buildDocumentUriUsingTree(
-                treeUri,
-                DocumentsContract.getTreeDocumentId(treeUri)
-            )
-        }.getOrElse {
-            throw IllegalArgumentException("无效的导出目录授权，请重新选择目录", it)
+    private fun copySource(uri: Uri, file: File, profile: com.sitecam.app.core.media.PhotoQualityProfile?): Pair<Int, Int>? {
+        file.parentFile?.mkdirs()
+        if(profile == null) {
+            context.contentResolver.openInputStream(uri)?.use { source -> file.outputStream().use { source.copyTo(it) } }
+                ?: error("源文件不可读取")
+            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            android.graphics.BitmapFactory.decodeFile(file.absolutePath, bounds)
+            return if(bounds.outWidth > 0) bounds.outWidth to bounds.outHeight else null
         }
-        val root = createUniqueDirectory(rootParent, folderName)
-        val photos = createUniqueDirectory(root, "Photos")
-        val videos = createUniqueDirectory(root, "Videos")
-        val annotationsDir = createUniqueDirectory(root, "Annotations")
-        val totalPhotos = mediaList.count { it.mediaType == "PHOTO" }
-        val totalVideos = mediaList.count { it.mediaType == "VIDEO" }
-        val totalIssues = mediaList.count { it.isIssue }
-        val totalEntries = mediaList.size + annotations.values.count { it != null }
-        var progress = 0
-        var copiedFileCount = 0
-        var missingMediaCount = 0
-        var copiedAnnotationCount = 0
-        var missingAnnotationCount = 0
-        val missingNames = mutableListOf<String>()
-
-        val projectInfo = JSONObject().apply {
-            put("projectId", project.id)
-            put("projectName", project.name)
-            put("category", project.categoryName)
-            put("address", project.address)
-            put("description", project.description)
-            put("exportTimestamp", timestamp)
-            put("totalPhotos", totalPhotos)
-            put("totalVideos", totalVideos)
-            put("totalIssues", totalIssues)
-            put("format", "SiteCam-folder-v1")
-        }
-        writeTextDocument(root, "project_info.json", projectInfo.toString(2))
-        val csv = StringBuilder().append('\uFEFF')
-            .appendLine(CsvEncoder.row(listOf("序号", "文件名", "类型", "拍摄时间", "工程地点", "GPS坐标", "是否为问题", "问题等级", "问题标题", "整改要求", "标注成品", "媒体导出状态")))
-        val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-        mediaList.forEachIndexed { index, item ->
-            val issue = issueMap[item.id]
-            val annotation = annotations[item.id]
-            csv.appendLine(
-                CsvEncoder.row(
-                    listOf(
-                        index + 1, item.fileName, item.mediaType,
-                        dateFormat.format(Date(item.captureTimestamp)), item.addressText,
-                        if (item.latitude != null && item.longitude != null) String.format(Locale.US, "%.6f, %.6f", item.latitude, item.longitude) else "",
-                        if (item.isIssue) "是" else "否",
-                        when (issue?.severity) { "CRITICAL" -> "严重"; "IMPORTANT" -> "重要"; else -> if (item.isIssue) "一般" else "" },
-                        issue?.title.orEmpty(), issue?.description.orEmpty(),
-                        if (annotation != null) "Annotations/${annotatedName(item)}" else "", item.processingStatus
-                    )
-                )
-            )
-        }
-        writeTextDocument(root, "photo_index.csv", csv.toString(), "text/csv")
-
-        for (item in mediaList) {
-            progress++
-            onProgress(progress, totalEntries.coerceAtLeast(1), item.fileName)
-            val parent = if (item.mediaType == "VIDEO") videos else photos
-            val target = createUniqueDocument(parent, item.fileName, if (item.mediaType == "VIDEO") "video/mp4" else "image/jpeg")
-            if (copyUriToDocument(Uri.parse(item.contentUri), target)) copiedFileCount++
-            else {
-                runCatching { context.contentResolver.delete(target, null, null) }
-                missingMediaCount++
-                missingNames += item.fileName
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, bounds) }
+        require(bounds.outWidth > 0 && bounds.outHeight > 0) { "图片无法解码" }
+        val max = profile.maxLongEdge
+        var sample = 1
+        if(max != null) while(kotlin.math.max(bounds.outWidth, bounds.outHeight) / (sample * 2) >= max) sample *= 2
+        val bitmap = context.contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }) }
+            ?: error("图片无法解码")
+        val resized = com.sitecam.app.core.media.PhotoCompression.resize(bitmap, profile)
+        try {
+            file.outputStream().use { require(resized.compress(android.graphics.Bitmap.CompressFormat.JPEG, profile.jpegQuality, it)) { "图片压缩失败" } }
+            // Keep original capture-time and location evidence. Do not stamp export time as capture time.
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                val original = androidx.exifinterface.media.ExifInterface(input)
+                val output = androidx.exifinterface.media.ExifInterface(file.absolutePath)
+                val tags = listOf("DateTime", "DateTimeOriginal", "DateTimeDigitized", "OffsetTime", "OffsetTimeOriginal", "OffsetTimeDigitized",
+                    "SubSecTime", "SubSecTimeOriginal", "SubSecTimeDigitized", "GPSLatitude", "GPSLatitudeRef", "GPSLongitude", "GPSLongitudeRef",
+                    "GPSAltitude", "GPSAltitudeRef", "GPSTimeStamp", "GPSDateStamp", "GPSProcessingMethod", "GPSHPositioningError",
+                    "Orientation", "Make", "Model", "ImageDescription", "UserComment", "Copyright", "Artist", "Software",
+                    "ExposureTime", "FNumber", "PhotographicSensitivity", "FocalLength", "WhiteBalance")
+                tags.forEach { tag -> original.getAttribute(tag)?.let { output.setAttribute(tag, it) } }
+                output.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_IMAGE_WIDTH, resized.width.toString())
+                output.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_IMAGE_LENGTH, resized.height.toString())
+                output.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_PIXEL_X_DIMENSION, resized.width.toString())
+                output.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_PIXEL_Y_DIMENSION, resized.height.toString())
+                output.saveAttributes()
             }
-            annotations[item.id]?.let { annotation ->
-                progress++
-                val name = annotatedName(item)
-                onProgress(progress, totalEntries.coerceAtLeast(1), name)
-                val annotationTarget = createUniqueDocument(annotationsDir, name, "image/jpeg")
-                if (copyUriToDocument(Uri.parse(annotation.annotatedContentUri), annotationTarget)) copiedAnnotationCount++
-                else {
-                    runCatching { context.contentResolver.delete(annotationTarget, null, null) }
-                    missingAnnotationCount++
-                    missingNames += name
-                }
-            }
-            if (item.mediaType == "VIDEO" && item.processingStatus != "READY") {
-                val sidecar = JSONObject().apply {
-                    put("sourceFile", item.fileName)
-                    put("captureTimestamp", item.captureTimestamp)
-                    put("width", item.width)
-                    put("height", item.height)
-                    put("durationMs", item.duration)
-                    put("rotation", item.orientation)
-                    put("watermarkBurnedIn", false)
-                    put("processingStatus", item.processingStatus)
-                    if (item.watermarkSnapshotJson.isNotBlank()) {
-                        runCatching { put("watermarkSnapshot", JSONObject(item.watermarkSnapshotJson)) }
-                    }
-                }
-                writeTextDocument(videos, "${item.fileName}.watermark.json", sidecar.toString(2))
-            }
-        }
-        val report = JSONObject().apply {
-            put("copiedMedia", copiedFileCount)
-            put("missingMedia", missingMediaCount)
-            put("copiedAnnotations", copiedAnnotationCount)
-            put("missingAnnotations", missingAnnotationCount)
-            put("missingNames", missingNames)
-        }
-        writeTextDocument(root, "export_report.json", report.toString(2))
-        FolderExportResult(
-            folderUri = root,
-            folderName = folderName,
-            totalPhotos = totalPhotos,
-            totalVideos = totalVideos,
-            totalIssues = totalIssues,
-            copiedFileCount = copiedFileCount,
-            missingMediaCount = missingMediaCount,
-            copiedAnnotationCount = copiedAnnotationCount,
-            missingAnnotationCount = missingAnnotationCount
-        )
+            return resized.width to resized.height
+        } finally { if(resized !== bitmap) resized.recycle(); bitmap.recycle() }
     }
 
     private fun putTextEntry(zos: ZipOutputStream, name: String, value: String) {
@@ -388,7 +328,7 @@ class ProjectExportEngine(
         }
     }
 
-    private fun annotatedName(item: MediaItemEntity): String = item.fileName.substringBeforeLast('.') + "_annotated.jpg"
+    private fun annotatedName(item: MediaItemEntity): String = NamingEngine.sanitizeFileName(item.fileName.substringBeforeLast('.')) + "_annotated.jpg"
 
     private data class ExportTarget(
         val uri: Uri,

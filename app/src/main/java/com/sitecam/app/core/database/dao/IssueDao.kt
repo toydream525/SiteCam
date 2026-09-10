@@ -48,13 +48,35 @@ interface IssueDao {
 
     @Transaction
     suspend fun insertIssueAndMarkMedia(issue: IssueEntity) {
-        insertIssue(issue)
-        markMediaAsIssue(issue.mediaId)
+        saveIssueAndMarkMedia(issue)
     }
 
     @Transaction
     suspend fun replaceAnnotation(annotation: AnnotationEntity) {
         getAnnotationByMediaId(annotation.mediaId)?.let { deleteAnnotation(it) }
         insertAnnotation(annotation)
+    }
+    @Query("SELECT projectId FROM media_items WHERE id = :mediaId")
+    suspend fun mediaProjectId(mediaId: Long): Long?
+
+    @Query("DELETE FROM issues WHERE mediaId = :mediaId")
+    suspend fun deleteIssueByMediaId(mediaId: Long)
+
+    @Query("UPDATE media_items SET isIssue = 0 WHERE id = :mediaId")
+    suspend fun unmarkMediaIssue(mediaId: Long)
+
+    @Transaction
+    suspend fun saveIssueAndMarkMedia(issue: IssueEntity) {
+        val projectId = mediaProjectId(issue.mediaId) ?: error("媒体已删除")
+        val existing = getIssueByMediaId(issue.mediaId)
+        insertIssue(issue.copy(id = existing?.id ?: 0, projectId = projectId,
+            createdAt = existing?.createdAt ?: issue.createdAt, updatedAt = System.currentTimeMillis()))
+        markMediaAsIssue(issue.mediaId)
+    }
+
+    @Transaction
+    suspend fun removeIssueAndUnmarkMedia(mediaId: Long) {
+        deleteIssueByMediaId(mediaId)
+        unmarkMediaIssue(mediaId)
     }
 }

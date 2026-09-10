@@ -27,6 +27,10 @@ class AppContainer(val context: Context) {
         AppDatabase.getInstance(appContext)
     }
 
+    val watermarkTemplateMutations by lazy {
+        com.sitecam.app.core.database.repository.WatermarkTemplateMutations(database.watermarkDao())
+    }
+
     val settingsDataStore: AppSettingsDataStore by lazy {
         AppSettingsDataStore(appContext)
     }
@@ -54,6 +58,8 @@ class AppContainer(val context: Context) {
     val orientationManager: OrientationManager by lazy {
         OrientationManager(appContext)
     }
+
+    val captureOperationCoordinator = com.sitecam.app.core.camera.CaptureOperationCoordinator()
 
     val cameraManager: CameraManager by lazy {
         CameraManager(appContext)

@@ -25,7 +25,8 @@ import kotlinx.coroutines.launch
 
 data class ProjectItemUiState(
     val project: ProjectEntity,
-    val isSelected: Boolean
+    val isSelected: Boolean,
+    val statistics: ProjectStatistics = ProjectStatistics()
 )
 
 data class ProjectsScreenUiState(
@@ -33,7 +34,12 @@ data class ProjectsScreenUiState(
     val categories: List<ProjectCategoryEntity> = emptyList(),
     val selectedProjectId: Long? = null,
     val isExporting: Boolean = false,
-    val exportProgress: String = ""
+    val exportProgress: String = "",
+    val search: String = "",
+    val archiveFilter: String = "ACTIVE",
+    val sort: ProjectSort = ProjectSort.LAST_CAPTURE,
+    val ascending: Boolean = false,
+    val checkedIds: Set<Long> = emptySet()
 )
 
 class ProjectViewModel(
@@ -50,8 +56,8 @@ class ProjectViewModel(
     private val _exportProgress = MutableStateFlow("")
     private val _toastEvent = MutableSharedFlow<String>()
     val toastEvent: SharedFlow<String> = _toastEvent.asSharedFlow()
-    private val _projectCreated = MutableSharedFlow<Unit>()
-    val projectCreated: SharedFlow<Unit> = _projectCreated.asSharedFlow()
+    private val _projectCreated = MutableSharedFlow<Long>()
+    val projectCreated: SharedFlow<Long> = _projectCreated.asSharedFlow()
     val exportTreeUri: StateFlow<String?> = appContainer.settingsDataStore.exportTreeUri.stateIn(
         scope = viewModelScope,
         // The picker reads .value synchronously when it opens. Eagerly start
@@ -61,34 +67,78 @@ class ProjectViewModel(
         initialValue = null
     )
 
-    val uiState: StateFlow<ProjectsScreenUiState> = combine(
-        appContainer.database.projectDao().getActiveProjects(),
-        appContainer.database.projectCategoryDao().getAllCategories(),
-        appContainer.settingsDataStore.selectedProjectId,
-        _isExporting,
-        _exportProgress
-    ) { projects, categories, selectedId, exporting, progress ->
-        val projectItems = projects.map { project ->
-            ProjectItemUiState(
-                project = project,
-                isSelected = project.id == selectedId
-            )
+    private val browserPrefs = appContainer.appContext.getSharedPreferences("project_browser", Context.MODE_PRIVATE)
+    private data class Browser(val search: String = "", val archive: String = "ACTIVE",
+        val sort: ProjectSort = ProjectSort.LAST_CAPTURE, val ascending: Boolean = false,
+        val checked: Set<Long> = emptySet())
+    private val browser = MutableStateFlow(Browser(
+        sort = runCatching { ProjectSort.valueOf(browserPrefs.getString("sort", "LAST_CAPTURE")!!) }.getOrDefault(ProjectSort.LAST_CAPTURE),
+        ascending = browserPrefs.getBoolean("ascending", false)))
+    private val projectsAndStats = combine(appContainer.database.projectDao().getAllProjects(),
+        appContainer.database.mediaItemDao().getAllMediaItems()) { projects, media -> projects to projectStatistics(media) }
+    private val basics = combine(projectsAndStats, appContainer.database.projectCategoryDao().getAllCategories(),
+        appContainer.settingsDataStore.selectedProjectId, browser) { pair, categories, selected, filters ->
+        val projects = pair.first.filter {
+            (filters.archive == "ALL" || it.isArchived == (filters.archive == "ARCHIVED")) &&
+                (it.name.contains(filters.search, true) || it.routeName.contains(filters.search, true))
         }
         ProjectsScreenUiState(
-            projects = projectItems,
-            categories = categories,
-            selectedProjectId = selectedId,
-            isExporting = exporting,
-            exportProgress = progress
-        )
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000L),
-        initialValue = ProjectsScreenUiState()
-    )
+            projects = sortedProjects(projects, pair.second, filters.sort, filters.ascending).map {
+                ProjectItemUiState(it, it.id == selected, pair.second[it.id] ?: ProjectStatistics()) },
+            categories = categories, selectedProjectId = selected, search = filters.search,
+            archiveFilter = filters.archive, sort = filters.sort, ascending = filters.ascending,
+            checkedIds = filters.checked.intersect(projects.map { it.id }.toSet()))
+    }
+    val uiState = combine(basics, _isExporting, _exportProgress) { state, exporting, progress ->
+        state.copy(isExporting = exporting, exportProgress = progress)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ProjectsScreenUiState())
+
+    fun setSearch(value: String) { browser.value = browser.value.copy(search = value, checked = emptySet()) }
+    fun setArchiveFilter(value: String) { browser.value = browser.value.copy(archive = value, checked = emptySet()) }
+    fun setSort(sort: ProjectSort, ascending: Boolean) {
+        browser.value = browser.value.copy(sort = sort, ascending = ascending)
+        browserPrefs.edit().putString("sort", sort.name).putBoolean("ascending", ascending).apply()
+    }
+    fun toggleChecked(id: Long) { val ids = browser.value.checked; browser.value = browser.value.copy(checked = if(id in ids) ids - id else ids + id) }
+    fun selectAll() { browser.value = browser.value.copy(checked = uiState.value.projects.map { it.project.id }.toSet()) }
+    fun clearSelection() { browser.value = browser.value.copy(checked = emptySet()) }
+
+    fun editProject(project: ProjectEntity, name: String, route: String, category: String, address: String, description: String) {
+        if(name.isBlank()) return
+        viewModelScope.launch {
+            runCatching {
+                val current = appContainer.database.projectDao().getProjectById(project.id) ?: error("工程已删除")
+                appContainer.database.projectDao().updateProject(current.copy(name = name.trim(), routeName = route.trim(),
+                    categoryName = category, address = address.trim(), description = description.trim(), updatedAt = System.currentTimeMillis()))
+            }.onFailure { _toastEvent.emit("编辑失败：${it.message}") }
+        }
+    }
+
+    fun batchChange(ids: Set<Long>, category: String? = null, archived: Boolean? = null, locked: Boolean? = null) {
+        if(_isExporting.value) return
+        viewModelScope.launch {
+            var success = 0; val errors = mutableListOf<String>()
+            ids.forEach { id ->
+                runCatching {
+                    appContainer.captureOperationCoordinator.withProjectIdle(id) {
+                        val project = appContainer.database.projectDao().getProjectById(id) ?: error("工程已删除")
+                        appContainer.database.projectDao().updateProject(project.copy(categoryName = category ?: project.categoryName,
+                            isArchived = archived ?: project.isArchived, isCaptureLocked = locked ?: project.isCaptureLocked,
+                            updatedAt = System.currentTimeMillis()))
+                    }
+                }.onSuccess { success++ }.onFailure { errors += it.message ?: "操作失败" }
+            }
+            clearSelection()
+            _toastEvent.emit("已更新 $success 个工程" + if(errors.isEmpty()) "" else "；${errors.size} 个失败：${errors.first()}")
+        }
+    }
 
     fun selectProject(projectId: Long) {
         viewModelScope.launch {
+            val project = appContainer.database.projectDao().getProjectById(projectId)
+            if(project == null || project.isArchived || project.isCaptureLocked) {
+                _toastEvent.emit("已归档或锁定的工程不能设为拍摄工程"); return@launch
+            }
             appContainer.settingsDataStore.setSelectedProjectId(projectId)
         }
     }
@@ -97,7 +147,8 @@ class ProjectViewModel(
         name: String,
         category: String,
         address: String,
-        description: String
+        description: String,
+        route: String = ""
     ) {
         if (name.isBlank()) return
         viewModelScope.launch {
@@ -106,60 +157,75 @@ class ProjectViewModel(
                     name = name.trim(),
                     categoryName = category.ifBlank { "建筑" },
                     address = address.trim(),
-                    description = description.trim()
+                    description = description.trim(),
+                    routeName = route.trim()
                 )
                 val newId = appContainer.database.projectDao().insertProject(newProject)
+                // Creation has a durable, visible result: show active projects
+                // in newest-first creation order so this row stays at the top
+                // after reopening the project list as well.
+                browser.value = browser.value.copy(
+                    search = "",
+                    archive = "ACTIVE",
+                    sort = ProjectSort.CREATED,
+                    ascending = false,
+                    checked = emptySet()
+                )
+                browserPrefs.edit()
+                    .putString("sort", ProjectSort.CREATED.name)
+                    .putBoolean("ascending", false)
+                    .apply()
                 appContainer.settingsDataStore.setSelectedProjectId(newId)
-                _projectCreated.emit(Unit)
+                _projectCreated.emit(newId)
             } catch (e: Exception) {
                 _toastEvent.emit("工程创建失败: ${e.message ?: "未知错误"}")
             }
         }
     }
 
-    fun deleteProject(project: ProjectEntity) {
-        if (_isExporting.value) {
-            viewModelScope.launch { _toastEvent.emit("工程正在导出，请完成后再删除") }
-            return
-        }
+    fun deleteProject(project: ProjectEntity) = deleteProjects(setOf(project.id))
+
+    fun deleteProjects(ids: Set<Long>) {
+        if(!_isExporting.compareAndSet(false, true)) return
         viewModelScope.launch {
-            val media = appContainer.database.mediaItemDao().getMediaItemsByProject(project.id).first()
-            val failures = mutableListOf<String>()
-            var cleanedIndexes = 0
-            for (item in media) {
-                val result = appContainer.mediaDeletionCoordinator.delete(item)
-                if (result.success) {
-                    cleanedIndexes++
-                } else {
-                    failures += "${item.fileName}${result.message?.let { "（$it）" } ?: ""}"
-                }
-            }
-            if (failures.isNotEmpty()) {
-                _toastEvent.emit("已清理 $cleanedIndexes 项；${failures.size} 项删除失败，已保留工程与索引：${failures.take(3).joinToString()}${if (failures.size > 3) "…" else ""}")
-                return@launch
-            }
+            var removed = 0; var mediaRemoved = 0; var failed = 0; val errors = mutableListOf<String>()
             try {
-                appContainer.database.projectDao().deleteProject(project)
-                if (appContainer.settingsDataStore.selectedProjectId.first() == project.id) {
-                    val next = appContainer.database.projectDao().getActiveProjects().first().firstOrNull()
-                    appContainer.settingsDataStore.setSelectedProjectId(next?.id)
+                for(id in ids) {
+                    runCatching {
+                        appContainer.captureOperationCoordinator.withProjectIdle(id) {
+                            val project = appContainer.database.projectDao().getProjectById(id) ?: return@withProjectIdle
+                            val media = appContainer.database.mediaItemDao().getMediaItemsByProject(id).first()
+                            var projectFailed = false
+                            for(item in media) {
+                                _exportProgress.value = "删除：${item.fileName}"
+                                val result = appContainer.mediaDeletionCoordinator.delete(item)
+                                if(result.success) mediaRemoved++ else { failed++; projectFailed = true; errors += result.message ?: item.fileName }
+                            }
+                            if(!projectFailed) {
+                                appContainer.database.projectDao().deleteProject(project)
+                                if(appContainer.settingsDataStore.selectedProjectId.first() == id) appContainer.settingsDataStore.setSelectedProjectId(null)
+                                removed++
+                            }
+                        }
+                    }.onFailure { failed++; errors += it.message ?: "删除失败" }
                 }
-                _toastEvent.emit("工程及其媒体已删除")
-            } catch (e: Exception) {
-                _toastEvent.emit("工程删除失败，数据库仍保留: ${e.message ?: "未知错误"}")
-            }
+                clearSelection()
+                _toastEvent.emit("已删除 $removed 个工程、$mediaRemoved 个媒体；失败 $failed 项" + if(errors.isEmpty()) "" else "，已保留失败索引：${errors.first()}")
+            } finally { _isExporting.value = false; _exportProgress.value = "" }
         }
     }
 
-    fun exportProjectZip(context: Context, projectId: Long) {
+    fun exportProjectZip(context: Context, projectId: Long) = exportProjectsZip(context, setOf(projectId))
+
+    fun exportProjectsZip(context: Context, ids: Set<Long>, options: com.sitecam.app.core.export.ExportOptions = com.sitecam.app.core.export.ExportOptions()) {
         if (!_isExporting.compareAndSet(false, true)) {
             viewModelScope.launch { _toastEvent.emit("已有工程正在导出，请稍候") }
             return
         }
         viewModelScope.launch {
             try {
-                val result = appContainer.exportEngine.exportProjectToZip(
-                    projectId = projectId,
+                val result = appContainer.exportEngine.exportProjectsToZip(
+                    projectIds = ids, options = options,
                     onProgress = { current, total, fileName ->
                         _exportProgress.value = "正在打包 ($current/$total): $fileName"
                     }
@@ -177,7 +243,9 @@ class ProjectViewModel(
         }
     }
 
-    fun exportProjectFolder(context: Context, projectId: Long, treeUri: Uri) {
+    fun exportProjectFolder(context: Context, projectId: Long, treeUri: Uri) = exportProjectsFolder(context, setOf(projectId), treeUri)
+
+    fun exportProjectsFolder(context: Context, ids: Set<Long>, treeUri: Uri, options: com.sitecam.app.core.export.ExportOptions = com.sitecam.app.core.export.ExportOptions()) {
         if (!_isExporting.compareAndSet(false, true)) {
             viewModelScope.launch {
                 _toastEvent.emit("已有工程正在导出，请稍候")
@@ -187,8 +255,8 @@ class ProjectViewModel(
         viewModelScope.launch {
             try {
                 persistExportTreeUri(context, treeUri)
-                val result: FolderExportResult = appContainer.exportEngine.exportProjectToFolder(
-                    projectId = projectId,
+                val result: FolderExportResult = appContainer.exportEngine.exportProjectsToFolder(
+                    projectIds = ids, options = options,
                     treeUri = treeUri,
                     onProgress = { current, total, fileName ->
                         _exportProgress.value = "正在导出 ($current/$total): $fileName"
@@ -196,7 +264,7 @@ class ProjectViewModel(
                 )
                 val warning = result.missingMediaCount + result.missingAnnotationCount
                 val warningText = if (warning > 0) "，缺失 ${warning} 个文件（详见 export_report.json）" else ""
-                _toastEvent.emit("工程文件夹导出成功${warningText}")
+                _toastEvent.emit("工程文件夹：已导出 ${result.copiedFileCount} 个媒体${warningText}，目标写入失败 ${result.destinationFailureCount} 项")
             } catch (error: Exception) {
                 _toastEvent.emit("文件夹导出失败: ${error.message ?: "未知错误"}")
             } finally {

@@ -11,6 +11,12 @@ fun normalizeDisplayRotation(rotation: Int): Int = when (rotation) {
     else -> Surface.ROTATION_0
 }
 
+/** CameraX target rotations accepted by SiteCam (portrait + two landscapes). */
+fun safeCameraTargetRotation(rotation: Int): Int = when (normalizeDisplayRotation(rotation)) {
+    Surface.ROTATION_180 -> Surface.ROTATION_0
+    else -> normalizeDisplayRotation(rotation)
+}
+
 fun isQuarterTurnDisplayRotation(rotation: Int): Boolean =
     normalizeDisplayRotation(rotation) == Surface.ROTATION_90 ||
         normalizeDisplayRotation(rotation) == Surface.ROTATION_270
@@ -30,7 +36,10 @@ fun resolveCameraTargetRotation(
     windowIsLandscape: Boolean,
     displayRotation: Int
 ): Int {
-    val fallbackRotation = normalizeDisplayRotation(displayRotation)
+    // Android SENSOR can keep a portrait window at ROTATION_0 while the
+    // physical device reports the excluded 180-degree grip. Never propagate
+    // ROTATION_180 into preview, still capture, or video targets.
+    val fallbackRotation = safeCameraTargetRotation(displayRotation)
     if (!windowIsLandscape) return fallbackRotation
 
     return when (orientationDegrees) {

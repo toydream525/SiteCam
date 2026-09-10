@@ -19,26 +19,35 @@ data class SettingsUiState(
     val templates: List<WatermarkTemplateEntity> = emptyList(),
     val activeTemplateId: Long = 1L,
     val namingPattern: String = "{project}_{date}_{time}",
-    val jpegQuality: Int = 95
+    val photoQualityProfile: com.sitecam.app.core.media.PhotoQualityProfile = com.sitecam.app.core.media.PhotoQualityProfile.STANDARD,
+    val saveToSystemGallery: Boolean = false,
+    val shutterSoundEnabled: Boolean = true
 )
 
 class SettingsViewModel(
     private val appContainer: AppContainer
 ) : ViewModel() {
 
-    val uiState: StateFlow<SettingsUiState> = combine(
+    private val baseUiState = combine(
         appContainer.database.watermarkDao().getAllTemplates(),
         appContainer.settingsDataStore.activeTemplateId,
         appContainer.settingsDataStore.namingPattern,
-        appContainer.settingsDataStore.jpegQuality
-    ) { templates, activeId, pattern, quality ->
+        appContainer.settingsDataStore.photoQualityProfile,
+        appContainer.settingsDataStore.saveToSystemGallery
+    ) { templates, activeId, pattern, quality, gallery ->
         SettingsUiState(
             templates = templates,
             activeTemplateId = activeId,
             namingPattern = pattern,
-            jpegQuality = quality
+            photoQualityProfile = quality,
+            saveToSystemGallery = gallery
         )
-    }.stateIn(
+    }
+
+    val uiState: StateFlow<SettingsUiState> = combine(
+        baseUiState,
+        appContainer.settingsDataStore.shutterSoundEnabled
+    ) { state, shutterSound -> state.copy(shutterSoundEnabled = shutterSound) }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000L),
         initialValue = SettingsUiState()
@@ -50,10 +59,14 @@ class SettingsViewModel(
         }
     }
 
-    fun setJpegQuality(quality: Int) {
-        viewModelScope.launch {
-            appContainer.settingsDataStore.setJpegQuality(quality)
-        }
+    fun setPhotoQualityProfile(profile: com.sitecam.app.core.media.PhotoQualityProfile) {
+        viewModelScope.launch { appContainer.settingsDataStore.setPhotoQualityProfile(profile) }
+    }
+    fun setSaveToSystemGallery(enabled: Boolean) {
+        viewModelScope.launch { appContainer.settingsDataStore.setSaveToSystemGallery(enabled) }
+    }
+    fun setShutterSoundEnabled(enabled: Boolean) {
+        viewModelScope.launch { appContainer.settingsDataStore.setShutterSoundEnabled(enabled) }
     }
 
     fun copyDiagnostics(context: Context): String {

@@ -49,7 +49,9 @@ enum class CaptureMode {
 }
 
 sealed interface CameraUiEvent {
-    data class PhotoCaptured(val mediaId: Long, val uri: Uri) : CameraUiEvent
+    /** Emitted only after a PHOTO row and its media have been saved. */
+    data class PhotoSaved(val mediaId: Long, val uri: Uri, val showToast: Boolean = true) : CameraUiEvent
+    data class VideoSaved(val mediaId: Long, val uri: Uri) : CameraUiEvent
     data class QuickIssuePrompt(val mediaId: Long, val uri: Uri) : CameraUiEvent
     data class ShowToast(val message: String) : CameraUiEvent
 }
@@ -64,6 +66,7 @@ data class CameraUiState(
     val cameraCapability: CameraCapability = CameraCapability(),
     val currentZoomRatio: Float = 1.0f,
     val flashMode: String = "AUTO",
+    val captureOrientation: com.sitecam.app.core.camera.CaptureOrientation = com.sitecam.app.core.camera.CaptureOrientation.AUTO,
     val isOrientationLocked: Boolean = false,
     val orientationDegrees: Int = 0,
     val isQuickIssueMode: Boolean = false,
@@ -72,7 +75,8 @@ data class CameraUiState(
     val latestMediaType: String? = null,
     val captureMode: CaptureMode = CaptureMode.PHOTO,
     val isRecordingVideo: Boolean = false,
-    val recordingDurationSeconds: Int = 0
+    val recordingDurationSeconds: Int = 0,
+    val shutterSoundEnabled: Boolean = true
 )
 
 class CameraViewModel(
@@ -101,7 +105,6 @@ class CameraViewModel(
     private val _quickIssueMode = MutableStateFlow(false)
     private var quickIssueModeOverrideVersion = 0L
     private var recordingTimerJob: Job? = null
-    private var templatePersistJob: Job? = null
     private data class VideoCaptureSession(
         val token: Long,
         val timestamp: Long,
@@ -109,6 +112,7 @@ class CameraViewModel(
         val location: CaptureLocation,
         val watermark: WatermarkData,
         val quickIssueMode: Boolean,
+        val saveToSystemGallery: Boolean,
         val tempFile: File
     )
 
@@ -154,7 +158,7 @@ class CameraViewModel(
             cameraManager.cameraCapability,
             cameraManager.currentZoomRatio,
             appContainer.settingsDataStore.flashMode,
-            appContainer.settingsDataStore.orientationLocked,
+            appContainer.settingsDataStore.captureOrientation,
             orientationManager.orientationDegrees,
             _quickIssueMode,
             _isCapturing,
@@ -163,6 +167,7 @@ class CameraViewModel(
             _captureMode,
             _isRecordingVideo,
             _recordingDurationSeconds,
+            appContainer.settingsDataStore.shutterSoundEnabled,
             _clockTick
         ) as List<Flow<Any?>>
     ) { array ->
@@ -175,7 +180,8 @@ class CameraViewModel(
         val zoomRatio = (array[6] as? Float) ?: 1.0f
 
         val flash = (array[7] as? String) ?: "AUTO"
-        val orientationLocked = (array[8] as? Boolean) ?: false
+        val orientationMode = (array[8] as? com.sitecam.app.core.camera.CaptureOrientation) ?: com.sitecam.app.core.camera.CaptureOrientation.AUTO
+        val orientationLocked = orientationMode != com.sitecam.app.core.camera.CaptureOrientation.AUTO
         val orientationDeg = (array[9] as? Int) ?: 0
         val quickIssue = (array[10] as? Boolean) ?: false
         val capturing = (array[11] as? Boolean) ?: false
@@ -185,7 +191,8 @@ class CameraViewModel(
 
         val isRecording = (array[15] as? Boolean) ?: false
         val duration = (array[16] as? Int) ?: 0
-        val clockTick = (array[17] as? Long) ?: System.currentTimeMillis()
+        val shutterSoundEnabled = (array[17] as? Boolean) ?: true
+        val clockTick = (array[18] as? Long) ?: System.currentTimeMillis()
 
         val resolvedFields = resolveWatermarkFields(fields)
 
@@ -218,6 +225,7 @@ class CameraViewModel(
             cameraCapability = capability,
             currentZoomRatio = zoomRatio,
             flashMode = flash,
+            captureOrientation = orientationMode,
             isOrientationLocked = orientationLocked,
             orientationDegrees = orientationDeg,
             isQuickIssueMode = quickIssue,
@@ -226,7 +234,8 @@ class CameraViewModel(
             latestMediaType = latestMediaType,
             captureMode = mode,
             isRecordingVideo = isRecording,
-            recordingDurationSeconds = duration
+            recordingDurationSeconds = duration,
+            shutterSoundEnabled = shutterSoundEnabled
         )
     }.stateIn(
         scope = viewModelScope,
@@ -237,9 +246,9 @@ class CameraViewModel(
     init {
         loadInitialData()
         viewModelScope.launch {
-            val locked = appContainer.settingsDataStore.orientationLocked.first()
-            val lockedDegrees = appContainer.settingsDataStore.lockedOrientation.first()
-            orientationManager.restoreLockedState(locked, lockedDegrees)
+            appContainer.settingsDataStore.captureOrientation.collect { mode ->
+                orientationManager.restoreLockedState(mode.degrees != null, mode.degrees ?: 0)
+            }
         }
         viewModelScope.launch {
             while (isActive) {
@@ -260,26 +269,20 @@ class CameraViewModel(
     private fun loadInitialData() {
         viewModelScope.launch {
             AppDatabase.ensureDefaultData(appContainer.database)
-            appContainer.settingsDataStore.selectedProjectId.collect { savedProjectId ->
+            combine(appContainer.settingsDataStore.selectedProjectId, appContainer.settingsDataStore.projectSelectionCleared) { id, cleared -> id to cleared }.collectLatest { (savedProjectId, cleared) ->
+                if (cleared) { _currentProject.value = null; return@collectLatest }
                 val project = if (savedProjectId != null) {
                     appContainer.database.projectDao().getProjectById(savedProjectId)
                 } else {
                     appContainer.database.projectDao().getActiveProjects().firstOrNull()?.firstOrNull()
-                } ?: run {
-                    val first = appContainer.database.projectDao().getAllProjects().firstOrNull()?.firstOrNull()
-                    first ?: run {
-                        val id = appContainer.database.projectDao().insertProject(
-                            ProjectEntity(
-                                name = "示例工程项目",
-                                categoryName = "建筑",
-                                address = "现场施工区",
-                                description = "自动生成的默认工程"
-                            )
-                        )
-                        appContainer.database.projectDao().getProjectById(id)
-                    }
+                }
+                if (savedProjectId == null && project != null) {
+                    appContainer.settingsDataStore.setSelectedProjectId(project.id)
                 }
                 _currentProject.value = project
+                appContainer.database.projectDao().getAllProjects().collect { projects ->
+                    _currentProject.value = projects.firstOrNull { it.id == project?.id }
+                }
             }
         }
 
@@ -298,7 +301,11 @@ class CameraViewModel(
                         template.id,
                         com.sitecam.app.core.watermark.model.builtInWatermarkFieldsForTemplate(template.id)
                     )
-                    dao.getFieldsForTemplate(template.id).collect { fields ->
+                    combine(
+                        dao.observeTemplate(template.id),
+                        dao.getFieldsForTemplate(template.id)
+                    ) { latestTemplate, fields -> latestTemplate to fields }.collect { (latestTemplate, fields) ->
+                        _activeTemplate.value = latestTemplate
                         _watermarkFields.value = fields
                     }
                 }
@@ -337,7 +344,7 @@ class CameraViewModel(
     }
 
     fun setCaptureMode(mode: CaptureMode) {
-        if (_isRecordingVideo.value) return
+        if (_isRecordingVideo.value || _isCapturing.value) return
         _captureMode.value = mode
     }
 
@@ -383,14 +390,14 @@ class CameraViewModel(
         }
     }
 
+    fun setCaptureOrientation(mode: com.sitecam.app.core.camera.CaptureOrientation) {
+        if (_isCapturing.value || _isRecordingVideo.value) return
+        orientationManager.restoreLockedState(mode.degrees != null, mode.degrees ?: 0)
+        viewModelScope.launch { appContainer.settingsDataStore.setCaptureOrientation(mode) }
+    }
     fun toggleOrientationLock() {
-        viewModelScope.launch {
-            val currentLocked = uiState.value.isOrientationLocked
-            val newLocked = !currentLocked
-            val currentDeg = uiState.value.orientationDegrees
-            appContainer.settingsDataStore.setOrientationLocked(newLocked, currentDeg)
-            orientationManager.setLocked(newLocked)
-        }
+        val modes = com.sitecam.app.core.camera.CaptureOrientation.entries
+        setCaptureOrientation(modes[(uiState.value.captureOrientation.ordinal + 1) % modes.size])
     }
 
     fun toggleQuickIssueMode() {
@@ -430,38 +437,18 @@ class CameraViewModel(
     }
 
     fun updateTemplateStyle(styleType: String) {
-        viewModelScope.launch(appContainer.dispatchers.io) {
-            val current = _activeTemplate.value ?: return@launch
-            val updated = current.copy(styleType = styleType)
-            appContainer.database.watermarkDao().updateTemplate(updated)
-            _activeTemplate.value = updated
-        }
+        val id = _activeTemplate.value?.id ?: return
+        appContainer.watermarkTemplateMutations.style(id, styleType)
     }
 
     fun updateTemplateFontSize(scale: Float) {
-        viewModelScope.launch(appContainer.dispatchers.io) {
-            val current = _activeTemplate.value ?: return@launch
-            val updated = current.copy(fontSizeScale = scale)
-            _activeTemplate.value = updated
-            templatePersistJob?.cancel()
-            templatePersistJob = viewModelScope.launch {
-                delay(250L)
-                appContainer.database.watermarkDao().updateTemplate(updated)
-            }
-        }
+        val id = _activeTemplate.value?.id ?: return
+        appContainer.watermarkTemplateMutations.fontSize(id, scale)
     }
 
     fun updateTemplateOpacity(opacity: Float) {
-        viewModelScope.launch(appContainer.dispatchers.io) {
-            val current = _activeTemplate.value ?: return@launch
-            val updated = current.copy(opacity = opacity)
-            _activeTemplate.value = updated
-            templatePersistJob?.cancel()
-            templatePersistJob = viewModelScope.launch {
-                delay(250L)
-                appContainer.database.watermarkDao().updateTemplate(updated)
-            }
-        }
+        val id = _activeTemplate.value?.id ?: return
+        appContainer.watermarkTemplateMutations.opacity(id, opacity)
     }
 
     fun addCustomFieldDirect(label: String, defaultValue: String) {
@@ -508,11 +495,30 @@ class CameraViewModel(
     }
 
     private fun startVideoRecording(context: Context, withAudio: Boolean) {
+        viewModelScope.launch {
+            try { startVideoRecordingReserved(context, withAudio) }
+            catch (error: Exception) {
+                _isCapturing.value = false
+                uiState.value.currentProject?.let { appContainer.captureOperationCoordinator.finish(it.id) }
+                _uiEvents.emit(CameraUiEvent.ShowToast(error.message ?: "录像启动失败"))
+            }
+        }
+    }
+
+    private suspend fun startVideoRecordingReserved(context: Context, withAudio: Boolean) {
         if (_isCapturing.value || cameraManager.videoRecordingState.value != CameraManager.VideoRecordingState.IDLE) {
             viewModelScope.launch { _uiEvents.emit(CameraUiEvent.ShowToast("上一段录像仍在保存，请稍候")) }
             return
         }
         val project = uiState.value.currentProject ?: return
+        if (!appContainer.captureOperationCoordinator.tryBegin(project.id) {
+                appContainer.database.projectDao().getProjectById(project.id)?.let { !it.isCaptureLocked && !it.isArchived } == true
+            }) {
+            _uiEvents.emit(CameraUiEvent.ShowToast("此工程已锁定或正在拍摄，请解锁或切换工程"))
+            return
+        }
+        _isCapturing.value = true
+        val saveToGallery = appContainer.settingsDataStore.saveToSystemGallery.first()
         val quickIssueModeAtCapture = _quickIssueMode.value
         val tempFile = File(context.cacheDir, "temp_record_${System.currentTimeMillis()}.mp4")
         val captureTimestamp = System.currentTimeMillis()
@@ -527,6 +533,7 @@ class CameraViewModel(
 
         _recordingDurationSeconds.value = 0
         _isRecordingVideo.value = true
+        _isCapturing.value = false
         val pendingSession = VideoCaptureSession(
             token = 0L,
             timestamp = captureTimestamp,
@@ -534,6 +541,7 @@ class CameraViewModel(
             location = captureLocation,
             watermark = captureWatermark,
             quickIssueMode = quickIssueModeAtCapture,
+            saveToSystemGallery = saveToGallery,
             tempFile = tempFile
         )
         activeVideoSession = pendingSession
@@ -563,6 +571,7 @@ class CameraViewModel(
                         }
                     } else {
                         session.tempFile.delete()
+                        viewModelScope.launch { appContainer.captureOperationCoordinator.finish(session.project.id) }
                         activeVideoSession = null
                         viewModelScope.launch {
                             _uiEvents.emit(CameraUiEvent.ShowToast("录像中断: ${event.cause?.message ?: "未知错误"}"))
@@ -581,6 +590,7 @@ class CameraViewModel(
                 }
             }
         } catch (error: Exception) {
+            appContainer.captureOperationCoordinator.finish(project.id)
             activeVideoSession = null
             _isRecordingVideo.value = false
             recordingTimerJob?.cancel()
@@ -633,7 +643,8 @@ class CameraViewModel(
                 tempVideoFile = sourceFile,
                 fileName = fileName,
                 projectName = session.project.name,
-                timestamp = session.timestamp
+                timestamp = session.timestamp,
+                saveToSystemGallery = session.saveToSystemGallery
             )
             val mediaEntity = MediaItemEntity(
                 projectId = session.project.id,
@@ -664,14 +675,16 @@ class CameraViewModel(
                 throw dbError
             }
             _latestThumbnailUri.value = saveResult.uri.toString()
+            _latestMediaType.value = "VIDEO"
             if (session.quickIssueMode) {
                 _uiEvents.emit(CameraUiEvent.QuickIssuePrompt(mediaId, saveResult.uri))
             } else {
-                _uiEvents.emit(CameraUiEvent.PhotoCaptured(mediaId, saveResult.uri))
+                _uiEvents.emit(CameraUiEvent.VideoSaved(mediaId, saveResult.uri))
             }
         } catch (error: Exception) {
             _uiEvents.emit(CameraUiEvent.ShowToast("保存视频失败: ${error.message ?: "未知错误"}"))
         } finally {
+            appContainer.captureOperationCoordinator.finish(session.project.id)
             session.tempFile.delete()
             burnedFile.delete()
             if (activeVideoSession?.token == session.token) activeVideoSession = null
@@ -699,10 +712,21 @@ class CameraViewModel(
         _isCapturing.value = true
 
         viewModelScope.launch(appContainer.dispatchers.io) {
+            var reserved = false
             var rawBitmap: Bitmap? = null
             var watermarkedBitmap: Bitmap? = null
             try {
-                val surfaceRotation = orientationManager.getSurfaceRotation()
+                reserved = appContainer.captureOperationCoordinator.tryBegin(project.id) {
+                    appContainer.database.projectDao().getProjectById(project.id)?.let { !it.isCaptureLocked && !it.isArchived } == true
+                }
+                check(reserved) { "此工程已锁定或正在拍摄，请解锁或切换工程" }
+                val profile = appContainer.settingsDataStore.photoQualityProfile.first()
+                val saveToGallery = appContainer.settingsDataStore.saveToSystemGallery.first()
+                // CameraScreen keeps CameraX aligned with the actual window;
+                // reuse that target for the still capture and rendered aspect
+                // ratio so an excluded 180-degree sensor reading cannot make
+                // the saved image disagree with the preview.
+                val surfaceRotation = cameraManager.currentTargetRotation()
                 val captured = cameraManager.capturePhoto(surfaceRotation)
                 val capturedBitmap = captured.first
                 rawBitmap = capturedBitmap
@@ -712,7 +736,8 @@ class CameraViewModel(
                     sourceBitmap = capturedBitmap,
                     watermarkData = watermarkData,
                     rotationDegrees = rotationDegrees,
-                    targetAspectRatio = cameraManager.currentPreviewAspectRatio()
+                    targetAspectRatio = if (surfaceRotation == android.view.Surface.ROTATION_90 || surfaceRotation == android.view.Surface.ROTATION_270) 4f / 3f else 3f / 4f,
+                    qualityProfile = profile
                 )
                 watermarkedBitmap = renderedBitmap
 
@@ -724,14 +749,15 @@ class CameraViewModel(
                     pattern = pattern
                 )
 
-                val quality = appContainer.settingsDataStore.jpegQuality.first()
+                val quality = profile.jpegQuality
                 val saveResult = appContainer.mediaStoreManager.savePhotoToMediaStore(
                     bitmap = renderedBitmap,
                     fileName = fileName,
                     projectName = project.name,
                     watermarkData = watermarkData,
                     quality = quality,
-                    orientation = 0
+                    orientation = 0,
+                    saveToSystemGallery = saveToGallery
                 )
 
                 val mediaEntity = MediaItemEntity(
@@ -750,7 +776,7 @@ class CameraViewModel(
                     locationTimestamp = captureLocation.timestamp,
                     locationStatus = captureLocation.status,
                     addressText = watermarkData.addressText,
-                    orientation = rotationDegrees,
+                    orientation = 0,
                     // The quick-issue dialog is the commit point.
                     isIssue = false,
                     processingStatus = "READY",
@@ -765,15 +791,26 @@ class CameraViewModel(
                 }
 
                 _latestThumbnailUri.value = saveResult.uri.toString()
+                _latestMediaType.value = "PHOTO"
+
+                // This event is intentionally separate from video completion;
+                // the camera UI uses it to animate only a successfully saved
+                // photo, including photos that open the quick-issue prompt.
+                _uiEvents.emit(
+                    CameraUiEvent.PhotoSaved(
+                        mediaId = mediaId,
+                        uri = saveResult.uri,
+                        showToast = !quickIssueModeAtCapture
+                    )
+                )
 
                 if (quickIssueModeAtCapture) {
                     _uiEvents.emit(CameraUiEvent.QuickIssuePrompt(mediaId, saveResult.uri))
-                } else {
-                    _uiEvents.emit(CameraUiEvent.PhotoCaptured(mediaId, saveResult.uri))
                 }
             } catch (e: Exception) {
                 _uiEvents.emit(CameraUiEvent.ShowToast("拍摄失败: ${e.message ?: "未知错误"}"))
             } finally {
+                if (reserved) appContainer.captureOperationCoordinator.finish(project.id)
                 watermarkedBitmap?.takeIf { !it.isRecycled }?.recycle()
                 if (rawBitmap != watermarkedBitmap) {
                     rawBitmap?.takeIf { !it.isRecycled }?.recycle()
@@ -785,6 +822,9 @@ class CameraViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        activeVideoSession?.let { session ->
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch { appContainer.captureOperationCoordinator.finish(session.project.id) }
+        }
         cameraManager.release()
     }
 

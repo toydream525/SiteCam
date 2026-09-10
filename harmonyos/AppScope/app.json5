@@ -1,0 +1,25 @@
+{
+  "app": {
+    "bundleName": "com.sitecam.app",
+    "vendor": "ninjaaqua",
+    "versionCode": 10,
+    "versionName": "0.2.8",
+    "icon": "$media:app_icon",
+    "label": "$string:app_name",
+    "configuration": "$profile:configuration",
+    "alternateIcons": [
+      {
+        "name": "A",
+        "icon": "$media:icon_a"
+      },
+      {
+        "name": "B",
+        "icon": "$media:icon_b"
+      },
+      {
+        "name": "C",
+        "icon": "$media:icon_c"
+      }
+    ]
+  }
+}

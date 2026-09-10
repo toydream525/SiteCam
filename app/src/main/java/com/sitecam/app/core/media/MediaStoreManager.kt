@@ -38,11 +38,12 @@ class MediaStoreManager(private val context: Context) {
         projectName: String,
         watermarkData: WatermarkData,
         quality: Int = 95,
-        orientation: Int = 0
+        orientation: Int = 0,
+        saveToSystemGallery: Boolean = false
     ): SavedMediaResult = withContext(Dispatchers.IO) {
         val sanitizedProject = NamingEngine.sanitizeFileName(projectName)
         val relativePath = "${Environment.DIRECTORY_PICTURES}/SiteCam/$sanitizedProject"
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q && !hasLegacyWritePermission()) {
+        if (resolveMediaSaveTarget(saveToSystemGallery, Build.VERSION.SDK_INT, hasLegacyWritePermission()) == MediaSaveTarget.APP_PRIVATE) {
             return@withContext savePhotoToPrivateExternalFiles(
                 bitmap = bitmap,
                 fileName = fileName,
@@ -53,6 +54,7 @@ class MediaStoreManager(private val context: Context) {
             )
         }
 
+        var legacyFile: File? = null
         val contentValues = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
             put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
@@ -67,14 +69,18 @@ class MediaStoreManager(private val context: Context) {
                 @Suppress("DEPRECATION")
                 val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "SiteCam/$sanitizedProject")
                 if (!dir.exists()) dir.mkdirs()
-                val targetFile = File(dir, fileName)
+                val targetFile = createUniqueMediaFile(dir, fileName)
+                legacyFile = targetFile
+                put(MediaStore.MediaColumns.DISPLAY_NAME, targetFile.name)
                 put(MediaStore.Images.Media.DATA, targetFile.absolutePath)
             }
         }
 
         val resolver = context.contentResolver
-        val imageUri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-            ?: throw IllegalStateException("Failed to create MediaStore entry for $fileName")
+        val imageUri = try {
+            resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+                ?: throw IllegalStateException("Failed to create MediaStore entry for $fileName")
+        } catch (error: Exception) { legacyFile?.delete(); throw error }
 
         try {
             val outputStream: OutputStream? = resolver.openOutputStream(imageUri)
@@ -104,6 +110,7 @@ class MediaStoreManager(private val context: Context) {
             )
         } catch (e: Exception) {
             resolver.delete(imageUri, null, null)
+            legacyFile?.delete()
             throw e
         }
     }
@@ -112,7 +119,8 @@ class MediaStoreManager(private val context: Context) {
         tempVideoFile: File,
         fileName: String,
         projectName: String,
-        timestamp: Long
+        timestamp: Long,
+        saveToSystemGallery: Boolean = false
     ): SavedMediaResult = withContext(Dispatchers.IO) {
         require(tempVideoFile.isFile && tempVideoFile.length() > 0L) {
             "录像临时文件不存在或为空"
@@ -123,7 +131,7 @@ class MediaStoreManager(private val context: Context) {
         }
         val sanitizedProject = NamingEngine.sanitizeFileName(projectName)
         val relativePath = "${Environment.DIRECTORY_PICTURES}/SiteCam/$sanitizedProject"
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q && !hasLegacyWritePermission()) {
+        if (resolveMediaSaveTarget(saveToSystemGallery, Build.VERSION.SDK_INT, hasLegacyWritePermission()) == MediaSaveTarget.APP_PRIVATE) {
             return@withContext saveVideoToPrivateExternalFiles(
                 tempVideoFile = tempVideoFile,
                 fileName = fileName,
@@ -132,6 +140,7 @@ class MediaStoreManager(private val context: Context) {
             )
         }
 
+        var legacyFile: File? = null
         val contentValues = ContentValues().apply {
             put(MediaStore.Video.Media.DISPLAY_NAME, fileName)
             put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
@@ -147,14 +156,18 @@ class MediaStoreManager(private val context: Context) {
                 @Suppress("DEPRECATION")
                 val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "SiteCam/$sanitizedProject")
                 if (!dir.exists()) dir.mkdirs()
-                val targetFile = File(dir, fileName)
+                val targetFile = createUniqueMediaFile(dir, fileName)
+                legacyFile = targetFile
+                put(MediaStore.MediaColumns.DISPLAY_NAME, targetFile.name)
                 put(MediaStore.Video.Media.DATA, targetFile.absolutePath)
             }
         }
 
         val resolver = context.contentResolver
-        val videoUri = resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, contentValues)
-            ?: throw IllegalStateException("Failed to create MediaStore entry for video $fileName")
+        val videoUri = try {
+            resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, contentValues)
+                ?: throw IllegalStateException("Failed to create MediaStore entry for video $fileName")
+        } catch (error: Exception) { legacyFile?.delete(); throw error }
 
         try {
             resolver.openOutputStream(videoUri)?.use { out ->
@@ -180,6 +193,7 @@ class MediaStoreManager(private val context: Context) {
             )
         } catch (e: Exception) {
             resolver.delete(videoUri, null, null)
+            legacyFile?.delete()
             throw e
         }
     }
@@ -255,7 +269,7 @@ class MediaStoreManager(private val context: Context) {
         quality: Int,
         orientation: Int
     ): SavedMediaResult {
-        val file = File(privateMediaDirectory(projectName), fileName)
+        val file = createUniqueMediaFile(privateMediaDirectory(projectName), fileName)
         try {
             FileOutputStream(file).use { output ->
                 check(bitmap.compress(Bitmap.CompressFormat.JPEG, quality, output)) { "无法压缩照片" }
@@ -280,7 +294,7 @@ class MediaStoreManager(private val context: Context) {
         projectName: String,
         metadata: VideoMetadata
     ): SavedMediaResult {
-        val file = File(privateMediaDirectory(projectName), fileName)
+        val file = createUniqueMediaFile(privateMediaDirectory(projectName), fileName)
         try {
             FileInputStream(tempVideoFile).use { input ->
                 FileOutputStream(file).use { output -> input.copyTo(output) }

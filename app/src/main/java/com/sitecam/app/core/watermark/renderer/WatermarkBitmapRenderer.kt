@@ -3,8 +3,6 @@ package com.sitecam.app.core.watermark.renderer
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Matrix
-import android.graphics.Paint
-import android.graphics.Typeface
 import com.sitecam.app.core.watermark.engine.WatermarkLayoutEngine
 import com.sitecam.app.core.watermark.model.WatermarkData
 import kotlinx.coroutines.Dispatchers
@@ -20,7 +18,8 @@ object WatermarkBitmapRenderer {
         sourceBitmap: Bitmap,
         watermarkData: WatermarkData,
         rotationDegrees: Int = 0,
-        targetAspectRatio: Float? = null
+        targetAspectRatio: Float? = null,
+        qualityProfile: com.sitecam.app.core.media.PhotoQualityProfile = com.sitecam.app.core.media.PhotoQualityProfile.ORIGINAL
     ): Bitmap = withContext(Dispatchers.Default) {
         val orientedBitmap: Bitmap = if (rotationDegrees != 0) {
             val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
@@ -47,12 +46,15 @@ object WatermarkBitmapRenderer {
             ?.let { centerCropToAspectRatio(orientedBitmap, it) }
             ?: orientedBitmap
 
+        val resizedBitmap = com.sitecam.app.core.media.PhotoCompression.resize(framedBitmap, qualityProfile)
+        if (resizedBitmap !== framedBitmap) framedBitmap.recycle()
+
         // Ensure bitmap is mutable
-        val mutableBitmap: Bitmap = if (framedBitmap.isMutable) {
-            framedBitmap
+        val mutableBitmap: Bitmap = if (resizedBitmap.isMutable) {
+            resizedBitmap
         } else {
-            val copy = framedBitmap.copy(Bitmap.Config.ARGB_8888, true)
-            framedBitmap.recycle()
+            val copy = resizedBitmap.copy(Bitmap.Config.ARGB_8888, true)
+            resizedBitmap.recycle()
             copy
         }
 
@@ -64,59 +66,7 @@ object WatermarkBitmapRenderer {
             data = watermarkData
         )
 
-        val cardPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = layoutResult.cardColor
-            style = Paint.Style.FILL
-        }
-
-        // 1. Draw card background
-        canvas.drawRoundRect(layoutResult.cardRect, 16f, 16f, cardPaint)
-
-        // 2. Draw header background if InfoBoard
-        if (layoutResult.headerRect != null) {
-            val headerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = layoutResult.accentColor
-                style = Paint.Style.FILL
-            }
-            canvas.drawRoundRect(layoutResult.headerRect, 16f, 16f, headerPaint)
-        }
-
-        // 3. Draw accent bar if classic or info board
-        if (layoutResult.accentBarRect != null && layoutResult.headerRect == null) {
-            val accentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = layoutResult.accentColor
-                style = Paint.Style.FILL
-            }
-            canvas.drawRoundRect(layoutResult.accentBarRect, 8f, 8f, accentPaint)
-        }
-
-        // 4. Draw text lines
-        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-        }
-
-        val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            color = android.graphics.Color.parseColor("#B0BEC5")
-        }
-
-        canvas.save()
-        canvas.clipRect(layoutResult.cardRect)
-        for (line in layoutResult.lines) {
-            textPaint.textSize = line.textSize
-            textPaint.color = line.textColor
-            textPaint.isFakeBoldText = line.isBold
-
-            if (line.label.isNotEmpty()) {
-                labelPaint.textSize = line.textSize
-                canvas.drawText(line.label, line.x, line.y, labelPaint)
-                val labelWidth = labelPaint.measureText(line.label)
-                canvas.drawText(line.value, line.x + labelWidth, line.y, textPaint)
-            } else {
-                canvas.drawText(line.value, line.x, line.y, textPaint)
-            }
-        }
-        canvas.restore()
+        WatermarkCanvasPainter.draw(canvas, layoutResult)
 
         mutableBitmap
     }

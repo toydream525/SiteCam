@@ -49,4 +49,15 @@ interface MediaItemDao {
 
     @Query("SELECT COUNT(*) FROM media_items WHERE projectId = :projectId AND mediaType = 'VIDEO'")
     fun getVideoCountForProject(projectId: Long): Flow<Int>
+    @Query("UPDATE media_items SET projectId = :projectId WHERE id IN (:mediaIds)")
+    suspend fun moveMediaRows(mediaIds: List<Long>, projectId: Long)
+
+    @Query("UPDATE issues SET projectId = :projectId, updatedAt = :updatedAt WHERE mediaId IN (:mediaIds)")
+    suspend fun moveIssueRows(mediaIds: List<Long>, projectId: Long, updatedAt: Long)
+
+    @androidx.room.Transaction
+    suspend fun moveMediaToProject(mediaIds: List<Long>, projectId: Long) {
+        moveMediaRows(mediaIds, projectId)
+        moveIssueRows(mediaIds, projectId, System.currentTimeMillis())
+    }
 }

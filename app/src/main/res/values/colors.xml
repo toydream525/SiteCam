@@ -4,6 +4,10 @@
     <color name="engineering_dark">#121212</color>
     <color name="engineering_surface">#1E1E1E</color>
     <color name="engineering_card">#2A2A2A</color>
+    <color name="launcher_a_background">#0A2342</color>
+    <color name="launcher_b_background">#25292D</color>
+    <color name="launcher_c_background">#0F4E4A</color>
+    <color name="launcher_d_background">#0B1830</color>
     <color name="engineering_text_primary">#FFFFFF</color>
     <color name="engineering_text_secondary">#B0BEC5</color>
 </resources>

@@ -110,8 +110,8 @@ class CameraManager(private val context: Context) {
         try {
             previewViewRef = previewView
             currentFlashMode = flashMode
-            targetRotation = normalizeDisplayRotation(displayRotation)
-            previewTargetRotation = previewTargetRotationForCameraStream(displayRotation)
+            targetRotation = safeCameraTargetRotation(displayRotation)
+            previewTargetRotation = previewTargetRotationForCameraStream(targetRotation)
 
             val provider = getCameraProvider()
             cameraProvider = provider
@@ -347,7 +347,7 @@ class CameraManager(private val context: Context) {
      * so this avoids unbinding a recording in progress.
      */
     fun updateTargetRotation(displayRotation: Int) {
-        val normalized = normalizeDisplayRotation(displayRotation)
+        val normalized = safeCameraTargetRotation(displayRotation)
         if (targetRotation == normalized) return
         targetRotation = normalized
         previewTargetRotation = previewTargetRotationForCameraStream(normalized)
@@ -356,9 +356,12 @@ class CameraManager(private val context: Context) {
         videoCapture?.targetRotation = previewTargetRotation
     }
 
+    /** The rotation last applied to all active CameraX use cases. */
+    fun currentTargetRotation(): Int = targetRotation
+
     /** Keep the camera stream aligned with the current display on real devices. */
     private fun previewTargetRotationForCameraStream(displayRotation: Int): Int =
-        normalizeDisplayRotation(displayRotation)
+        safeCameraTargetRotation(displayRotation)
 
     fun setFlashMode(flashMode: String) {
         currentFlashMode = flashMode.uppercase()
@@ -425,7 +428,7 @@ class CameraManager(private val context: Context) {
             return@suspendCancellableCoroutine
         }
 
-        capture.targetRotation = targetRotation
+        capture.targetRotation = safeCameraTargetRotation(targetRotation)
 
         capture.takePicture(
             captureExecutor,

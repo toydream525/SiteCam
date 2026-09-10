@@ -8,6 +8,7 @@ import androidx.room.Query
 import androidx.room.Update
 import com.sitecam.app.core.database.entity.WatermarkFieldEntity
 import com.sitecam.app.core.database.entity.WatermarkTemplateEntity
+import com.sitecam.app.core.watermark.model.WatermarkStyleCatalog
 import com.sitecam.app.core.watermark.model.BuiltInWatermarkFieldKeys
 import kotlinx.coroutines.flow.Flow
 import androidx.room.Transaction
@@ -19,6 +20,28 @@ interface WatermarkDao {
 
     @Query("SELECT * FROM watermark_templates WHERE id = :id LIMIT 1")
     suspend fun getTemplateById(id: Long): WatermarkTemplateEntity?
+
+    @Query("SELECT * FROM watermark_templates WHERE id = :id LIMIT 1")
+    fun observeTemplate(id: Long): Flow<WatermarkTemplateEntity?>
+
+    // Each editor writes only the property it owns, so an in-flight slider
+    // update can never restore a stale style or overwrite another setting.
+    @Query("UPDATE watermark_templates SET styleType = :styleType WHERE id = :id")
+    suspend fun updateTemplateStyle(id: Long, styleType: String)
+
+    suspend fun changeTemplateStyle(id: Long, styleType: String) {
+        if (WatermarkStyleCatalog.styles.none { it.id == styleType }) return
+        updateTemplateStyle(id, styleType)
+    }
+
+    @Query("UPDATE watermark_templates SET fontSizeScale = :scale WHERE id = :id")
+    suspend fun updateTemplateFontSize(id: Long, scale: Float)
+
+    @Query("UPDATE watermark_templates SET opacity = :opacity WHERE id = :id")
+    suspend fun updateTemplateOpacity(id: Long, opacity: Float)
+
+    @Query("UPDATE watermark_templates SET position = :position WHERE id = :id")
+    suspend fun updateTemplatePosition(id: Long, position: String)
 
     @Query("SELECT * FROM watermark_templates WHERE isDefault = 1 LIMIT 1")
     suspend fun getDefaultTemplate(): WatermarkTemplateEntity?

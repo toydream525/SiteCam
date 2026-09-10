@@ -14,12 +14,15 @@ class OrientationManager(context: Context) {
 
     private var isLocked: Boolean = false
     private var lockedDegree: Int = 0
+    private var lastAllowedDegree: Int = 0
 
     private val orientationListener = object : OrientationEventListener(context) {
         override fun onOrientationChanged(orientation: Int) {
             if (orientation == ORIENTATION_UNKNOWN || isLocked) return
 
-            // Map angle to nearest 90-degree step: 0, 90, 180, 270
+            // Map angle to nearest 90-degree step. Keep the previous allowed
+            // direction at 180 degrees so the preview never flips upside
+            // down when the camera points toward the floor.
             val normalizedDegrees = when {
                 orientation >= 315 || orientation < 45 -> 0
                 orientation in 45..134 -> 90
@@ -28,9 +31,12 @@ class OrientationManager(context: Context) {
                 else -> 0
             }
 
-            if (_orientationDegrees.value != normalizedDegrees) {
-                _orientationDegrees.value = normalizedDegrees
+            val allowedDegrees = retainAllowedSensorDegrees(normalizedDegrees, lastAllowedDegree)
+
+            if (_orientationDegrees.value != allowedDegrees) {
+                _orientationDegrees.value = allowedDegrees
             }
+            lastAllowedDegree = allowedDegrees
         }
     }
 
@@ -47,7 +53,9 @@ class OrientationManager(context: Context) {
     fun setLocked(locked: Boolean) {
         isLocked = locked
         if (locked) {
-            lockedDegree = _orientationDegrees.value
+            lockedDegree = if (_orientationDegrees.value == 180) lastAllowedDegree else _orientationDegrees.value
+            lastAllowedDegree = lockedDegree
+            _orientationDegrees.value = lockedDegree
         }
     }
 
@@ -55,21 +63,23 @@ class OrientationManager(context: Context) {
     fun restoreLockedState(locked: Boolean, degrees: Int) {
         val normalized = ((degrees % 360) + 360) % 360
         lockedDegree = when (normalized) {
-            90, 180, 270 -> normalized
+            90, 270 -> normalized
+            180 -> lastAllowedDegree
             else -> 0
         }
         if (locked) {
             isLocked = true
+            lastAllowedDegree = lockedDegree
             _orientationDegrees.value = lockedDegree
         } else {
             isLocked = false
+            if (_orientationDegrees.value == 180) _orientationDegrees.value = lastAllowedDegree
         }
     }
 
     fun getSurfaceRotation(): Int {
-        return when (_orientationDegrees.value) {
+        return when (if (_orientationDegrees.value == 180) lastAllowedDegree else _orientationDegrees.value) {
             90 -> Surface.ROTATION_270
-            180 -> Surface.ROTATION_180
             270 -> Surface.ROTATION_90
             else -> Surface.ROTATION_0
         }

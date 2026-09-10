@@ -15,5 +15,9 @@ data class ProjectEntity(
     val updatedAt: Long = System.currentTimeMillis(),
     val isArchived: Boolean = false,
     val coverMediaId: Long? = null,
-    val watermarkTemplateId: Long = 1L
+    val watermarkTemplateId: Long = 1L,
+    @androidx.room.ColumnInfo(defaultValue = "''")
+    val routeName: String = "",
+    @androidx.room.ColumnInfo(defaultValue = "0")
+    val isCaptureLocked: Boolean = false
 )

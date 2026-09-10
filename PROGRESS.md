@@ -1,55 +1,77 @@
 # 工程水印相机 (SiteCam) - 开发进度总览
 
 ## 状态总览
-- **当前状态**：v0.2.7 功能与兼容性整改完成，待本轮集中测试/Lint/Release 构建及目标厂商真机复核；相机底栏版式保持邻接任务最新版不变。
-- **目标平台**：Android Native (Kotlin 2.1, AGP 8.12.0, Gradle 8.13, Jetpack Compose Material 3, Room, CameraX/Media3).
 
----
+- **版本**：v0.2.8（versionCode 10）。本版源码和使用说明已同步，随 v0.2.8 发布更新。
+- **当前阶段**：v0.2.8 最终集中构建与回归验收已完成；Debug/Release 各 74 项测试通过，Lint 无 Error。
+- **验证边界**：Xiaomi 14（设备 `1829a4e7`）已成功覆盖安装 Release v0.2.8（versionCode 10），本次安装记录的 lastUpdateTime 为 `2026-09-08 20:19:35`；紧凑工程包页的一屏四卡布局已完成真机截图验收。
+- **运行方式**：核心拍摄、工程管理、相册整理、问题记录、编辑和导出均以本地离线使用为目标。
 
-## 阶段里程碑进度
+## 2026-09-10 鸿蒙续作与发布
 
-| 里程碑 | 内容说明 | 状态 | 交付文件 |
-| :--- | :--- | :--- | :--- |
-| **Milestone 0** | 架构骨架、Room 7 大实体与 DAO、DataStore 配置、高对比度主题 | ✅ 100% 完成 | `AppDatabase.kt`, `AppSettingsDataStore.kt`, `Theme.kt` |
-| **Milestone 1** | CameraX 拍摄系统、统一水印排版引擎 (1:1 预览与照片)、快门时间戳、Scoped Storage 存储、EXIF 元数据 | ✅ 100% 完成 | `CameraManager.kt`, `WatermarkLayoutEngine.kt`, `MediaStoreManager.kt` |
-| **Milestone 2** | 多工程项目管理、工程切换、单屏快速新建、相册大图查看与分享/删除 | ✅ 100% 完成 | `ProjectListScreen.kt`, `GalleryScreen.kt`, `PhotoDetailScreen.kt` |
-| **Milestone 3** | 水印自定义编辑器：字段开关、新增自定义属性（标段/监理单位）、排序、字号与透明度调节 | ✅ 100% 完成 | `WatermarkCustomizationScreen.kt`, `WatermarkEditorViewModel.kt` |
-| **Milestone 4** | 问题模式与快速隐患登记、分类筛选与台账整合 | ✅ 100% 完成 | `QuickIssueDialog.kt`, `GalleryViewModel.kt` |
-| **Milestone 5** | 隐患照片涂鸦标注系统：箭头、矩形、圆圈、画笔、文字、脱敏遮盖，全分辨率 ContentScale.Fit 坐标映射，原图/标注双图保留 | ✅ 第三轮关键链路完成 | `PhotoAnnotationScreen.kt`, `PhotoAnnotationViewModel.kt` |
-| **Milestone 6** | 视频录制：录后 Media3 转码烧录统一水印、保留音频/真实宽高时长、失败保留原片并标记重试 | ✅ 代码路径已接入，需真机编解码复核 | `VideoWatermarkTranscoder.kt`, `CameraViewModel.kt` |
-| **Milestone 7** | 工程归档导出：ZIP 与 SAF 不压缩文件夹、可靠 JSON/CSV、标注成品、缺失报告、失败视频后处理 sidecar | ✅ 代码路径完成 | `ProjectExportEngine.kt`, `ProjectListScreen.kt` |
+- 普通手机界面校对，修复相册详情闪退、图标裁切、输入框对比度、弹窗浅色底板。
+- 工程/相册宽屏双栏、编辑侧边工具、可滚动水印面板，旋转保留资料与多选。
+- 核心 36 项验证中 35 项通过；无 H.264 编解码器一项环境阻塞。真实平板、悬停、HarmonyOS 5/6 和签名真机安装待验收。
+- [详细鸿蒙记录](harmonyos/VERIFICATION.md)。下方 Android 设备时间和测试数量属于对应历史批次；最终发布构建见发布记录。
 
----
+## v0.2.8 功能范围
 
-## 验证与测试结果
+### 拍摄、工程与资料
 
-1. **单元测试**：本轮 Debug/Release 各 35 项通过，0 failure / 0 error（包含相机/视频方向、字段矩阵、文字几何、坐标映射、定位新鲜度、导出与命名、水印快照测试）。
-   - `WatermarkLayoutEngineTest`：经典/极简/信息板排版计算、长文本自动折行、横竖屏自适应
-   - `NamingEngineTest`：重名序号自增、非法特殊字符清洗
-   - `CameraCapabilityTest`：动态多焦段与变焦档位解析
-   - `ProjectExportTest`：Excel UTF-8 BOM CSV 编码、ZIP 归档头部签名
-2. **APK 构建**：本轮 `assembleRelease` SUCCESS，输出 `app/build/outputs/apk/release/SiteCam-0.2.7-release.apk`；Release 签名缺失时构建会明确失败，Debug 不受影响。
-3. **代码 Lint 检查**：本轮 `lintDebug`、`lintRelease` SUCCESS；仅有既有兼容性/依赖版本提示，无 Error。
+- 首次使用指引为四页大字内容：工程照片分开保存、横竖拍摄按现场选择、按日期找照片并随手记问题、完工导出后及时锁定。完成或跳过后，之后启动和正常升级不再自动弹出；设置可以主动重看，未完成且未跳过时退出后仍会继续显示。
+- 首次进入相机前先读取指引状态，避免指引未处理时提前挂载相机和申请权限。
+- 功能指引完成或暂时跳过后进入权限指引，点击“开启所需权限”按相机、定位、麦克风顺序集中申请尚未授权的权限；相机必需，定位和录音可选，精确定位或大致定位任一授权即可使用定位水印，拒绝麦克风时仍可录像但无声音。全部授权或已经处理后不会再次自动出现，缺少权限时从拍摄页按需补开。
+- 工程可以填写一条可选线路文字，例如“滨江路雨污分流改造 / 北段雨水管”；支持编辑名称、线路、类别、地点和备注，归档恢复，以及工程和线路搜索。
+- 工程列表支持按最近拍摄、创建时间、编辑时间、工程名和线路首字母升降排序；工程卡片显示首拍、末拍和照片/视频/问题统计。工程锁定只禁止该工程继续拍照录像，不自动切换工程，已有资料仍可编辑、移动、删除和导出。
+- 支持批量分类、归档、锁定、解锁、删除和导出。问题等级为一般、重要、严重，处理状态统一为“待处理 / 处理中 / 已完成”。
 
-## 视频水印边界
+### 相册、编辑与导出
 
-录像完成后进入 Media3 Transformer，使用与照片相同的 `WatermarkLayoutEngine` 生成逐帧叠加并保留音频；针对 90/270 度编码旋转先按显示尺寸布局再映射回编码像素，只有转码成功才登记 `READY`。转码失败仍保存原片，登记 `FAILED_VIDEO_WATERMARK_RETRY`，导出附带真实元数据 sidecar 供重试，不伪称已烧录。Media3 在不同厂商编解码器上的兼容性仍需 API 36/37 真机复核。
+- 相册可按全部工程或指定工程查看，并按类别、年份月份、单日或日期范围筛选；日期指照片的拍摄日期。支持问题等级和处理状态筛选、多选后移动、分享、导出和删除。
+- 详情页支持 1–8 倍缩放、双击、双指拖动，水平/垂直翻转、90 度旋转、自由裁剪、撤销重做，以及箭头、文字和马赛克标注。原图与独立编辑成品可以切换查看，水印随整图变换。
+- 画质提供四档：更小文件、标准省空间（默认）、较清晰、原尺寸高清；拍摄与编辑保存使用各自当前选择。方向可选竖屏、左横屏、右横屏或自动，并记住选择。
+- 默认从应用内工程相册查看和管理资料；设置可开启系统相册显示。开启后新拍摄和编辑成品与应用内共用同一份文件，切换不搬动旧资料，删除会同步影响两处。
+- 批量导出支持 ZIP 或总文件夹，各工程使用独立目录，包含照片、视频、编辑成品、工程信息、清单和报告；导出可以保持原文件，也可以另存四档压缩副本，不替换工程存档。
 
-## 数据与权限边界
+### 帮助与桌面图标
 
-首次启动只申请相机；定位是可选能力，录像按需申请录音，拒绝时仍可录制无声视频。Room 数据库不参与云备份/设备迁移备份，避免 GPS 与失效 MediaStore URI 被恢复。
+- 帮助页离线阅读，提供目录和分章节正文；教程与 `docs/USER_GUIDE.md` 同源打包，覆盖拍照录像、权限、地点水印、自定义字段、闪光灯短按/长按、标注、相册、编辑和导出等现场操作。
+- 设置可重看首次功能指引。
+- 设置提供 A“蓝图镜头”、B“工程印记”、C“现场坐标”三款桌面图标，默认 A；切换只更换桌面入口，不影响工程资料。
 
-## Target SDK 与备份边界
+## 已验证记录
 
-已安装 Android 36 平台，并升级 `compileSdk/targetSdk=36`、AGP 8.12.0、Gradle 8.13；Activity 使用 edge-to-edge 与预测返回兼容配置，仍需在 API 36/37 真机或模拟器复核系统栏行为。应用关闭云备份与设备迁移备份中的 Room 数据库，避免 GPS/地址与跨设备失效 MediaStore URI 被恢复。
+- `SiteCam_API37_Pixel8` 模拟器已验证 Room 2→4 升级后保留 8 条媒体和 1 条问题；验证了应用内/系统相册新拍资料、工程锁定，以及首次指引跳过后不再自动显示和从设置回放。
+- API37 平台 `AppIconPickerPlatformTest` 1 项通过；手动 A→B→C 切换时始终只有一个桌面入口，C 在强制停止和覆盖安装后仍保持选择。
+- API37 平台新增 `HandledPermissionGuidePlatformTest` 1 项通过；模拟器验证指引完成或跳过后均先进入权限页，点击“开启所需权限”按相机、定位、麦克风顺序请求，授予相机和大致定位并拒绝麦克风后的结果准确，重启后不再重复弹出。
+- 已完成真实编辑与现场回归：工程锁定后快门不能新增；应用内/系统相册均能保存照片；左右横屏输出为 1280×960、竖屏为 960×1280；12.6 秒录像状态为 READY；翻转、旋转、自由裁剪、箭头标注、保存及原图/成品切换可用，双击可放大到 2 倍；问题“处理中”随照片转工程保持事务一致；两张新测试照片批量删除成功；ZIP 实际打开包含 3 个原文件、1 个编辑成品、清单和报告。
+- Xiaomi 14（`1829a4e7`）已安装 Release v0.2.8（versionCode 10）；实测全授权（仅精确定位授权）直接进入相机、不再显示权限页，拍摄方向默认为“自动”图标，设置页教程置顶。覆盖安装成功记录的 lastUpdateTime 为 `2026-09-08 20:19:35`。
+- API37 模拟器已发起设置页官网入口 intent，目标为 `https://yuriaqua.com`；Chrome 首次设置阻止网页继续加载，本记录只确认已发起打开。
+- 紧凑工程包页已完成源码排版并通过 Xiaomi 14 真机截图验收：顶部约 190–210dp、卡片约 128dp、间距 6dp，一屏四张完整卡片并露出第五张；卡片日期完整显示 `2026-08-28 至 2026-09-07`，编辑/导出常驻、当前徽标、数量强调和分隔线均符合预期。本轮仅截图和源码核对，未点按导出，也未重复运行 74 项业务测试。
 
----
+## 构建与发布状态
 
-## 2026-08-26 接手验收与成品化
+- `assembleDebug` 与 `assembleRelease` 均 `BUILD SUCCESSFUL`；Debug 74 项、Release 74 项测试均为 0 失败、0 跳过。
+- `lintDebug` 与 `lintRelease` 均为 0 Error。
+- 本轮紧凑工程包页纯布局修改执行 `assembleRelease` 与 `lintRelease`，日志 `/tmp/sitecam-project-polish-build.log`，耗时约 15 秒并成功；本轮未重复运行业务测试，沿用上项 Debug/Release 各 74 项通过记录。
+- v0.2.8 发布包括 Android APK、鸿蒙未签名开发 HAP、使用说明与验证边界。
 
-- 新增项目独立 Release 签名配置；签名密钥与 `keystore.properties` 仅保存在本机项目目录，并通过 `.gitignore` 排除，后续版本需沿用该密钥才能覆盖升级。
-- 邻接任务此前的成品为 0.2.7；本轮修改后不沿用旧的“32 项通过”结论，必须以集中验证输出更新。
-- 正式签名安装包应保留在 `app/build/outputs/apk/release/`，并按当前版本命名 `SiteCam-0.2.7-release.apk`。
-- APK 使用 RSA 4096 位证书，APK Signature Scheme v2 验证通过。
-- 已在 `SiteCam_API37_Pixel8` (API 37) 模拟器执行冷启动/权限/首屏 smoke test：相机权限授权后 `MainActivity` 正常前台运行，工程、重点问题、设置、拍照、录像、无定位降级等首屏控件正常渲染，Logcat 未出现 `FATAL EXCEPTION`。
-- 检测到一台 USB Android 真机，但本次未主动安装，避免未经明确操作意图改动用户手机。
+## 已知边界
+
+- 录像水印经过 Media3 后处理，失败时保留原片并记录可重试状态；不同厂商编解码器、音频和 90/270 度旋转元数据仍需目标真机复核。
+- 应用不将 Room 工程数据库作为云备份或设备迁移备份内容；换机前应先导出工程资料，导出文件可在新设备查看，当前不提供导入工程包恢复功能。
+
+## 主要代码位置
+
+- `app/src/main/java/com/sitecam/app/MainActivity.kt`：应用入口和导航挂载。
+- `app/src/main/java/com/sitecam/app/feature/onboarding/`：首次功能指引与独立持久化状态。
+- `app/src/main/java/com/sitecam/app/feature/help/`：离线教程解析、目录和章节阅读。
+- `app/src/main/java/com/sitecam/app/feature/icon/`：A/B/C 桌面图标选择与组件状态切换。
+- `app/src/main/java/com/sitecam/app/feature/settings/SettingsScreen.kt`：设置入口、质量/相册选项和桌面图标选择。
+- `docs/USER_GUIDE.md`：教程唯一文本源，同时用于帮助页资产打包。
+
+## v0.2.8 发布构建检查（2026-09-10）
+
+- Android Debug / Release 单元测试各 91 项通过，Release lint 与 APK 构建通过。
+- HarmonyOS Debug / Release 构建通过；签名因真机未到位暂停，两份 HAP 保持未签名开发版。
+- 官网新增 `/sitecam/` 下载和验证说明，应用内官网入口与教程同步更新。

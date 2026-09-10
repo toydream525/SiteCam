@@ -28,9 +28,12 @@ class MediaDeletionCoordinator(
     private val database: AppDatabase,
     private val mediaStoreManager: MediaStoreManager
 ) {
-    suspend fun delete(item: MediaItemEntity): MediaDeletionResult {
+    suspend fun delete(item: MediaItemEntity): MediaDeletionResult = MediaOperationCoordinator.withExclusive { deleteExclusive(item) }
+
+    private suspend fun deleteExclusive(requestedItem: MediaItemEntity): MediaDeletionResult {
         val issueDao = database.issueDao()
         val mediaDao = database.mediaItemDao()
+        val item = mediaDao.getMediaItemById(requestedItem.id) ?: return MediaDeletionResult(true, mediaWasMissing = true)
         val annotation = issueDao.getAnnotationByMediaId(item.id)
         val issue = issueDao.getIssueByMediaId(item.id)
         var annotationRemoved = false

@@ -1,0 +1,11 @@
+oh_modules/
+.hvigor/
+build/
+local.properties
+*.p12
+*.p7b
+*.cer
+.cxx/
+dist/
+verification/*.png
+verification/*.zip

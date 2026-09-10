@@ -3,6 +3,8 @@ package com.sitecam.app.feature.annotation
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.widget.Toast
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -109,6 +111,11 @@ fun PhotoAnnotationScreen(
     var pendingTextPosition by remember { mutableStateOf(Offset.Zero) }
     var showUnsavedBackConfirm by remember { mutableStateOf(false) }
 
+    var showCrop by remember { mutableStateOf(false) }
+    var cropLeft by remember { mutableStateOf(0f) }
+    var cropTop by remember { mutableStateOf(0f) }
+    var cropRight by remember { mutableStateOf(1f) }
+    var cropBottom by remember { mutableStateOf(1f) }
     val imageContentRect = remember(uiState.imageWidth, uiState.imageHeight, canvasSize) {
         if (uiState.imageWidth > 0 && uiState.imageHeight > 0 && canvasSize.width > 0 && canvasSize.height > 0) {
             ImageContentRect.forFit(
@@ -121,7 +128,8 @@ fun PhotoAnnotationScreen(
     }
 
     fun requestBack() {
-        if (uiState.elements.isNotEmpty()) showUnsavedBackConfirm = true else onNavigateBack()
+        if (uiState.isSaving) return
+        if (uiState.canUndo || uiState.elements.isNotEmpty()) showUnsavedBackConfirm = true else onNavigateBack()
     }
 
     BackHandler(enabled = true, onBack = ::requestBack)
@@ -142,6 +150,38 @@ fun PhotoAnnotationScreen(
         }
     }
 
+    if (showCrop) {
+        AlertDialog(onDismissRequest = { showCrop = false }, title = { Text("自由裁剪") }, text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text("在预览上拖出保留范围，或用下方滑块微调。确认后可撤销。")
+                Box(Modifier.fillMaxWidth().height(220.dp).pointerInput(uiState.imageWidth, uiState.imageHeight) {
+                    var start = Offset.Zero
+                    val rect = ImageContentRect.forFit(uiState.imageWidth.coerceAtLeast(1), uiState.imageHeight.coerceAtLeast(1), size.width.toFloat(), size.height.toFloat())
+                    detectDragGestures(onDragStart = { start = it }, onDrag = { change, _ ->
+                        change.consume()
+                        val a = Offset(((start.x - rect.rect.left) / rect.width).coerceIn(0f, 1f), ((start.y - rect.rect.top) / rect.height).coerceIn(0f, 1f))
+                        val b = Offset(((change.position.x - rect.rect.left) / rect.width).coerceIn(0f, 1f), ((change.position.y - rect.rect.top) / rect.height).coerceIn(0f, 1f))
+                        if (kotlin.math.abs(a.x - b.x) >= 0.05f && kotlin.math.abs(a.y - b.y) >= 0.05f) {
+                            cropLeft = minOf(a.x,b.x); cropRight = maxOf(a.x,b.x); cropTop = minOf(a.y,b.y); cropBottom = maxOf(a.y,b.y)
+                        }
+                    })
+                }) {
+                    AsyncImage(uiState.previewBitmap ?: uiState.mediaItem?.contentUri, "裁剪预览", Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                    Canvas(Modifier.fillMaxSize()) {
+                        val rect = ImageContentRect.forFit(uiState.imageWidth.coerceAtLeast(1), uiState.imageHeight.coerceAtLeast(1), size.width, size.height)
+                        drawRect(Color.Yellow, topLeft = Offset(rect.rect.left + rect.width * cropLeft, rect.rect.top + rect.height * cropTop), size = androidx.compose.ui.geometry.Size(rect.width * (cropRight-cropLeft), rect.height * (cropBottom-cropTop)), style = Stroke(2.dp.toPx()))
+                    }
+                }
+                Text("左边"); androidx.compose.material3.Slider(cropLeft, { cropLeft = it.coerceAtMost(cropRight - 0.05f) }, valueRange = 0f..0.95f)
+                Text("右边"); androidx.compose.material3.Slider(cropRight, { cropRight = it.coerceAtLeast(cropLeft + 0.05f) }, valueRange = 0.05f..1f)
+                Text("上边"); androidx.compose.material3.Slider(cropTop, { cropTop = it.coerceAtMost(cropBottom - 0.05f) }, valueRange = 0f..0.95f)
+                Text("下边"); androidx.compose.material3.Slider(cropBottom, { cropBottom = it.coerceAtLeast(cropTop + 0.05f) }, valueRange = 0.05f..1f)
+            }
+        }, confirmButton = { TextButton(onClick = {
+            viewModel.applyTransform("crop", canvasSize.width.toFloat(), canvasSize.height.toFloat(), Rect(cropLeft, cropTop, cropRight, cropBottom)); showCrop = false
+        }) { Text("确认裁剪") } }, dismissButton = { TextButton(onClick = { showCrop = false }) { Text("取消") } })
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = DarkBackground,
@@ -154,7 +194,8 @@ fun PhotoAnnotationScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.undo() }) {
+                    TextButton(onClick = { viewModel.redo() }, enabled = uiState.canRedo && !uiState.isSaving) { Text("重做") }
+                    IconButton(onClick = { viewModel.undo() }, enabled = uiState.canUndo && !uiState.isSaving) {
                         Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "撤销", tint = Color.White)
                     }
                     IconButton(
@@ -183,14 +224,22 @@ fun PhotoAnnotationScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                listOf("horizontal" to "水平翻转", "vertical" to "垂直翻转", "rotate" to "旋转90°").forEach { (kind, label) ->
+                    TextButton(enabled = !uiState.isSaving, onClick = { viewModel.applyTransform(kind, canvasSize.width.toFloat(), canvasSize.height.toFloat()) }) { Text(label, fontSize = 12.sp) }
+                }
+                TextButton(enabled = !uiState.isSaving, onClick = { cropLeft = 0f; cropTop = 0f; cropRight = 1f; cropBottom = 1f; showCrop = true }) { Text("裁剪") }
+            }
+            Text("翻转、旋转或裁剪会连同照片里已有的水印一起变化。原图始终保留。", color = TextSecondaryDark, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 12.dp))
             // Interactive Drawing Canvas Area
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
                     .background(Color.Black)
-                    .onSizeChanged { canvasSize = it }
-                    .pointerInput(uiState.selectedTool, uiState.selectedColor, uiState.selectedStrokeWidth) {
+                    .onSizeChanged { canvasSize = it; viewModel.viewportChanged(it.width.toFloat(), it.height.toFloat()) }
+                    .pointerInput(uiState.selectedTool, uiState.selectedColor, uiState.selectedStrokeWidth, uiState.isSaving, canvasSize, uiState.imageWidth, uiState.imageHeight) {
+                        if (uiState.isSaving) return@pointerInput
                         if (uiState.selectedTool == AnnotationTool.TEXT) {
                             detectTapGestures { offset ->
                                 if (imageContentRect == null || imageContentRect.contains(offset)) {
@@ -295,7 +344,7 @@ fun PhotoAnnotationScreen(
                 // Background Photo Image
                 uiState.mediaItem?.let { item ->
                     AsyncImage(
-                        model = item.contentUri,
+                        model = uiState.previewBitmap ?: item.contentUri,
                         contentDescription = "底图",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Fit

@@ -14,9 +14,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 data class WatermarkEditorUiState(
@@ -25,18 +25,21 @@ data class WatermarkEditorUiState(
     val previewData: WatermarkData = WatermarkData()
 )
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class WatermarkEditorViewModel(
     private val appContainer: AppContainer,
     private val templateId: Long
 ) : ViewModel() {
 
     private val _template = MutableStateFlow<WatermarkTemplateEntity?>(null)
-    private var templatePersistJob: Job? = null
     val template: StateFlow<WatermarkTemplateEntity?> = _template.asStateFlow()
 
     val uiState: StateFlow<WatermarkEditorUiState> = combine(
         _template,
-        appContainer.database.watermarkDao().getFieldsForTemplate(templateId)
+        _template.flatMapLatest { template ->
+            template?.let { appContainer.database.watermarkDao().getFieldsForTemplate(it.id) }
+                ?: flowOf(emptyList())
+        }
     ) { template, fields ->
         val resolvedFields = resolveWatermarkFields(fields)
 
@@ -48,6 +51,7 @@ class WatermarkEditorViewModel(
             longitude = 125.324501,
             userName = resolvedFields.userName,
             enabledSystemFields = resolvedFields.enabledSystemFields,
+            systemValueOverrides = resolvedFields.systemValueOverrides,
             customFields = resolvedFields.customFields,
             styleType = template?.styleType ?: "CLASSIC",
             fontSizeScale = template?.fontSizeScale ?: 1.0f,
@@ -75,45 +79,36 @@ class WatermarkEditorViewModel(
         viewModelScope.launch {
             val t = appContainer.database.watermarkDao().getTemplateById(templateId)
                 ?: appContainer.database.watermarkDao().getDefaultTemplate()
-            _template.value = t
             t?.let {
                 appContainer.database.watermarkDao().ensureBuiltInFields(
                     it.id,
                     builtInWatermarkFieldsForTemplate(it.id)
                 )
+                appContainer.database.watermarkDao().observeTemplate(it.id).collect { latest ->
+                    _template.value = latest
+                }
             }
         }
     }
 
+    fun updateStyleType(styleType: String) {
+        val id = _template.value?.id ?: return
+        appContainer.watermarkTemplateMutations.style(id, styleType)
+    }
+
     fun updateFontSizeScale(scale: Float) {
-        val current = _template.value ?: return
-        val updated = current.copy(fontSizeScale = scale)
-        _template.value = updated
-        persistTemplateDebounced(updated)
+        val id = _template.value?.id ?: return
+        appContainer.watermarkTemplateMutations.fontSize(id, scale)
     }
 
     fun updateOpacity(opacity: Float) {
-        val current = _template.value ?: return
-        val updated = current.copy(opacity = opacity)
-        _template.value = updated
-        persistTemplateDebounced(updated)
+        val id = _template.value?.id ?: return
+        appContainer.watermarkTemplateMutations.opacity(id, opacity)
     }
 
     fun updatePosition(position: String) {
-        val current = _template.value ?: return
-        val updated = current.copy(position = position)
-        _template.value = updated
-        viewModelScope.launch {
-            appContainer.database.watermarkDao().updateTemplate(updated)
-        }
-    }
-
-    private fun persistTemplateDebounced(template: WatermarkTemplateEntity) {
-        templatePersistJob?.cancel()
-        templatePersistJob = viewModelScope.launch {
-            delay(250L)
-            appContainer.database.watermarkDao().updateTemplate(template)
-        }
+        val id = _template.value?.id ?: return
+        appContainer.watermarkTemplateMutations.position(id, position)
     }
 
     fun toggleField(field: WatermarkFieldEntity) {
@@ -126,10 +121,11 @@ class WatermarkEditorViewModel(
 
     fun addCustomField(label: String, defaultValue: String) {
         if (label.isBlank()) return
+        val currentTemplateId = _template.value?.id ?: return
         val currentFields = uiState.value.fields
         val newOrder = (currentFields.maxOfOrNull { it.displayOrder } ?: 0) + 1
         val newField = WatermarkFieldEntity(
-            templateId = templateId,
+            templateId = currentTemplateId,
             fieldKey = "CUSTOM_${System.currentTimeMillis()}",
             label = label.trim(),
             defaultValue = defaultValue.trim(),
