@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="app/src/main/res/drawable-nodpi/ic_launcher_d_foreground.png" width="100" alt="sitecam 应用图标">
+<img src="app/src/main/res/drawable-nodpi/ic_launcher_d_foreground.png" width="100" alt="SiteCam 应用图标">
 
-# sitecam 工程水印相机
+# SiteCam 工程水印相机
 
 **拍好现场照片，整理好每个工程。**
 
@@ -38,7 +38,7 @@
 
 ## 🧰 能帮你做什么？
 
-| 现场工作 | 用 sitecam 怎么做 |
+| 现场工作 | 用 SiteCam 怎么做 |
 | --- | --- |
 | 📷 拍施工照片 | 自动加上工程名称、时间、地点等水印，支持拍照和录像 |
 | 🗂️ 整理不同项目 | 按工程保存，支持搜索、分类、归档；编辑和导出入口直接可见 |
