@@ -2,10 +2,10 @@
 
 ## 状态总览
 
-- **版本**：v0.2.8（versionCode 10）。本版源码和使用说明已同步，随 v0.2.8 发布更新。
-- **当前阶段**：v0.2.8 最终集中构建与回归验收已完成；Debug/Release 各 74 项测试通过，Lint 无 Error。
-- **验证边界**：Xiaomi 14（设备 `1829a4e7`）已成功覆盖安装 Release v0.2.8（versionCode 10），本次安装记录的 lastUpdateTime 为 `2026-09-08 20:19:35`；紧凑工程包页的一屏四卡布局已完成真机截图验收。
-- **运行方式**：核心拍摄、工程管理、相册整理、问题记录、编辑和导出均以本地离线使用为目标。
+- Android 当前版本 v0.2.9（versionCode 11）：修复系统相册删除后的旧图片残留，保留回收站恢复关联。
+- Debug / Release 单元测试各 93 项通过，Release lint 与构建通过。
+- 鸿蒙未签名开发包保持 v0.2.8，真机签名和验收待设备到位。
+- 下方 v0.2.8 内容与设备记录属于历史批次。
 
 ## 2026-09-10 鸿蒙续作与发布
 
@@ -75,3 +75,9 @@
 - Android Debug / Release 单元测试各 91 项通过，Release lint 与 APK 构建通过。
 - HarmonyOS Debug / Release 构建通过；签名因真机未到位暂停，两份 HAP 保持未签名开发版。
 - 官网新增 `/sitecam/` 下载和验证说明，应用内官网入口与教程同步更新。
+
+## v0.2.9 Issue #1 验证
+
+- 小米 23127PN0CC 覆盖安装并启动 Release，设备确认 versionCode 11 / versionName 0.2.9。
+- Debug / Release 单元测试各 93 项通过，包含删除、回收站恢复、权限错误、离线及迁移测试；Release lint 与构建通过。
+- 已添加真实 MediaStore 测试；手机拒绝测试程序 USB 安装（INSTALL_FAILED_USER_RESTRICTED），该项未执行，不计为通过。

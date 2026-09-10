@@ -4,19 +4,19 @@
 
 核心目标：**拍摄 → 自动写入工程信息 → 问题标记 → 按项目归档 → 快速查找/分享**。
 
-**永久免费 · 开源 · 无广告。** 当前版本为 v0.2.8。Android 提供 APK；HarmonyOS 提供 API 12 起的原生源码及未签名开发 HAP，已在 API 26 模拟器验证。iOS 仍在开发中。
+**永久免费 · 开源 · 无广告。** Android 当前版本为 v0.2.9，鸿蒙开发版为 v0.2.8。Android 提供 APK；HarmonyOS 提供 API 12 起的原生源码及未签名开发 HAP，已在 API 26 模拟器验证。iOS 仍在开发中。
 
 本项目采用 [MIT License](LICENSE) 开源。
 
 - [普通用户使用指南](docs/USER_GUIDE.md)
-- [下载 v0.2.8](https://github.com/toydream525/SiteCam/releases/tag/v0.2.8)
+- [下载 Android v0.2.9](https://github.com/toydream525/SiteCam/releases/tag/v0.2.9)
 - [作者主页](https://yuriaqua.com)
 
 ## 平台与安装
 
 | 平台 | 下载与状态 |
 | --- | --- |
-| Android 8.0+ | [v0.2.8 APK](https://github.com/toydream525/SiteCam/releases/download/v0.2.8/SiteCam-0.2.8-Android.apk) |
+| Android 8.0+ | [v0.2.9 APK](https://github.com/toydream525/SiteCam/releases/download/v0.2.9/SiteCam-0.2.9-Android.apk) |
 | HarmonyOS 5 / API 12 起（最低配置） | [开发说明](harmonyos/README.md)：API 26 模拟器验证；Debug / Release HAP 均未签名，不是普通真机安装包 |
 | iOS | 开发中，暂无安装包 |
 

@@ -48,5 +48,7 @@ data class MediaItemEntity(
     val processingStatus: String = "READY", // "PROCESSING", "READY", "FAILED"
     /** Immutable capture-time watermark configuration for video retry/export. */
     val watermarkSnapshotJson: String = "",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    @androidx.room.ColumnInfo(defaultValue = "0")
+    val isUnavailable: Boolean = false
 )

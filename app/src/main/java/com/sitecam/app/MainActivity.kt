@@ -21,6 +21,8 @@ class MainActivity : ComponentActivity() {
         val app = application as SiteCamApplication
         val appContainer = app.appContainer
 
+        lifecycle.addObserver(appContainer.mediaAvailabilitySync)
+
         setContent {
             SiteCamTheme(darkTheme = true) {
                 Surface(

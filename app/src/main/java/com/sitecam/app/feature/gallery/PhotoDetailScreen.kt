@@ -171,6 +171,10 @@ fun PhotoDetailScreen(
             modifier = Modifier.fillMaxSize().padding(paddingValues).background(DarkBackground),
             contentAlignment = Alignment.Center
         ) {
+            if (item == null) {
+                Text("媒体不可用，可能已在系统相册删除。请返回相册；从系统回收站恢复后会重新同步。",
+                    color = TextSecondaryDark, modifier = Modifier.padding(24.dp))
+            }
             item?.let { media ->
                 Column(modifier = Modifier.fillMaxSize()) {
                     Box(

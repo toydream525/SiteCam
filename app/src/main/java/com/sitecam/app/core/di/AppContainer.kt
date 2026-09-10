@@ -43,6 +43,10 @@ class AppContainer(val context: Context) {
         MediaDeletionCoordinator(database, mediaStoreManager)
     }
 
+    val mediaAvailabilitySync by lazy {
+        com.sitecam.app.core.media.MediaAvailabilitySync(appContext, database)
+    }
+
     val videoWatermarkTranscoder: VideoWatermarkTranscoder by lazy {
         VideoWatermarkTranscoder(appContext)
     }
