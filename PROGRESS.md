@@ -80,4 +80,4 @@
 
 - 小米 23127PN0CC 覆盖安装并启动 Release，设备确认 versionCode 11 / versionName 0.2.9。
 - Debug / Release 单元测试各 93 项通过，包含删除、回收站恢复、权限错误、离线及迁移测试；Release lint 与构建通过。
-- 已添加真实 MediaStore 测试；手机拒绝测试程序 USB 安装（INSTALL_FAILED_USER_RESTRICTED），该项未执行，不计为通过。
+- 小米真机 MediaStore 测试通过：系统媒体变化监听、移入回收站、恢复、删除及数量同步；仅操作新建测试图片。首次测试程序安装被拦截，重装后完成验证。

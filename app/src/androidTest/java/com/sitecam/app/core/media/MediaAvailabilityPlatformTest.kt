@@ -37,6 +37,7 @@ class MediaAvailabilityPlatformTest {
         val db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).build()
         var registry: LifecycleRegistry? = null
         val owner = object : LifecycleOwner { override val lifecycle: Lifecycle get() = registry!! }
+        var deleted = false
         try {
             val bitmap = Bitmap.createBitmap(4,4,Bitmap.Config.ARGB_8888)
             resolver.openOutputStream(uri)!!.use { assertTrue(bitmap.compress(Bitmap.CompressFormat.JPEG,90,it)) }
@@ -57,6 +58,7 @@ class MediaAvailabilityPlatformTest {
             assertEquals(1,resolver.update(uri,ContentValues().apply { put(MediaStore.Images.Media.IS_TRASHED,0) },null,null))
             withTimeout(10000) { db.mediaItemDao().getAllMediaItems().first { it.size==1 } }
             assertEquals(1,resolver.delete(uri,null,null))
+            deleted = true
             withTimeout(10000) { db.mediaItemDao().getAllMediaItems().first { it.isEmpty() } }
             assertEquals(id,db.mediaItemDao().getMediaForAvailabilitySync().single().id)
         } finally {
@@ -66,7 +68,7 @@ class MediaAvailabilityPlatformTest {
                     registry!!.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
                 }
             }
-            resolver.delete(uri,null,null)
+            if (!deleted) runCatching { resolver.delete(uri,null,null) }
             db.close()
         }
     }
