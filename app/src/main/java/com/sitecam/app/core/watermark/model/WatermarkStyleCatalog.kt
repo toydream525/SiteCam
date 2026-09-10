@@ -12,7 +12,7 @@ object WatermarkStyleCatalog {
         WatermarkStyle("CONSTRUCTION_TABLE", "施工表格", "蓝灰表头，标签与内容分列表格"),
         WatermarkStyle("INSPECTION", "巡检记录", "青绿巡检标题，逐项分隔的记录清单"),
         WatermarkStyle("ACCEPTANCE", "验收记录", "深蓝分区表头与规整表格，仅呈现已填写内容"),
-        WatermarkStyle("TIME_LOCATION", "大字时间地点", "突出拍摄时间，地点与工程信息依次排列")
+        WatermarkStyle("TIME_LOCATION", "大字时间地点", "突出拍摄时间，按字段设置顺序排列")
     )
     // Retired selection remains readable without rewriting templates or historical snapshots.
     fun resolve(id: String?): WatermarkStyle =

@@ -271,6 +271,9 @@ fun WatermarkCustomizationScreen(
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold
                     )
+                    TextButton(onClick = { viewModel.restoreFieldPresentation() }) {
+                        Text("恢复默认", color = EngineeringYellow, fontSize = 12.sp)
+                    }
                     Button(
                         onClick = { showAddFieldDialog = true },
                         colors = ButtonDefaults.buttonColors(containerColor = EngineeringYellow),
@@ -385,7 +388,6 @@ fun WatermarkCustomizationScreen(
     // Add Custom Field Dialog
     if (showAddFieldDialog) {
         var newLabel by remember { mutableStateOf("") }
-        var newDefaultVal by remember { mutableStateOf("") }
 
         AlertDialog(
             onDismissRequest = { showAddFieldDialog = false },
@@ -401,22 +403,13 @@ fun WatermarkCustomizationScreen(
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = EngineeringYellow),
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = newDefaultVal,
-                        onValueChange = { newDefaultVal = it },
-                        label = { Text("默认内容（如：一标段）") },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = EngineeringYellow),
-                        modifier = Modifier.fillMaxWidth()
-                    )
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
                         if (newLabel.isNotBlank()) {
-                            viewModel.addCustomField(newLabel, newDefaultVal)
+                            viewModel.addCustomField(newLabel)
                             showAddFieldDialog = false
                         }
                     },
@@ -436,7 +429,6 @@ fun WatermarkCustomizationScreen(
     // Edit Field Dialog
     editingField?.let { field ->
         var editLabel by remember(field) { mutableStateOf(field.label) }
-        var editDefaultVal by remember(field) { mutableStateOf(field.defaultValue) }
 
         AlertDialog(
             onDismissRequest = { editingField = null },
@@ -452,22 +444,13 @@ fun WatermarkCustomizationScreen(
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = EngineeringYellow),
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = editDefaultVal,
-                        onValueChange = { editDefaultVal = it },
-                        label = { Text("默认内容") },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = EngineeringYellow),
-                        modifier = Modifier.fillMaxWidth()
-                    )
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
                         if (editLabel.isNotBlank()) {
-                            viewModel.updateField(field, editLabel, editDefaultVal)
+                            viewModel.updateField(field, editLabel)
                             editingField = null
                         }
                     },

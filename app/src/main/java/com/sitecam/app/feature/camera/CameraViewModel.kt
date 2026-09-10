@@ -208,6 +208,8 @@ class CameraViewModel(
             enabledSystemFields = resolvedFields.enabledSystemFields,
             systemValueOverrides = resolvedFields.systemValueOverrides,
             customFields = resolvedFields.customFields,
+            fieldLabels = resolvedFields.fieldLabels,
+            fieldOrder = resolvedFields.fieldOrder,
             styleType = template?.styleType ?: "CLASSIC",
             fontSizeScale = template?.fontSizeScale ?: 1.0f,
             opacity = template?.opacity ?: 0.85f,

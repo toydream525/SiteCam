@@ -29,6 +29,8 @@ class WatermarkSnapshotCodecTest {
             enabledSystemFields = setOf(BuiltInWatermarkFieldKeys.PROJECT_NAME, BuiltInWatermarkFieldKeys.GPS),
             systemValueOverrides = mapOf(BuiltInWatermarkFieldKeys.PROJECT_NAME to "固定工程名"),
             customFields = listOf(WatermarkFieldItem("LOT", "标段", "二标段", true)),
+            fieldLabels = mapOf("PROJECT_NAME" to "今日水印"),
+            fieldOrder = listOf("LOT", "PROJECT_NAME", "GPS"),
             styleType = "INFO_BOARD",
             fontSizeScale = 1.4f,
             opacity = 0.7f,
@@ -45,6 +47,8 @@ class WatermarkSnapshotCodecTest {
         assertEquals(original.longitude, decoded?.longitude)
         assertEquals(original.enabledSystemFields, decoded?.enabledSystemFields)
         assertEquals(original.customFields, decoded?.customFields)
+        assertEquals(original.fieldLabels, decoded?.fieldLabels)
+        assertEquals(original.fieldOrder, decoded?.fieldOrder)
         assertEquals(original.styleType, decoded?.styleType)
         assertTrue(kotlin.math.abs(original.opacity - (decoded?.opacity ?: 0f)) < 0.001f)
     }
@@ -65,5 +69,7 @@ class WatermarkSnapshotCodecTest {
 
         assertNotNull(decoded)
         assertTrue(decoded?.enabledSystemFields?.isEmpty() == true)
+        assertNull(decoded?.fieldOrder)
+        assertTrue(decoded?.fieldLabels?.isEmpty() == true)
     }
 }

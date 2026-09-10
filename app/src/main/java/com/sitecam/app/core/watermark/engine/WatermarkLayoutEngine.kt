@@ -45,10 +45,13 @@ object WatermarkLayoutEngine {
             BuiltInWatermarkFieldKeys.USER_NAME to "拍摄人员"
         ).mapNotNull { (key, label) ->
             data.builtInValue(key)?.takeIf { key in data.enabledSystemFields && it.isNotBlank() }
-                ?.let { Field(key, label, it) }
+                ?.let { Field(key, data.fieldLabels[key] ?: label, it) }
         } + data.customFields.filter { it.isEnabled && it.value.isNotBlank() }
-            .map { Field(it.key, it.label, it.value) }
-        val ordered = if (style == "ENGINEERING_BLUE") fields.sortedBy {
+            .map { Field(it.key, data.fieldLabels[it.key] ?: it.label, it.value) }
+        val orderIndex = data.fieldOrder?.withIndex()?.associate { it.value to it.index }
+        val ordered = if (orderIndex != null) fields.sortedBy {
+            orderIndex[it.key] ?: Int.MAX_VALUE
+        } else if (style == "ENGINEERING_BLUE") fields.sortedBy {
             when(it.key) { BuiltInWatermarkFieldKeys.PROJECT_NAME -> 0; BuiltInWatermarkFieldKeys.DATE_TIME -> 1; else -> 2 }
         } else if (style == "TIME_LOCATION") fields.sortedBy {
             when(it.key) { BuiltInWatermarkFieldKeys.DATE_TIME -> 0; BuiltInWatermarkFieldKeys.ADDRESS -> 1; else -> 2 }
@@ -107,10 +110,20 @@ object WatermarkLayoutEngine {
                 val large = style == "TIME_LOCATION" && field.key == BuiltInWatermarkFieldKeys.DATE_TIME
                 val highlight = style == "CLASSIC" && index == 0
                 val font = if(highlight) 34f*s else size * if(large) 1.75f else if(blueHeader) 1.12f else 1f
+                val renamed = data.fieldLabels[field.key]?.let {
+                    it != BuiltInWatermarkFieldKeys.defaultLabels[field.key]
+                } == true
                 when {
                     blueHeader -> {
+                        if (renamed) {
+                            y = addText(field.label,pad,y,inner,size,Color.WHITE,true,field.key,"label")
+                        }
                         y = addText(field.value,pad,y,inner,font,Color.WHITE,true,field.key,"value")
-                        headerBottom = y + gap
+                        if (data.fieldOrder == null) {
+                            headerBottom = y + gap
+                        } else {
+                            decorations += WatermarkDecoration(RectF(0f,rowTop-gap/2,cardWidth,y),accent)
+                        }
                     }
                     table -> {
                         val labelWidth = inner * if(style == "ACCEPTANCE") .32f else .27f
@@ -121,7 +134,7 @@ object WatermarkLayoutEngine {
                     }
                     style == "MINIMAL" || style == "TIME_LOCATION" -> {
                         // Custom labels remain present even in compact styles.
-                        if(field.key !in BuiltInWatermarkFieldKeys.all && field.label.isNotEmpty())
+                        if((field.key !in BuiltInWatermarkFieldKeys.all || renamed) && field.label.isNotEmpty())
                             y = addText(field.label,pad,y,inner,size*.85f,labelColor,true,field.key,"label")
                         y = addText(field.value,pad,y,inner,font,foreground,large,field.key,"value")
                     }

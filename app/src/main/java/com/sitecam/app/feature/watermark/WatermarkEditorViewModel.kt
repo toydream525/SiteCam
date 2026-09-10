@@ -53,6 +53,8 @@ class WatermarkEditorViewModel(
             enabledSystemFields = resolvedFields.enabledSystemFields,
             systemValueOverrides = resolvedFields.systemValueOverrides,
             customFields = resolvedFields.customFields,
+            fieldLabels = resolvedFields.fieldLabels,
+            fieldOrder = resolvedFields.fieldOrder,
             styleType = template?.styleType ?: "CLASSIC",
             fontSizeScale = template?.fontSizeScale ?: 1.0f,
             opacity = template?.opacity ?: 0.85f,
@@ -119,7 +121,7 @@ class WatermarkEditorViewModel(
         }
     }
 
-    fun addCustomField(label: String, defaultValue: String) {
+    fun addCustomField(label: String) {
         if (label.isBlank()) return
         val currentTemplateId = _template.value?.id ?: return
         val currentFields = uiState.value.fields
@@ -128,7 +130,7 @@ class WatermarkEditorViewModel(
             templateId = currentTemplateId,
             fieldKey = "CUSTOM_${System.currentTimeMillis()}",
             label = label.trim(),
-            defaultValue = defaultValue.trim(),
+            defaultValue = "",
             displayOrder = newOrder,
             isEnabled = true
         )
@@ -137,11 +139,16 @@ class WatermarkEditorViewModel(
         }
     }
 
-    fun updateField(field: WatermarkFieldEntity, newLabel: String, newDefaultValue: String) {
+    fun updateField(field: WatermarkFieldEntity, newLabel: String) {
         viewModelScope.launch {
-            appContainer.database.watermarkDao().updateField(
-                field.copy(label = newLabel.trim(), defaultValue = newDefaultValue.trim())
-            )
+            appContainer.database.watermarkDao().updateFieldLabel(field.id, newLabel.trim())
+        }
+    }
+
+    fun restoreFieldPresentation() {
+        val id = _template.value?.id ?: return
+        viewModelScope.launch {
+            appContainer.database.watermarkDao().restoreFieldPresentation(id)
         }
     }
 

@@ -11,6 +11,12 @@ object BuiltInWatermarkFieldKeys {
     const val GPS = "GPS"
     const val USER_NAME = "USER_NAME"
 
+    val defaultLabels: Map<String, String> = mapOf(
+        PROJECT_NAME to "工程名称", PROJECT_CATEGORY to "工程类型",
+        DATE_TIME to "拍摄时间", ADDRESS to "拍摄地点",
+        GPS to "经纬度", USER_NAME to "拍摄人"
+    )
+
     val all: Set<String> = setOf(
         PROJECT_NAME,
         PROJECT_CATEGORY,
@@ -34,7 +40,9 @@ data class ResolvedWatermarkFields(
     val enabledSystemFields: Set<String>,
     val userName: String,
     val systemValueOverrides: Map<String, String>,
-    val customFields: List<WatermarkFieldItem>
+    val customFields: List<WatermarkFieldItem>,
+    val fieldLabels: Map<String, String> = emptyMap(),
+    val fieldOrder: List<String>? = null
 )
 
 /**
@@ -77,5 +85,10 @@ fun resolveWatermarkFields(fields: List<WatermarkFieldEntity>): ResolvedWatermar
             )
         }
 
-    return ResolvedWatermarkFields(enabled, userName, overrides, custom)
+    val ordered = fields.sortedBy { it.displayOrder }
+    return ResolvedWatermarkFields(
+        enabled, userName, overrides, custom,
+        fieldLabels = ordered.associate { it.fieldKey to it.label },
+        fieldOrder = ordered.map { it.fieldKey }
+    )
 }

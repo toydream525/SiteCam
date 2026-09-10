@@ -25,6 +25,9 @@ data class WatermarkData(
     /** Optional quick-edit overrides for built-in rows. Blank means use live project/location/time data. */
     val systemValueOverrides: Map<String, String> = emptyMap(),
     val customFields: List<WatermarkFieldItem> = emptyList(),
+    val fieldLabels: Map<String, String> = emptyMap(),
+    /** Null preserves the layout of snapshots captured before template ordering was supported. */
+    val fieldOrder: List<String>? = null,
     val styleType: String = "CLASSIC", // CLASSIC, MINIMAL, INFO_BOARD
     val fontSizeScale: Float = 1.0f,
     val opacity: Float = 0.85f,

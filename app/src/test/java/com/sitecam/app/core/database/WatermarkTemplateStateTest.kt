@@ -219,4 +219,71 @@ class WatermarkTemplateStateTest {
             Dispatchers.resetMain()
         }
     }
+    @Test fun restoreDefaultsChangesOnlyLabelsAndOrderInTheCurrentTemplate(): Unit = runBlocking {
+        Dispatchers.setMain(Dispatchers.Unconfined)
+        val database = Room.inMemoryDatabaseBuilder(RuntimeEnvironment.getApplication(), AppDatabase::class.java)
+            .allowMainThreadQueries().build()
+        var editor: WatermarkEditorViewModel? = null
+        try {
+            val dao = database.watermarkDao()
+            val template = WatermarkTemplateEntity(name = "当前模板", styleType = "ENGINEERING_BLUE", fontSizeScale = 1.8f,
+                opacity = .4f, position = "TOP_RIGHT")
+            val id = dao.insertTemplate(template)
+            val defaults = com.sitecam.app.core.watermark.model.builtInWatermarkFieldsForTemplate(id)
+            dao.insertFields(defaults.mapIndexed { index, field ->
+                field.copy(label = "修改标签$index", defaultValue = "保留内容$index", displayOrder = 10 - index, isEnabled = index % 2 == 0)
+            } + listOf(
+                WatermarkFieldEntity(templateId = id, fieldKey = "CUSTOM_SECOND", label = "自定义二", defaultValue = "第二项", displayOrder = 12, isEnabled = false),
+                WatermarkFieldEntity(templateId = id, fieldKey = "CUSTOM_FIRST", label = "自定义一", defaultValue = "第一项", displayOrder = 0)
+            ))
+            val otherId = dao.insertTemplate(WatermarkTemplateEntity(name = "其他模板"))
+            dao.insertField(WatermarkFieldEntity(templateId = otherId, fieldKey = "PROJECT_NAME", label = "其他标签", defaultValue = "其他内容", displayOrder = 9))
+            val original = dao.getFieldsForTemplateSync(id).associateBy { it.fieldKey }
+            val other = dao.getFieldsForTemplateSync(otherId)
+            val container = mockk<AppContainer>()
+            every { container.database } returns database
+            val model = WatermarkEditorViewModel(container, id).also { editor = it }
+            withTimeout(10000) { model.template.first { it != null } }
+            model.restoreFieldPresentation()
+            val restored = withTimeout(10000) {
+                dao.getFieldsForTemplate(id).first { it.first().label == "工程名称" }
+            }
+            assertEquals(defaults.map { it.fieldKey } + listOf("CUSTOM_FIRST", "CUSTOM_SECOND"), restored.map { it.fieldKey })
+            assertEquals((0..7).toList(), restored.map { it.displayOrder })
+            restored.forEach { field ->
+                val before = original.getValue(field.fieldKey)
+                assertEquals(before.defaultValue, field.defaultValue)
+                assertEquals(before.isEnabled, field.isEnabled)
+                assertEquals(before.id, field.id)
+                assertEquals(defaults.find { it.fieldKey == field.fieldKey }?.label ?: before.label, field.label)
+            }
+            assertEquals(template.copy(id = id), dao.getTemplateById(id))
+            assertEquals(other, dao.getFieldsForTemplateSync(otherId))
+            dao.restoreFieldPresentation(id)
+            assertEquals(restored, dao.getFieldsForTemplateSync(id))
+        } finally {
+            editor?.viewModelScope?.cancel()
+            database.close()
+            Dispatchers.resetMain()
+        }
+    }
+
+    @Test fun renameAndSwapDoNotOverwriteContentsChangedSinceTheEditorRead(): Unit = runBlocking {
+        val database = Room.inMemoryDatabaseBuilder(RuntimeEnvironment.getApplication(), AppDatabase::class.java)
+            .allowMainThreadQueries().build()
+        try {
+            val dao = database.watermarkDao()
+            val id = dao.insertTemplate(WatermarkTemplateEntity(name = "当前模板"))
+            dao.insertFields(com.sitecam.app.core.watermark.model.builtInWatermarkFieldsForTemplate(id))
+            val stale = dao.getFieldsForTemplateSync(id)
+            dao.updateField(stale[0].copy(defaultValue = "刚刚填写的内容"))
+            dao.updateFieldLabel(stale[0].id, "今日水印")
+            dao.swapFieldOrder(stale[0], stale[1])
+            val current = dao.getFieldsForTemplateSync(id)
+            assertEquals("PROJECT_CATEGORY", current.first().fieldKey)
+            assertEquals("今日水印", current[1].label)
+            assertEquals("刚刚填写的内容", current[1].defaultValue)
+        } finally { database.close() }
+    }
+
 }

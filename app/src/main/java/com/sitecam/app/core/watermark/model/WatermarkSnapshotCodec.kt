@@ -33,6 +33,8 @@ object WatermarkSnapshotCodec {
                 })
             }
         })
+        put("fieldLabels", JSONObject(data.fieldLabels))
+        data.fieldOrder?.let { put("fieldOrder", JSONArray(it)) }
         put("styleType", data.styleType)
         put("fontSizeScale", data.fontSizeScale.toDouble())
         put("opacity", data.opacity.toDouble())
@@ -80,6 +82,18 @@ object WatermarkSnapshotCodec {
                     }
                 }
             }
+            val labels = buildMap {
+                root.optJSONObject("fieldLabels")?.let { labels ->
+                    val keys = labels.keys()
+                    while (keys.hasNext()) {
+                        val key = keys.next()
+                        put(key, labels.optString(key))
+                    }
+                }
+            }
+            val order = root.optJSONArray("fieldOrder")?.let { array ->
+                List(array.length()) { array.optString(it) }
+            }
             WatermarkData(
                 projectName = root.optString("projectName", "未命名工程"),
                 categoryName = root.optString("categoryName", "建筑"),
@@ -92,6 +106,8 @@ object WatermarkSnapshotCodec {
                 enabledSystemFields = enabled,
                 systemValueOverrides = overrides,
                 customFields = customFields,
+                fieldLabels = labels,
+                fieldOrder = order,
                 styleType = root.optString("styleType", "CLASSIC"),
                 fontSizeScale = root.optDouble("fontSizeScale", 1.0).toFloat(),
                 opacity = root.optDouble("opacity", 0.85).toFloat(),

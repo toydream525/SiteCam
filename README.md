@@ -10,7 +10,7 @@
 
 **免费 · 开源 · 无广告**
 
-[⬇️ 下载安卓版](https://github.com/toydream525/SiteCam/releases/download/v0.2.9/SiteCam-0.2.9-Android.apk)　
+[⬇️ 下载安卓版](https://github.com/toydream525/SiteCam/releases/download/v0.2.10/SiteCam-0.2.10-Android.apk)　
 [🌐 官网](https://yuriaqua.com/sitecam/)　
 [📖 使用说明](docs/USER_GUIDE.md)　
 [💬 反馈问题](https://github.com/toydream525/SiteCam/issues)
@@ -59,7 +59,7 @@
 
 | 你的设备 | 当前状态 | 下载 |
 | --- | --- | --- |
-| 🤖 安卓手机 | **v0.2.9，可安装使用**，支持 Android 8.0 及以上 | [下载 APK](https://github.com/toydream525/SiteCam/releases/download/v0.2.9/SiteCam-0.2.9-Android.apk) |
+| 🤖 安卓手机 | **v0.2.10，可安装使用**，支持 Android 8.0 及以上 | [下载 APK](https://github.com/toydream525/SiteCam/releases/download/v0.2.10/SiteCam-0.2.10-Android.apk) |
 | 🌸 鸿蒙手机 / 平板 | **v0.2.8 开发版**，还不能作为普通真机安装包 | [开发包与说明](harmonyos/README.md) |
 | 🍎 iPhone / iPad | 开发中，暂无安装包 | — |
 
@@ -83,7 +83,7 @@
 
 ## 🆕 最近更新
 
-**v0.2.9：修复系统相册删了照片，应用还显示旧图片的问题。** 已在小米手机验证删除与回收站恢复。
+**v0.2.10：修复水印标签改名和字段排序不生效的问题。** 设置页调整标签和顺序，内容在相机画面点击水印后修改。
 
 [查看全部更新](CHANGELOG.md) · [遇到问题？告诉我](https://github.com/toydream525/SiteCam/issues)
 

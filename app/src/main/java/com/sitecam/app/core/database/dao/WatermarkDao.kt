@@ -70,6 +70,12 @@ interface WatermarkDao {
     @Update
     suspend fun updateField(field: WatermarkFieldEntity)
 
+    @Query("UPDATE watermark_fields SET label = :label WHERE id = :id")
+    suspend fun updateFieldLabel(id: Long, label: String)
+
+    @Query("UPDATE watermark_fields SET displayOrder = :displayOrder WHERE id = :id")
+    suspend fun updateFieldOrder(id: Long, displayOrder: Int)
+
     @Delete
     suspend fun deleteField(field: WatermarkFieldEntity)
 
@@ -86,9 +92,25 @@ interface WatermarkDao {
     suspend fun swapFieldOrder(first: WatermarkFieldEntity, second: WatermarkFieldEntity) {
         // Temporary order prevents a unique-order schema introduced later
         // from observing duplicate displayOrder values mid-swap.
-        updateField(first.copy(displayOrder = -first.id.toInt()))
-        updateField(second.copy(displayOrder = first.displayOrder))
-        updateField(first.copy(displayOrder = second.displayOrder))
+        updateFieldOrder(first.id, -first.id.toInt())
+        updateFieldOrder(second.id, first.displayOrder)
+        updateFieldOrder(first.id, second.displayOrder)
+    }
+
+    /** Reset presentation only; user-entered values, switches and custom fields remain intact. */
+    @Transaction
+    suspend fun restoreFieldPresentation(templateId: Long) {
+        val defaults = com.sitecam.app.core.watermark.model.builtInWatermarkFieldsForTemplate(templateId)
+        val current = getFieldsForTemplateSync(templateId)
+        val byKey = defaults.associateBy { it.fieldKey }
+        current.filter { it.fieldKey in byKey }.forEach { field ->
+            val original = byKey.getValue(field.fieldKey)
+            updateFieldLabel(field.id, original.label)
+            updateFieldOrder(field.id, original.displayOrder)
+        }
+        current.filter { it.fieldKey !in byKey }.forEachIndexed { index, field ->
+            updateFieldOrder(field.id, defaults.size + index)
+        }
     }
 
     @Query("SELECT COUNT(*) FROM watermark_templates")
