@@ -24,6 +24,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.offset
+import com.sitecam.app.core.layout.cameraGeometry
+import com.sitecam.app.core.layout.rememberScreenEnvironment
+import androidx.window.layout.FoldingFeature
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
@@ -385,49 +389,34 @@ fun CameraScreen(
     var previewViewRef by remember { mutableStateOf<PreviewView?>(null) }
     var previewViewSize by remember { mutableStateOf(IntSize.Zero) }
 
+    val screenEnvironment = rememberScreenEnvironment()
+    val screenDensity = LocalDensity.current
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black)
+            .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
         // Layout follows only the currently available window. Sensor
         // orientation is consumed by capture rotation/watermark metadata and
         // must never force a narrow portrait window into landscape controls.
-        val isLandscape = isLandscapeWindow(maxWidth.value, maxHeight.value)
-        // Measured from the connected 1200x2670 @ 480 dpi Xiaomi camera:
-        // tool shelf 307px, 3:4 preview 1600px, zoom centered on its lower edge.
-        val portraitTopBarHeight = 102.dp
-        val minPortraitDockHeight = 150.dp
-        val portraitFrameWidth = minOf(
-            maxWidth,
-            (maxHeight - portraitTopBarHeight - minPortraitDockHeight).coerceAtLeast(1.dp) * (3f / 4f)
-        )
-        val portraitPreviewHeight = (portraitFrameWidth * (4f / 3f)).coerceAtLeast(1.dp)
-        val portraitPreviewBottom = portraitTopBarHeight + portraitPreviewHeight
-        val landscapeToolBarWidth = 102.dp
-        val minLandscapeDockWidth = 160.dp
-        val landscapeAvailableWidth = (maxWidth - landscapeToolBarWidth).coerceAtLeast(1.dp)
-        val requestedLandscapePreviewWidth = maxHeight * (4f / 3f)
-        val landscapePreviewWidth = requestedLandscapePreviewWidth.coerceAtMost(
-            (landscapeAvailableWidth - minLandscapeDockWidth).coerceAtLeast(1.dp)
-        )
-        val landscapePreviewEnd = landscapeToolBarWidth + landscapePreviewWidth
-        val landscapeControlWidth = (maxWidth - landscapePreviewEnd).coerceAtLeast(1.dp)
-        val portraitPreviewTopPx = with(LocalDensity.current) { portraitTopBarHeight.toPx() }
-        val landscapePreviewStartPx = with(LocalDensity.current) { landscapeToolBarWidth.toPx() }
-        val previewFrameModifier = if (isLandscape) {
-            Modifier
-                .align(Alignment.CenterStart)
-                .padding(start = landscapeToolBarWidth)
-                .width(landscapePreviewWidth)
-                .height(maxHeight)
-        } else {
-            Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = portraitTopBarHeight)
-                .width(portraitFrameWidth)
-                .height(portraitPreviewHeight)
-        }
+        val crease = screenEnvironment.fold?.takeIf { it.state == FoldingFeature.State.HALF_OPENED && it.orientation == FoldingFeature.Orientation.HORIZONTAL }
+        val verticalCrease = screenEnvironment.fold?.takeIf { it.isSeparating && it.orientation == FoldingFeature.Orientation.VERTICAL }
+        val insetLeft = WindowInsets.safeDrawing.getLeft(screenDensity, androidx.compose.ui.unit.LayoutDirection.Ltr)
+        val insetTop = WindowInsets.safeDrawing.getTop(screenDensity)
+        val geometry = cameraGeometry(maxWidth.value, maxHeight.value, screenDensity.density,
+            screenEnvironment.profile.smallCover,
+            crease?.let { (it.bounds.top - insetTop) / screenDensity.density } ?: -1f,
+            crease?.let { (it.bounds.bottom - insetTop) / screenDensity.density } ?: -1f,
+            verticalCrease?.let { (it.bounds.left - insetLeft) / screenDensity.density } ?: -1f,
+            verticalCrease?.let { (it.bounds.right - insetLeft) / screenDensity.density } ?: -1f)
+        val isLandscape = geometry.side
+        val portraitTopBarHeight = geometry.toolbarHeight.dp
+        val portraitPreviewBottom = (geometry.previewY + geometry.previewHeight).dp
+        val landscapeToolBarWidth = geometry.toolbarWidth.dp
+        val landscapeControlWidth = geometry.controlsWidth.dp
+        val previewFrameModifier = Modifier.offset(geometry.previewX.dp, geometry.previewY.dp)
+            .width(geometry.previewWidth.dp).height(geometry.previewHeight.dp)
 
         // Match the system-camera hierarchy: system bars stay hidden while the
         // dedicated black tool/control areas frame a non-full-screen preview.
@@ -472,11 +461,7 @@ fun CameraScreen(
                 }
                 .pointerInput(Unit) {
                     detectTapGestures { offset ->
-                        focusPosition = if (isLandscape) {
-                            offset + Offset(landscapePreviewStartPx, 0f)
-                        } else {
-                            offset + Offset(0f, portraitPreviewTopPx)
-                        }
+                        focusPosition = offset + with(screenDensity) { Offset(geometry.previewX.dp.toPx(), geometry.previewY.dp.toPx()) }
                         val preview = previewViewRef
                         if (preview != null && preview.width > 0 && preview.height > 0) {
                             viewModel.cameraManager.focusOnPoint(
@@ -563,7 +548,7 @@ fun CameraScreen(
             modifier = previewFrameModifier
                 .onSizeChanged { watermarkOverlaySize = it }
                 .pointerInteropFilter { event ->
-                    if (isCameraBusy || watermarkOverlaySize.width <= 0 || watermarkOverlaySize.height <= 0) {
+                    if (screenEnvironment.profile.smallCover || isCameraBusy || watermarkOverlaySize.width <= 0 || watermarkOverlaySize.height <= 0) {
                         false
                     } else {
                         val layout = WatermarkLayoutEngine.calculateLayout(
@@ -617,7 +602,7 @@ fun CameraScreen(
                 modifier = Modifier.align(Alignment.Center).background(Color.Black.copy(alpha = 0.75f)).padding(12.dp))
         }
         // 4. Top Controls Bar
-        CameraTopBar(
+        if (!screenEnvironment.profile.smallCover) CameraTopBar(
             projectName = (uiState.currentProject?.name ?: "默认工程项目") + if (uiState.currentProject?.isCaptureLocked == true) " · 已锁定" else "",
             orientationLabel = uiState.captureOrientation.label,
             onOrientationSelected = viewModel::setCaptureOrientation,
@@ -630,20 +615,11 @@ fun CameraScreen(
             onSettingsClick = onNavigateToSettings,
             isBusy = isCaptureBusy,
             isLandscape = isLandscape,
-            modifier = if (isLandscape) {
-                Modifier
-                    .align(Alignment.CenterStart)
-                    .width(landscapeToolBarWidth)
-                    .fillMaxHeight()
-            } else {
-                Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-                    .height(portraitTopBarHeight)
-            }
+            modifier = Modifier.offset(geometry.toolbarX.dp, 0.dp)
+                .width(geometry.toolbarWidth.dp).height(geometry.toolbarHeight.dp)
         )
 
-        if (!hasLocationPermission || (uiState.captureMode == CaptureMode.VIDEO && !hasAudioPermission)) {
+        if (!screenEnvironment.profile.smallCover && (!hasLocationPermission || (uiState.captureMode == CaptureMode.VIDEO && !hasAudioPermission))) {
             Row(
                 modifier = Modifier
                     .align(Alignment.TopStart)
@@ -694,6 +670,8 @@ fun CameraScreen(
                 onZoomSelected = { ratio -> viewModel.setZoomRatio(ratio) },
                 isLandscape = true,
                 landscapeBarWidth = landscapeControlWidth,
+                compactGroup = screenEnvironment.profile.large,
+                smallCover = screenEnvironment.profile.smallCover,
                 onModeChange = { mode -> viewModel.setCaptureMode(mode) },
                 onShutterClick = ::handleShutterPressed,
                 onGalleryClick = { onNavigateToGallery(uiState.currentProject?.id) },
@@ -703,13 +681,8 @@ fun CameraScreen(
                         viewModel.cameraManager.switchLens(lifecycleOwner, preview)
                     }
                 },
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .windowInsetsPadding(
-                        WindowInsets.safeDrawing.only(
-                            WindowInsetsSides.Top + WindowInsetsSides.Bottom + WindowInsetsSides.End
-                        )
-                    ),
+                modifier = Modifier.offset(geometry.controlsX.dp, geometry.controlsY.dp)
+                    .height(geometry.controlsHeight.dp),
                 isBusy = isCameraBusy,
                 latestMediaType = uiState.latestMediaType,
                 shutterSoundEnabled = uiState.shutterSoundEnabled,
@@ -736,15 +709,8 @@ fun CameraScreen(
                         viewModel.cameraManager.switchLens(lifecycleOwner, preview)
                     }
                 },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height((maxHeight - portraitPreviewBottom).coerceAtLeast(0.dp))
-                    .windowInsetsPadding(
-                        WindowInsets.safeDrawing.only(
-                            WindowInsetsSides.Bottom + WindowInsetsSides.Start + WindowInsetsSides.End
-                        )
-                    ),
+                modifier = Modifier.offset(geometry.controlsX.dp, geometry.controlsY.dp)
+                    .width(geometry.controlsWidth.dp).height(geometry.controlsHeight.dp),
                 isBusy = isCameraBusy,
                 latestMediaType = uiState.latestMediaType,
                 shutterSoundEnabled = uiState.shutterSoundEnabled,

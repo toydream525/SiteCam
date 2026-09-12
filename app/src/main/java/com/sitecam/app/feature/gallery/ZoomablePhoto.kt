@@ -5,6 +5,8 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
@@ -17,8 +19,8 @@ import coil.compose.AsyncImage
 
 @Composable
 fun ZoomablePhoto(uri: String, description: String) {
-    var scale by remember(uri) { mutableFloatStateOf(1f) }
-    var offset by remember(uri) { mutableStateOf(Offset.Zero) }
+    var scale by rememberSaveable(uri) { mutableFloatStateOf(1f) }
+    var offset by rememberSaveable(uri, stateSaver = Saver<Offset, List<Float>>(save = { listOf(it.x, it.y) }, restore = { Offset(it[0], it[1]) })) { mutableStateOf(Offset.Zero) }
     val context = androidx.compose.ui.platform.LocalContext.current
     var imageSize by remember(uri) { mutableStateOf(IntSize.Zero) }
     val request = remember(uri) { coil.request.ImageRequest.Builder(context).data(uri).size(coil.size.Size.ORIGINAL).build() }

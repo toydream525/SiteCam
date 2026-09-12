@@ -103,11 +103,16 @@ class CameraManager(private val context: Context) {
     suspend fun initializeCamera(
         lifecycleOwner: LifecycleOwner,
         previewView: PreviewView,
-        lensFacing: Int = CameraSelector.LENS_FACING_BACK,
+        lensFacing: Int = currentLensFacing,
         flashMode: String = "AUTO",
         displayRotation: Int = Surface.ROTATION_0
     ) = withContext(Dispatchers.Main) {
         try {
+            if (previewViewRef === previewView && _isCameraReady.value && lensFacing == currentLensFacing) {
+                updateTargetRotation(displayRotation)
+                return@withContext
+            }
+            val previousZoom = _currentZoomRatio.value
             previewViewRef = previewView
             currentFlashMode = flashMode
             targetRotation = safeCameraTargetRotation(displayRotation)
@@ -122,7 +127,11 @@ class CameraManager(private val context: Context) {
                 val fallback = oppositeLensFacing(lensFacing)
                 if (hasCamera(provider, fallback)) fallback else lensFacing
             }
-            bindCameraUseCases(lifecycleOwner, previewView, requestedLens)
+            if (bindCameraUseCases(lifecycleOwner, previewView, requestedLens)) {
+                camera?.cameraInfo?.zoomState?.value?.let { zoom ->
+                    camera?.cameraControl?.setZoomRatio(previousZoom.coerceIn(zoom.minZoomRatio, zoom.maxZoomRatio))
+                }
+            }
         } catch (error: Exception) {
             _isCameraReady.value = false
             reportCameraError("相机启动失败，请检查相机权限或重试")

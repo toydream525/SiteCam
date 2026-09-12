@@ -10,12 +10,14 @@
 
 **免费 · 开源 · 无广告**
 
-[⬇️ 下载安卓版](https://github.com/toydream525/SiteCam/releases/download/v0.2.10/SiteCam-0.2.10-Android.apk)　
+[⬇️ 下载安卓版 Release（推荐）](https://github.com/toydream525/SiteCam/releases/download/v0.3.0/SiteCam-0.3.0-Android-Release.apk)　
 [🌐 官网](https://yuriaqua.com/sitecam/)　
 [📖 使用说明](docs/USER_GUIDE.md)　
 [💬 反馈问题](https://github.com/toydream525/SiteCam/issues)
 
 </div>
+
+默认下载 Release，推荐日常自用安装。[Debug 版](https://github.com/toydream525/SiteCam/releases/download/v0.3.0/SiteCam-0.3.0-Android-Debug.apk)供调试使用，采用独立包名，可与 Release 共存，数据分别保存。
 
 ---
 
@@ -59,7 +61,7 @@
 
 | 你的设备 | 当前状态 | 下载 |
 | --- | --- | --- |
-| 🤖 安卓手机 | **v0.2.10，可安装使用**，支持 Android 8.0 及以上 | [下载 APK](https://github.com/toydream525/SiteCam/releases/download/v0.2.10/SiteCam-0.2.10-Android.apk) |
+| 🤖 安卓手机 | **v0.3.0，可安装使用**，支持 Android 8.0 及以上 | [下载 APK](https://github.com/toydream525/SiteCam/releases/download/v0.3.0/SiteCam-0.3.0-Android-Release.apk) |
 | 🌸 鸿蒙手机 / 平板 | **v0.2.8 开发版**，还不能作为普通真机安装包 | [开发包与说明](harmonyos/README.md) |
 | 🍎 iPhone / iPad | 开发中，暂无安装包 | — |
 
@@ -83,7 +85,7 @@
 
 ## 🆕 最近更新
 
-**v0.2.10：修复水印标签改名和字段排序不生效的问题。** 设置页调整标签和顺序，内容在相机画面点击水印后修改。
+**v0.3.0：统一手机、折叠屏和平板布局，支持大屏相册双栏。** 竖屏快门在底部，横屏和方屏在右侧；小折叠外屏使用简化操作。
 
 [查看全部更新](CHANGELOG.md) · [遇到问题？告诉我](https://github.com/toydream525/SiteCam/issues)
 

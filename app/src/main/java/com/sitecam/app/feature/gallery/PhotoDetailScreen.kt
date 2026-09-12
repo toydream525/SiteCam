@@ -42,6 +42,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -72,12 +73,18 @@ fun PhotoDetailScreen(
     viewModel: PhotoDetailViewModel,
     onNavigateBack: () -> Unit,
     onNavigateToAnnotation: (Long) -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onMissingMedia: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val item by viewModel.mediaItem.collectAsState()
     val annotation by viewModel.annotation.collectAsState()
-    var showEdited by remember { mutableStateOf(false) }
+    var hadMedia by remember(viewModel) { mutableStateOf(false) }
+    LaunchedEffect(item) {
+        if (item != null) hadMedia = true
+        else if (hadMedia) onMissingMedia?.invoke()
+    }
+    var showEdited by rememberSaveable { mutableStateOf(false) }
     var showIssueDialog by remember { mutableStateOf(false) }
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(lifecycleOwner, viewModel) {

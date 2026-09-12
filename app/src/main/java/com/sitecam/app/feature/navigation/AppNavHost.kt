@@ -1,5 +1,13 @@
 package com.sitecam.app.feature.navigation
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.key
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
+import androidx.compose.material3.Text
+import com.sitecam.app.core.layout.rememberScreenEnvironment
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberUpdatedState
@@ -160,13 +168,37 @@ fun AppNavHost(
             val galleryViewModel: GalleryViewModel = viewModel(
                 factory = GalleryViewModel.provideFactory(appContainer, projectId)
             )
-            GalleryScreen(
-                viewModel = galleryViewModel,
-                onNavigateBack = { navController.popBackStack() },
-                onNavigateToDetail = { mediaId ->
-                    navController.navigate(Screen.PhotoDetail.createRoute(mediaId))
+            var selectedId by rememberSaveable { mutableStateOf<Long?>(null) }
+            val environment = rememberScreenEnvironment()
+            BackHandler(selectedId != null) { selectedId = null }
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val split = environment.profile.large && maxWidth >= 600.dp
+                val listWidth = if (split) (maxWidth * .4f).coerceIn(280.dp, 420.dp)
+                    else if (selectedId == null) maxWidth else 0.dp
+                Row(Modifier.fillMaxSize()) {
+                    // Stable composition slots preserve list scroll and the original detail state.
+                    Box(Modifier.width(listWidth).fillMaxHeight()) {
+                        GalleryScreen(
+                            viewModel = galleryViewModel,
+                            onNavigateBack = { navController.popBackStack() },
+                            onNavigateToDetail = { selectedId = it },
+                            selectedMediaId = selectedId
+                        )
+                    }
+                    Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                        selectedId?.let { id ->
+                            key(id) {
+                                val detail: PhotoDetailViewModel = viewModel(
+                                    key = "gallery-detail-$id",
+                                    factory = PhotoDetailViewModel.provideFactory(appContainer, id)
+                                )
+                                PhotoDetailScreen(detail, onNavigateBack = { selectedId = null }, onMissingMedia = { selectedId = null },
+                                    onNavigateToAnnotation = { navController.navigate(Screen.PhotoAnnotation.createRoute(it)) })
+                            }
+                        } ?: if (split) Text("选择照片或视频预览") else Unit
+                    }
                 }
-            )
+            }
         }
 
         composable(

@@ -8,5 +8,5 @@ package com.sitecam.app.core.camera
  * rotation, not a reason to swap a Compose layout on a narrow portrait
  * window.
  */
-fun isLandscapeWindow(availableWidth: Float, availableHeight: Float): Boolean =
-    availableWidth > availableHeight
+fun isLandscapeWindow(availableWidth: Float, availableHeight: Float, density: Float = 1f): Boolean =
+    (availableHeight - availableWidth) * density.coerceAtLeast(1f) <= 1f + Math.ulp(maxOf(availableWidth, availableHeight)) * density.coerceAtLeast(1f)

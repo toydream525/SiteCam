@@ -27,7 +27,7 @@ import java.time.ZoneId
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun GalleryScreen(viewModel: GalleryViewModel, onNavigateBack: () -> Unit,
-    onNavigateToDetail: (Long) -> Unit, modifier: Modifier = Modifier) {
+    onNavigateToDetail: (Long) -> Unit, modifier: Modifier = Modifier, selectedMediaId: Long? = null) {
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsState()
     var projectPicker by remember { mutableStateOf(false) }
@@ -67,7 +67,7 @@ fun GalleryScreen(viewModel: GalleryViewModel, onNavigateBack: () -> Unit,
             }
             Text("${state.mediaItems.size} 项 · 照片 ${state.mediaItems.count { it.mediaType == "PHOTO" }} / 视频 ${state.mediaItems.count { it.mediaType == "VIDEO" }}", Modifier.padding(horizontal = 12.dp))
             if(state.dateRange != CaptureDateRange()) Text("${state.dateRange.start ?: "不限"} 至 ${state.dateRange.endInclusive ?: "不限"}", Modifier.padding(horizontal = 12.dp))
-            Row(Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                 TextButton(onClick = viewModel::selectAll, enabled = !state.isLoading) { Text("全选当前筛选") }
                 if(state.checkedIds.isNotEmpty()) {
                     TextButton(onClick = viewModel::clearSelection, enabled = !state.isLoading) { Text("取消 ${state.checkedIds.size} 项") }
@@ -90,7 +90,7 @@ fun GalleryScreen(viewModel: GalleryViewModel, onNavigateBack: () -> Unit,
                 groups.forEach { (day, media) ->
                     item(key = "day_$day", span = { GridItemSpan(maxLineSpan) }) { Text("$day · ${media.size} 项", Modifier.padding(8.dp), style = MaterialTheme.typography.titleSmall) }
                     items(media, key = { it.id }) { item ->
-                        Card(Modifier.combinedClickable(enabled = !state.isLoading, onClick = {
+                        Card(Modifier.border(if (item.id == selectedMediaId) 2.dp else 0.dp, if (item.id == selectedMediaId) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Transparent).combinedClickable(enabled = !state.isLoading, onClick = {
                             if(state.checkedIds.isEmpty()) onNavigateToDetail(item.id) else viewModel.toggleChecked(item.id)
                         }, onLongClick = { viewModel.toggleChecked(item.id) })) {
                             Box {

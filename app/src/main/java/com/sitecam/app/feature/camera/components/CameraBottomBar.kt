@@ -41,6 +41,9 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -74,6 +77,8 @@ fun CameraBottomBar(
     onZoomSelected: (Float) -> Unit,
     isLandscape: Boolean = false,
     landscapeBarWidth: Dp = 255.dp,
+    compactGroup: Boolean = false,
+    smallCover: Boolean = false,
     onModeChange: (CaptureMode) -> Unit,
     onShutterClick: () -> Unit,
     onGalleryClick: () -> Unit,
@@ -113,9 +118,20 @@ fun CameraBottomBar(
         onShutterClick()
     }
 
-    if (isLandscape) {
+    if (smallCover) {
+        BoxWithConstraints(modifier.testTag("cover-controls").width(56.dp).fillMaxHeight().background(Color.Black), contentAlignment = Alignment.Center) {
+            val showSecondary = maxHeight >= 156.dp
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (showSecondary) GalleryButton(latestThumbnailUri, latestMediaType, !isBusy, 44.dp, thumbnailScale.value, onGalleryClick)
+                ShutterButton(captureMode, isCapturing || (!captureAllowed && !isRecordingVideo), isRecordingVideo, shutterScale.value, 44.dp, ::fireShutter)
+                if (showSecondary) FlipButton(!isBusy, 44.dp, onFlipCameraClick)
+            }
+        }
+    } else if (isLandscape) {
         LandscapeControlDock(
+            compactGroup = compactGroup,
             modifier = modifier
+                .testTag("camera-controls")
                 .fillMaxHeight()
                 .width(landscapeBarWidth)
                 .background(Color.Black)
@@ -203,16 +219,18 @@ private fun PortraitControlDock(
             else -> 72.dp
         }
         val sideButtonSize = if (veryCompact) 40.dp else 46.dp
-        val controlsLift = when {
-            veryCompact -> 10.dp
-            compact -> 22.dp
-            else -> 40.dp
-        }
         val dockLift = when {
             veryCompact -> 4.dp
             compact -> 6.dp
             else -> 10.dp
         }
+
+        val zoomHeight = if (zoomPresets.isEmpty()) 0.dp else if (compact) 36.dp else 44.dp
+        val modeHeight = ((if (isRecordingVideo) { if (compact) 16f else 18f }
+            else { if (compact) 17f else 20f }) * fontScale).dp + if (isRecordingVideo) 10.dp else 0.dp
+        val contentHeight = zoomHeight + modeHeight + sectionGap * 2 + shutterSize
+        val liftRoom = ((maxHeight - contentHeight) / 2 - dockLift - 2.dp).coerceAtLeast(0.dp)
+        val controlsLift = (if (veryCompact) 10.dp else if (compact) 22.dp else 40.dp).coerceAtMost(liftRoom)
 
         Column(
             modifier = Modifier
@@ -285,6 +303,7 @@ private fun PortraitControlDock(
 
 @Composable
 private fun LandscapeControlDock(
+    compactGroup: Boolean,
     modifier: Modifier,
     latestThumbnailUri: String?,
     latestMediaType: String?,
@@ -313,12 +332,13 @@ private fun LandscapeControlDock(
         // Keep the shutter group's absolute edge distance close to portrait:
         // portrait sits ~100dp above the bottom edge on the connected device,
         // so landscape uses a comparable distance from the right edge.
-        val shutterLeftShift = if (compact) 58.dp else 68.dp
+        val gripInset = if (compact) 58.dp else 68.dp
+        val groupHeight = (if (compactGroup) maxHeight.coerceAtMost(320.dp) else maxHeight) - 24.dp
 
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = horizontalPadding, vertical = 12.dp),
+                .padding(start = horizontalPadding, end = horizontalPadding + gripInset, top = 12.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Start
         ) {
@@ -348,8 +368,7 @@ private fun LandscapeControlDock(
 
             Column(
                 modifier = Modifier
-                    .fillMaxHeight()
-                    .offset(x = -shutterLeftShift)
+                    .height(groupHeight.coerceAtLeast(1.dp))
                     .padding(vertical = if (compact) 10.dp else 14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceBetween
@@ -445,6 +464,8 @@ private fun ShutterButton(
     Box(
         modifier = Modifier
             .size(outerSize)
+            .testTag("camera-shutter")
+            .semantics { contentDescription = if (video) "录像快门" else "拍照快门" }
             .scale(scale)
             .clip(CircleShape)
             .border(BorderStroke(3.dp, if (video) ErrorRed else Color.White), CircleShape)
