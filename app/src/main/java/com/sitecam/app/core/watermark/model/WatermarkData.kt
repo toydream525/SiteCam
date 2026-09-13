@@ -18,10 +18,12 @@ data class WatermarkData(
     val latitude: Double? = null,
     val longitude: Double? = null,
     val altitude: Double? = null,
+    /** FRESH, STALE, or UNAVAILABLE for location-dependent values. */
+    val locationStatus: String = "FRESH",
     val addressText: String = "",
     val userName: String = "",
     /** Built-in rows enabled by the current template. */
-    val enabledSystemFields: Set<String> = BuiltInWatermarkFieldKeys.all,
+    val enabledSystemFields: Set<String> = BuiltInWatermarkFieldKeys.defaultEnabled,
     /** Optional quick-edit overrides for built-in rows. Blank means use live project/location/time data. */
     val systemValueOverrides: Map<String, String> = emptyMap(),
     val customFields: List<WatermarkFieldItem> = emptyList(),
@@ -41,12 +43,26 @@ data class WatermarkData(
         get() = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(captureTimestamp))
 
     fun builtInValue(key: String): String? {
-        systemValueOverrides[key]?.takeIf { it.isNotBlank() }?.let { return it }
+        // Elevation is a live reading from the frozen capture location. A
+        // template's saved/default text must never turn an unavailable or
+        // stale reading into a believable altitude; other built-in fields
+        // retain their existing quick-edit override behavior.
+        if (key != BuiltInWatermarkFieldKeys.ELEVATION) {
+            systemValueOverrides[key]?.takeIf { it.isNotBlank() }?.let { return it }
+        }
         return when (key) {
             BuiltInWatermarkFieldKeys.PROJECT_NAME -> projectName
             BuiltInWatermarkFieldKeys.PROJECT_CATEGORY -> categoryName
             BuiltInWatermarkFieldKeys.DATE_TIME -> "$formattedDate $formattedTime"
             BuiltInWatermarkFieldKeys.ADDRESS -> addressText.takeIf { it.isNotBlank() }
+            BuiltInWatermarkFieldKeys.ELEVATION -> {
+                val validAltitude = altitude?.takeIf { it.isFinite() }
+                if (locationStatus.equals("FRESH", ignoreCase = true) && validAltitude != null) {
+                    String.format(Locale.US, "%.1f m", validAltitude)
+                } else {
+                    "暂不可用"
+                }
+            }
             BuiltInWatermarkFieldKeys.GPS -> formattedGps
             BuiltInWatermarkFieldKeys.USER_NAME -> userName.takeIf { it.isNotBlank() }
             else -> null

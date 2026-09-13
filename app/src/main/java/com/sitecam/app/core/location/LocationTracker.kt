@@ -15,6 +15,7 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -47,6 +48,21 @@ class LocationTracker(private val context: Context) {
         }
         systemLocationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
     }
+
+    /**
+     * Read the permission state again at the point a caller starts a manual
+     * refresh.  A refresh can outlive the settings page that revoked the
+     * permission, so callers must not fall back to an older fix in that case.
+     */
+    fun hasLocationPermission(): Boolean =
+        ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
 
     @SuppressLint("MissingPermission")
     fun startLocationUpdates() {
@@ -190,6 +206,59 @@ class LocationTracker(private val context: Context) {
         } catch (_: Exception) {}
     }
 
+    /**
+     * Re-subscribe and request a fresh fix even when normal tracking is
+     * already active. This is used by the camera's explicit address retry.
+     */
+    @SuppressLint("MissingPermission")
+    fun refreshLocation() {
+        val hasFine = ContextCompat.checkSelfPermission(
+            context, android.Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val hasCoarse = ContextCompat.checkSelfPermission(
+            context, android.Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!hasFine && !hasCoarse) {
+            clearLocation()
+            return
+        }
+
+        val generation = ++updateGeneration
+        isUpdating = true
+        stopFusedUpdates()
+        systemLocationListener?.let {
+            runCatching { systemLocationManager?.removeUpdates(it) }
+            systemLocationListener = null
+        }
+        readLastKnownLocation(generation)
+
+        val client = fusedClient
+        if (client != null) {
+            runCatching {
+                client.getCurrentLocation(
+                    Priority.PRIORITY_HIGH_ACCURACY,
+                    CancellationTokenSource().token
+                ).addOnSuccessListener { location ->
+                    if (location != null && generation == updateGeneration) updateLocation(location)
+                    if (generation == updateGeneration) startLocationUpdatesIfNeeded(generation)
+                }.addOnFailureListener {
+                    if (generation == updateGeneration) startLocationUpdatesIfNeeded(generation)
+                }.addOnCanceledListener {
+                    if (generation == updateGeneration) startLocationUpdatesIfNeeded(generation)
+                }
+                return
+            }
+        }
+        startLocationUpdatesIfNeeded(generation)
+    }
+
+    private fun startLocationUpdatesIfNeeded(generation: Long) {
+        if (!isUpdating || generation != updateGeneration) return
+        if (fusedCallback == null && systemLocationListener == null) {
+            startSystemLocationUpdates(generation)
+        }
+    }
+
     fun clearLocation() {
         _currentLocation.value = null
     }
@@ -207,7 +276,10 @@ class LocationTracker(private val context: Context) {
         val siteLocation = SiteLocation(
             latitude = location.latitude,
             longitude = location.longitude,
-            altitude = if (location.hasAltitude()) location.altitude else null,
+            // Android can report hasAltitude() for a non-finite sensor value;
+            // keep that reading unavailable all the way through capture and
+            // EXIF rather than persisting NaN/Infinity as a real elevation.
+            altitude = if (location.hasAltitude()) location.altitude.takeIf { it.isFinite() } else null,
             accuracy = if (location.hasAccuracy()) location.accuracy else null,
             timestamp = location.time
         )

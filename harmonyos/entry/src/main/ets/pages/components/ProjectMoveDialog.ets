@@ -23,9 +23,9 @@ export struct ProjectMoveDialog {
             Button(this.projectLabel(project)).width('100%').height(44).fontSize(13).fontColor(SITE_TEXT).backgroundColor('#303030').onClick(() => { this.controller.close(); this.onSelect(project.id); });
           }, (project: Project) => project.id.toString());
         }.width('100%');
-      }.width('100%').height(260);
+      }.width('100%').height(260).scrollBar(BarState.Off);
       Button('取消').width('100%').fontColor(SITE_MUTED).backgroundColor(Color.Transparent).onClick(() => { this.controller.close(); this.onCancel(); });
     }.padding(18).width('92%').backgroundColor(SITE_CARD).borderRadius(14);
-    }.width('100%').constraintSize({maxWidth:600,maxHeight:'90%'}).align(Alignment.Top);
+    }.width('100%').constraintSize({maxWidth:600,maxHeight:'90%'}).align(Alignment.Top).scrollBar(BarState.Off);
   }
 }

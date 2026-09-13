@@ -21,6 +21,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 data class ProjectItemUiState(
@@ -39,8 +41,51 @@ data class ProjectsScreenUiState(
     val archiveFilter: String = "ACTIVE",
     val sort: ProjectSort = ProjectSort.LAST_CAPTURE,
     val ascending: Boolean = false,
-    val checkedIds: Set<Long> = emptySet()
+    val checkedIds: Set<Long> = emptySet(),
+    val isSwitchingProject: Boolean = false,
+    val switchingProjectId: Long? = null
 )
+
+/**
+ * The exact project flags changed by one visible undo action.
+ *
+ * A null pair means that field was not part of the mutation.  Keeping the
+ * before/after value for each field lets undo reject a stale action instead of
+ * rolling back a later, independent archive/lock change.
+ */
+data class ProjectMutationUndo(
+    val projectId: Long,
+    val archivedBefore: Boolean? = null,
+    val archivedAfter: Boolean? = null,
+    val lockedBefore: Boolean? = null,
+    val lockedAfter: Boolean? = null,
+    val message: String
+) {
+    init {
+        require((archivedBefore == null) == (archivedAfter == null)) {
+            "archive undo values must be supplied together"
+        }
+        require((lockedBefore == null) == (lockedAfter == null)) {
+            "lock undo values must be supplied together"
+        }
+        require(archivedBefore != null || lockedBefore != null) {
+            "an undo action must contain at least one changed field"
+        }
+    }
+
+    fun canUndo(current: ProjectEntity): Boolean =
+        (archivedAfter == null || current.isArchived == archivedAfter) &&
+            (lockedAfter == null || current.isCaptureLocked == lockedAfter)
+
+    fun restore(current: ProjectEntity, updatedAt: Long): ProjectEntity? =
+        if (!canUndo(current)) null else current.copy(
+            isArchived = archivedBefore ?: current.isArchived,
+            isCaptureLocked = lockedBefore ?: current.isCaptureLocked,
+            updatedAt = updatedAt
+        )
+}
+
+private class StaleProjectUndoException : IllegalStateException()
 
 class ProjectViewModel(
     private val appContainer: AppContainer
@@ -58,6 +103,17 @@ class ProjectViewModel(
     val toastEvent: SharedFlow<String> = _toastEvent.asSharedFlow()
     private val _projectCreated = MutableSharedFlow<Long>()
     val projectCreated: SharedFlow<Long> = _projectCreated.asSharedFlow()
+    private val _projectSelected = MutableSharedFlow<Long>()
+    val projectSelected: SharedFlow<Long> = _projectSelected.asSharedFlow()
+    private val _undoEvent = MutableSharedFlow<ProjectMutationUndo>(extraBufferCapacity = 1)
+    val undoEvent: SharedFlow<ProjectMutationUndo> = _undoEvent.asSharedFlow()
+    // A project row can be tapped repeatedly before the first DataStore write
+    // completes. Keep only the newest request so an older selection cannot
+    // navigate back and then overwrite the user's later choice.
+    private var projectSelectionJob: Job? = null
+    private var projectSelectionToken = 0L
+    private val _isSwitchingProject = MutableStateFlow(false)
+    private val _switchingProjectId = MutableStateFlow<Long?>(null)
     val exportTreeUri: StateFlow<String?> = appContainer.settingsDataStore.exportTreeUri.stateIn(
         scope = viewModelScope,
         // The picker reads .value synchronously when it opens. Eagerly start
@@ -89,8 +145,13 @@ class ProjectViewModel(
             archiveFilter = filters.archive, sort = filters.sort, ascending = filters.ascending,
             checkedIds = filters.checked.intersect(projects.map { it.id }.toSet()))
     }
-    val uiState = combine(basics, _isExporting, _exportProgress) { state, exporting, progress ->
-        state.copy(isExporting = exporting, exportProgress = progress)
+    val uiState = combine(basics, _isExporting, _exportProgress, _isSwitchingProject, _switchingProjectId) { state, exporting, progress, switching, switchingId ->
+        state.copy(
+            isExporting = exporting,
+            exportProgress = progress,
+            isSwitchingProject = switching,
+            switchingProjectId = switchingId
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ProjectsScreenUiState())
 
     fun setSearch(value: String) { browser.value = browser.value.copy(search = value, checked = emptySet()) }
@@ -118,28 +179,98 @@ class ProjectViewModel(
         if(_isExporting.value) return
         viewModelScope.launch {
             var success = 0; val errors = mutableListOf<String>()
+            val undoId = ids.singleOrNull().takeIf { archived != null || locked != null }
+            var undoAction: ProjectMutationUndo? = null
             ids.forEach { id ->
                 runCatching {
                     appContainer.captureOperationCoordinator.withProjectIdle(id) {
                         val project = appContainer.database.projectDao().getProjectById(id) ?: error("工程已删除")
-                        appContainer.database.projectDao().updateProject(project.copy(categoryName = category ?: project.categoryName,
-                            isArchived = archived ?: project.isArchived, isCaptureLocked = locked ?: project.isCaptureLocked,
-                            updatedAt = System.currentTimeMillis()))
+                        val updated = project.copy(
+                            categoryName = category ?: project.categoryName,
+                            isArchived = archived ?: project.isArchived,
+                            isCaptureLocked = locked ?: project.isCaptureLocked,
+                            updatedAt = System.currentTimeMillis()
+                        )
+                        appContainer.database.projectDao().updateProject(updated)
+                        project to updated
                     }
-                }.onSuccess { success++ }.onFailure { errors += it.message ?: "操作失败" }
+                }.onSuccess { (before, after) ->
+                    success++
+                    if (id == undoId) {
+                        val archiveChanged = archived != null && before.isArchived != after.isArchived
+                        val lockChanged = locked != null && before.isCaptureLocked != after.isCaptureLocked
+                        if (archiveChanged || lockChanged) {
+                            val changed = when {
+                                archiveChanged && lockChanged -> "工程状态已更新"
+                                archiveChanged -> if (after.isArchived) "工程已归档" else "工程已恢复"
+                                else -> if (after.isCaptureLocked) "拍摄已锁定" else "拍摄已解锁"
+                            }
+                            undoAction = ProjectMutationUndo(
+                                projectId = id,
+                                archivedBefore = before.isArchived.takeIf { archiveChanged },
+                                archivedAfter = after.isArchived.takeIf { archiveChanged },
+                                lockedBefore = before.isCaptureLocked.takeIf { lockChanged },
+                                lockedAfter = after.isCaptureLocked.takeIf { lockChanged },
+                                message = "$changed：${before.name}"
+                            )
+                        }
+                    }
+                }.onFailure { errors += it.message ?: "操作失败" }
             }
             clearSelection()
             _toastEvent.emit("已更新 $success 个工程" + if(errors.isEmpty()) "" else "；${errors.size} 个失败：${errors.first()}")
+            if (success == 1 && undoAction != null) _undoEvent.emit(undoAction!!)
         }
     }
 
     fun selectProject(projectId: Long) {
-        viewModelScope.launch {
-            val project = appContainer.database.projectDao().getProjectById(projectId)
-            if(project == null || project.isArchived || project.isCaptureLocked) {
-                _toastEvent.emit("已归档或锁定的工程不能设为拍摄工程"); return@launch
+        projectSelectionJob?.cancel()
+        val requestToken = ++projectSelectionToken
+        _isSwitchingProject.value = true
+        _switchingProjectId.value = projectId
+        projectSelectionJob = viewModelScope.launch {
+            try {
+                appContainer.captureOperationCoordinator.withAllProjectsIdle {
+                    val project = appContainer.database.projectDao().getProjectById(projectId)
+                        ?: error("工程已删除")
+                    // Archive and capture lock are independent project states.
+                    // Selection remains available so the user can inspect or
+                    // explicitly return to a finished/locked project; capture
+                    // itself still checks both flags at the point of capture.
+                    appContainer.settingsDataStore.setSelectedProjectIdAndRecordRecent(project.id)
+                }
+                _projectSelected.emit(projectId)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                _toastEvent.emit(error.message ?: "切换工程失败")
+            } finally {
+                if (projectSelectionToken == requestToken) {
+                    _isSwitchingProject.value = false
+                    _switchingProjectId.value = null
+                }
             }
-            appContainer.settingsDataStore.setSelectedProjectId(projectId)
+        }
+    }
+
+    /** Restore only the two independent flags captured by the visible undo action. */
+    fun undoProjectMutation(undo: ProjectMutationUndo) {
+        if (_isExporting.value) return
+        viewModelScope.launch {
+            try {
+                appContainer.captureOperationCoordinator.withProjectIdle(undo.projectId) {
+                    val current = appContainer.database.projectDao().getProjectById(undo.projectId)
+                        ?: error("工程已删除")
+                    val restored = undo.restore(current, System.currentTimeMillis())
+                        ?: throw StaleProjectUndoException()
+                    appContainer.database.projectDao().updateProject(restored)
+                }
+                _toastEvent.emit("已撤销：${undo.message.substringAfter('：')}")
+            } catch (_: StaleProjectUndoException) {
+                _toastEvent.emit("工程状态已被后续操作修改，未撤销")
+            } catch (error: Exception) {
+                _toastEvent.emit("撤销失败：${error.message ?: "请重试"}")
+            }
         }
     }
 
@@ -175,7 +306,17 @@ class ProjectViewModel(
                     .putString("sort", ProjectSort.CREATED.name)
                     .putBoolean("ascending", false)
                     .apply()
-                appContainer.settingsDataStore.setSelectedProjectId(newId)
+                val switched = try {
+                    appContainer.captureOperationCoordinator.withAllProjectsIdle {
+                        appContainer.settingsDataStore.setSelectedProjectIdAndRecordRecent(newId)
+                    }
+                    true
+                } catch (_: com.sitecam.app.core.camera.CaptureInProgressException) {
+                    false
+                }
+                if (!switched) {
+                    _toastEvent.emit("工程已创建；当前拍摄完成后可从工程包切换")
+                }
                 _projectCreated.emit(newId)
             } catch (e: Exception) {
                 _toastEvent.emit("工程创建失败: ${e.message ?: "未知错误"}")

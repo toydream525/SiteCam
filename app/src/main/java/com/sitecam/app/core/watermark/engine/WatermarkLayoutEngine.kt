@@ -41,6 +41,7 @@ object WatermarkLayoutEngine {
             BuiltInWatermarkFieldKeys.PROJECT_CATEGORY to "工程类型",
             BuiltInWatermarkFieldKeys.DATE_TIME to "拍摄时间",
             BuiltInWatermarkFieldKeys.ADDRESS to "现场位置",
+            BuiltInWatermarkFieldKeys.ELEVATION to "海拔",
             BuiltInWatermarkFieldKeys.GPS to "GPS定位",
             BuiltInWatermarkFieldKeys.USER_NAME to "拍摄人员"
         ).mapNotNull { (key, label) ->

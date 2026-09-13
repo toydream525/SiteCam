@@ -70,6 +70,6 @@ export struct CropDialog {
         Button('取消').layoutWeight(1).backgroundColor(SITE_CARD).fontColor(SITE_TEXT).onClick(()=>this.controller.close());
         Button('应用').layoutWeight(1).backgroundColor(SITE_ACCENT).fontColor('#231A00').onClick(()=>{this.safeBounds();this.controller.close();this.onApply(this.leftValue,this.topValue,this.rightValue,this.bottomValue);});
       }.width('100%');
-    }.width('100%').padding(18).backgroundColor(SITE_CARD).borderRadius(14); }.width('90%').height('90%').scrollable(ScrollDirection.Vertical);
+    }.width('100%').padding(18).backgroundColor(SITE_CARD).borderRadius(14); }.width('90%').height('90%').scrollable(ScrollDirection.Vertical).scrollBar(BarState.Off);
   }
 }

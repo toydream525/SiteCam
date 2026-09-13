@@ -39,6 +39,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
@@ -54,6 +56,7 @@ sealed interface CameraUiEvent {
     data class VideoSaved(val mediaId: Long, val uri: Uri) : CameraUiEvent
     data class QuickIssuePrompt(val mediaId: Long, val uri: Uri) : CameraUiEvent
     data class ShowToast(val message: String) : CameraUiEvent
+    data class ProjectSwitched(val projectId: Long, val projectName: String) : CameraUiEvent
 }
 
 data class CameraUiState(
@@ -63,6 +66,7 @@ data class CameraUiState(
     val watermarkData: WatermarkData = WatermarkData(),
     val currentLocation: SiteLocation? = null,
     val currentAddress: String = "",
+    val addressRefreshState: String = "IDLE", // IDLE, REFRESHING, FAILED_*
     val cameraCapability: CameraCapability = CameraCapability(),
     val currentZoomRatio: Float = 1.0f,
     val flashMode: String = "AUTO",
@@ -90,9 +94,18 @@ class CameraViewModel(
     val uiEvents: SharedFlow<CameraUiEvent> = _uiEvents.asSharedFlow()
 
     private val _currentProject = MutableStateFlow<ProjectEntity?>(null)
+    private val _projectPickerProjects = MutableStateFlow<List<ProjectEntity>>(emptyList())
+    val projectPickerProjects: StateFlow<List<ProjectEntity>> = _projectPickerProjects.asStateFlow()
+    private val _isProjectSwitching = MutableStateFlow(false)
+    val isProjectSwitching: StateFlow<Boolean> = _isProjectSwitching.asStateFlow()
     private val _activeTemplate = MutableStateFlow<WatermarkTemplateEntity?>(null)
     private val _watermarkFields = MutableStateFlow<List<WatermarkFieldEntity>>(emptyList())
     private val _currentAddress = MutableStateFlow("")
+    private val _addressRefreshState = MutableStateFlow("IDLE")
+    private var locationAddressGeneration = 0L
+    private var manualAddressGeneration = 0L
+    /** Keeps automatic geocoding from finishing a request during a manual retry. */
+    private var manualAddressActive = false
     private val _isCapturing = MutableStateFlow(false)
     private val _latestThumbnailUri = MutableStateFlow<String?>(null)
     private val _latestMediaType = MutableStateFlow<String?>(null)
@@ -155,6 +168,7 @@ class CameraViewModel(
             _watermarkFields,
             appContainer.locationTracker.currentLocation,
             _currentAddress,
+            _addressRefreshState,
             cameraManager.cameraCapability,
             cameraManager.currentZoomRatio,
             appContainer.settingsDataStore.flashMode,
@@ -176,33 +190,36 @@ class CameraViewModel(
         val fields = (array[2] as? List<WatermarkFieldEntity>) ?: emptyList()
         val location = array[3] as? SiteLocation
         val address = (array[4] as? String) ?: ""
-        val capability = (array[5] as? CameraCapability) ?: CameraCapability()
-        val zoomRatio = (array[6] as? Float) ?: 1.0f
+        val addressRefreshState = (array[5] as? String) ?: "IDLE"
+        val capability = (array[6] as? CameraCapability) ?: CameraCapability()
+        val zoomRatio = (array[7] as? Float) ?: 1.0f
 
-        val flash = (array[7] as? String) ?: "AUTO"
-        val orientationMode = (array[8] as? com.sitecam.app.core.camera.CaptureOrientation) ?: com.sitecam.app.core.camera.CaptureOrientation.AUTO
+        val flash = (array[8] as? String) ?: "AUTO"
+        val orientationMode = (array[9] as? com.sitecam.app.core.camera.CaptureOrientation) ?: com.sitecam.app.core.camera.CaptureOrientation.AUTO
         val orientationLocked = orientationMode != com.sitecam.app.core.camera.CaptureOrientation.AUTO
-        val orientationDeg = (array[9] as? Int) ?: 0
-        val quickIssue = (array[10] as? Boolean) ?: false
-        val capturing = (array[11] as? Boolean) ?: false
-        val latestThumb = array[12] as? String
-        val latestMediaType = array[13] as? String
-        val mode = (array[14] as? CaptureMode) ?: CaptureMode.PHOTO
+        val orientationDeg = (array[10] as? Int) ?: 0
+        val quickIssue = (array[11] as? Boolean) ?: false
+        val capturing = (array[12] as? Boolean) ?: false
+        val latestThumb = array[13] as? String
+        val latestMediaType = array[14] as? String
+        val mode = (array[15] as? CaptureMode) ?: CaptureMode.PHOTO
 
-        val isRecording = (array[15] as? Boolean) ?: false
-        val duration = (array[16] as? Int) ?: 0
-        val shutterSoundEnabled = (array[17] as? Boolean) ?: true
-        val clockTick = (array[18] as? Long) ?: System.currentTimeMillis()
+        val isRecording = (array[16] as? Boolean) ?: false
+        val duration = (array[17] as? Int) ?: 0
+        val shutterSoundEnabled = (array[18] as? Boolean) ?: true
+        val clockTick = (array[19] as? Long) ?: System.currentTimeMillis()
 
         val resolvedFields = resolveWatermarkFields(fields)
+        val locationStatus = if (location != null && LocationFreshness.isFresh(location, clockTick)) "FRESH" else "UNAVAILABLE"
 
         val watermarkData = WatermarkData(
-            projectName = project?.name ?: "默认工程项目",
-            categoryName = project?.categoryName ?: "建筑",
+            projectName = project?.name ?: "请选择工程包",
+            categoryName = project?.categoryName ?: "",
             captureTimestamp = clockTick,
             latitude = location?.latitude,
             longitude = location?.longitude,
             altitude = location?.altitude,
+            locationStatus = locationStatus,
             addressText = address,
             userName = resolvedFields.userName,
             enabledSystemFields = resolvedFields.enabledSystemFields,
@@ -224,6 +241,7 @@ class CameraViewModel(
             watermarkData = watermarkData,
             currentLocation = location,
             currentAddress = address,
+            addressRefreshState = addressRefreshState,
             cameraCapability = capability,
             currentZoomRatio = zoomRatio,
             flashMode = flash,
@@ -271,20 +289,26 @@ class CameraViewModel(
     private fun loadInitialData() {
         viewModelScope.launch {
             AppDatabase.ensureDefaultData(appContainer.database)
-            combine(appContainer.settingsDataStore.selectedProjectId, appContainer.settingsDataStore.projectSelectionCleared) { id, cleared -> id to cleared }.collectLatest { (savedProjectId, cleared) ->
-                if (cleared) { _currentProject.value = null; return@collectLatest }
-                val project = if (savedProjectId != null) {
-                    appContainer.database.projectDao().getProjectById(savedProjectId)
+            // Keep the camera selection live after returning from the
+            // management page.  The old nested collect never returned after
+            // the first project list emission, so a later DataStore selection
+            // could leave the camera showing the previous project.
+            combine(
+                combine(
+                    appContainer.settingsDataStore.selectedProjectId,
+                    appContainer.settingsDataStore.projectSelectionCleared
+                ) { id, cleared -> id to cleared },
+                appContainer.database.projectDao().getAllProjects()
+            ) { (savedProjectId, cleared), projects ->
+                if (cleared || savedProjectId == null) {
+                    null
                 } else {
-                    appContainer.database.projectDao().getActiveProjects().firstOrNull()?.firstOrNull()
+                    // An empty or deleted selection is a real state. Never
+                    // silently replace it with the first active project.
+                    projects.firstOrNull { it.id == savedProjectId }
                 }
-                if (savedProjectId == null && project != null) {
-                    appContainer.settingsDataStore.setSelectedProjectId(project.id)
-                }
+            }.collect { project ->
                 _currentProject.value = project
-                appContainer.database.projectDao().getAllProjects().collect { projects ->
-                    _currentProject.value = projects.firstOrNull { it.id == project?.id }
-                }
             }
         }
 
@@ -319,19 +343,98 @@ class CameraViewModel(
         viewModelScope.launch {
             appContainer.locationTracker.currentLocation.collectLatest { loc ->
                 if (loc != null) {
+                    val generation = ++locationAddressGeneration
+                    // Do not even start an automatic lookup while the retry
+                    // action owns the location/address transaction.  Checking
+                    // only the generation at launch still allows an already
+                    // running automatic lookup to reset REFRESHING when it
+                    // completes.
+                    if (manualAddressActive) return@collectLatest
+                    // A manual refresh owns the current request generation.
+                    // Capture it before the potentially slow geocoder call so
+                    // an automatic result that started earlier cannot overwrite
+                    // the manual result after it finishes.
+                    val manualGenerationAtStart = manualAddressGeneration
                     val address = appContainer.reverseGeocoder.getAddressText(loc.latitude, loc.longitude)
                     val current = appContainer.locationTracker.currentLocation.value
-                    if (current?.timestamp == loc.timestamp &&
-                        current.latitude == loc.latitude && current.longitude == loc.longitude
+                    if (canCommitAutomaticAddress(
+                            manualGenerationAtStart = manualGenerationAtStart,
+                            currentManualGeneration = manualAddressGeneration,
+                            manualAddressActive = manualAddressActive,
+                            locationGenerationAtStart = generation,
+                            currentLocationGeneration = locationAddressGeneration,
+                            sameLocation = current?.timestamp == loc.timestamp &&
+                                current.latitude == loc.latitude && current.longitude == loc.longitude
+                        )
                     ) {
                         _currentAddress.value = address
+                        _addressRefreshState.value = if (address.isBlank()) "FAILED_ADDRESS" else "IDLE"
                     }
                 } else {
                     // Never retain an address after permission is revoked or
                     // tracking is stopped; it could otherwise be burned into
                     // a later, unrelated capture.
                     _currentAddress.value = ""
+                    if (_addressRefreshState.value != "REFRESHING") _addressRefreshState.value = "IDLE"
                 }
+            }
+        }
+    }
+
+    /** Retry reverse geocoding from the latest fix, bypassing the normal cache. */
+    fun refreshAddress() {
+        if (_addressRefreshState.value == "REFRESHING" || manualAddressActive) return
+        val generation = ++manualAddressGeneration
+        manualAddressActive = true
+        _addressRefreshState.value = "REFRESHING"
+        viewModelScope.launch {
+            try {
+                val result = performAddressRefresh(
+                    source = object : AddressRefreshSource {
+                        override val currentLocation = appContainer.locationTracker.currentLocation
+                        override fun hasLocationPermission(): Boolean =
+                            appContainer.locationTracker.hasLocationPermission()
+                        override fun clearLocation() = appContainer.locationTracker.clearLocation()
+                        override fun requestFreshLocation() = appContainer.locationTracker.refreshLocation()
+                    },
+                    reverseGeocode = { location ->
+                        appContainer.reverseGeocoder.getAddressText(
+                            location.latitude,
+                            location.longitude,
+                            forceRefresh = true
+                        )
+                    }
+                )
+                if (generation != manualAddressGeneration) return@launch
+                when (result) {
+                    is AddressRefreshResult.Success -> {
+                        val current = appContainer.locationTracker.currentLocation.value
+                        when {
+                            !appContainer.locationTracker.hasLocationPermission() -> {
+                                _addressRefreshState.value = "FAILED_PERMISSION"
+                            }
+                            !sameAddressLocation(current, result.location) ||
+                                !LocationFreshness.isFresh(current, System.currentTimeMillis()) -> {
+                                _addressRefreshState.value = "FAILED_LOCATION"
+                            }
+                            else -> {
+                                _currentAddress.value = result.address
+                                _addressRefreshState.value = "IDLE"
+                            }
+                        }
+                    }
+                    is AddressRefreshResult.Failure -> {
+                        _addressRefreshState.value = when (result.reason) {
+                            AddressRefreshFailure.PERMISSION -> "FAILED_PERMISSION"
+                            AddressRefreshFailure.LOCATION -> "FAILED_LOCATION"
+                            AddressRefreshFailure.ADDRESS -> "FAILED_ADDRESS"
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                if (generation == manualAddressGeneration) _addressRefreshState.value = "FAILED_ADDRESS"
+            } finally {
+                if (generation == manualAddressGeneration) manualAddressActive = false
             }
         }
     }
@@ -415,6 +518,127 @@ class CameraViewModel(
         cameraManager.setZoomRatio(ratio)
     }
 
+    /** Refresh the compact camera chooser from the latest persisted rows. */
+    fun refreshProjectPicker() {
+        viewModelScope.launch {
+            runCatching {
+                val selectedId = appContainer.settingsDataStore.selectedProjectId.first()
+                val projects = appContainer.database.projectDao().getAllProjects().first()
+                val byId = projects.associateBy { it.id }
+                val current = selectedId?.let(byId::get)
+                val recentIds = appContainer.settingsDataStore.recentProjectIds.first()
+                val recent = recentIds.asSequence()
+                    .mapNotNull(byId::get)
+                    .filter { it.id != current?.id && !it.isArchived }
+                    .toList()
+                _projectPickerProjects.value = buildList {
+                    current?.let(::add)
+                    addAll(recent)
+                }
+            }.onFailure {
+                _uiEvents.emit(CameraUiEvent.ShowToast("读取工程失败：${it.message ?: "请重试"}"))
+            }
+        }
+    }
+
+    /** Persist a camera quick-switch only after the latest row is re-read. */
+    fun selectProjectFromCamera(projectId: Long) {
+        if (_isProjectSwitching.value || _isCapturing.value || _isRecordingVideo.value) {
+            viewModelScope.launch {
+                _uiEvents.emit(CameraUiEvent.ShowToast("正在拍摄或保存，暂时不能切换工程"))
+            }
+            return
+        }
+        _isProjectSwitching.value = true
+        viewModelScope.launch {
+            try {
+                val project = appContainer.captureOperationCoordinator.withAllProjectsIdle {
+                    val selected = appContainer.database.projectDao().getProjectById(projectId)
+                        ?: error("工程已删除")
+                    appContainer.settingsDataStore.setSelectedProjectIdAndRecordRecent(selected.id)
+                    // Keep the in-memory selection inside the same global
+                    // idle window as the durable write. A shutter reservation
+                    // cannot begin between the read and the selection commit.
+                    _currentProject.value = selected
+                    selected
+                }
+                _uiEvents.emit(CameraUiEvent.ProjectSwitched(project.id, project.name))
+            } catch (error: Exception) {
+                _uiEvents.emit(CameraUiEvent.ShowToast("切换工程失败：${error.message ?: "请重试"}"))
+            } finally {
+                _isProjectSwitching.value = false
+            }
+        }
+    }
+
+    /** Create from the compact chooser and return to the camera on success. */
+    fun createProjectFromCamera(name: String, routeName: String = "") {
+        val cleanName = name.trim()
+        if (cleanName.isBlank() || _isProjectSwitching.value) return
+        _isProjectSwitching.value = true
+        viewModelScope.launch {
+            try {
+                val project = appContainer.captureOperationCoordinator.withAllProjectsIdle {
+                    val id = appContainer.database.projectDao().insertProject(
+                        ProjectEntity(
+                            name = cleanName,
+                            routeName = routeName.trim(),
+                            categoryName = "建筑"
+                        )
+                    )
+                    val created = appContainer.database.projectDao().getProjectById(id)
+                        ?: error("工程创建后读取失败")
+                    appContainer.settingsDataStore.setSelectedProjectIdAndRecordRecent(id)
+                    _currentProject.value = created
+                    created
+                }
+                _uiEvents.emit(CameraUiEvent.ProjectSwitched(project.id, project.name))
+            } catch (error: Exception) {
+                _uiEvents.emit(CameraUiEvent.ShowToast("工程创建失败：${error.message ?: "请重试"}"))
+            } finally {
+                _isProjectSwitching.value = false
+            }
+        }
+    }
+
+    fun unlockCurrentProject() = updateCurrentProjectFlags(locked = false)
+
+    fun restoreCurrentProject() = updateCurrentProjectFlags(archived = false)
+
+    private fun updateCurrentProjectFlags(locked: Boolean? = null, archived: Boolean? = null) {
+        if (_isCapturing.value || _isRecordingVideo.value) {
+            viewModelScope.launch {
+                _uiEvents.emit(CameraUiEvent.ShowToast("正在拍摄或保存，暂时不能修改工程状态"))
+            }
+            return
+        }
+        val projectId = _currentProject.value?.id ?: return
+        viewModelScope.launch {
+            try {
+                val updated = appContainer.captureOperationCoordinator.withProjectIdle(projectId) {
+                    val current = appContainer.database.projectDao().getProjectById(projectId)
+                        ?: error("工程已删除")
+                    val next = current.copy(
+                        isCaptureLocked = locked ?: current.isCaptureLocked,
+                        isArchived = archived ?: current.isArchived,
+                        updatedAt = System.currentTimeMillis()
+                    )
+                    appContainer.database.projectDao().updateProject(next)
+                    next
+                }
+                _currentProject.value = updated
+                val action = when {
+                    archived == false -> "工程已恢复"
+                    locked == false -> "已解锁拍摄"
+                    else -> "工程状态已更新"
+                }
+                _uiEvents.emit(CameraUiEvent.ShowToast(action))
+            } catch (error: Exception) {
+                _uiEvents.emit(CameraUiEvent.ShowToast("工程状态未修改：${error.message ?: "请重试"}"))
+            }
+        }
+    }
+
     // --- Direct Watermark Quick Update Functions ---
 
     fun updateWatermarkFieldValue(fieldId: Long, newValue: String) {
@@ -472,6 +696,10 @@ class CameraViewModel(
     }
 
     fun handleShutterAction(context: Context, withAudio: Boolean = false) {
+        if (_isProjectSwitching.value) {
+            viewModelScope.launch { _uiEvents.emit(CameraUiEvent.ShowToast("工程切换中，请稍候")) }
+            return
+        }
         if (_captureMode.value == CaptureMode.VIDEO) {
             when (cameraManager.videoRecordingState.value) {
                 CameraManager.VideoRecordingState.RECORDING,
@@ -508,6 +736,10 @@ class CameraViewModel(
     }
 
     private suspend fun startVideoRecordingReserved(context: Context, withAudio: Boolean) {
+        if (_isProjectSwitching.value) {
+            _uiEvents.emit(CameraUiEvent.ShowToast("工程切换中，请稍候"))
+            return
+        }
         if (_isCapturing.value || cameraManager.videoRecordingState.value != CameraManager.VideoRecordingState.IDLE) {
             viewModelScope.launch { _uiEvents.emit(CameraUiEvent.ShowToast("上一段录像仍在保存，请稍候")) }
             return
@@ -530,7 +762,8 @@ class CameraViewModel(
             latitude = captureLocation.latitude,
             longitude = captureLocation.longitude,
             altitude = captureLocation.altitude,
-            addressText = captureLocation.address
+            addressText = captureLocation.address,
+            locationStatus = captureLocation.status
         )
 
         _recordingDurationSeconds.value = 0
@@ -695,7 +928,7 @@ class CameraViewModel(
     }
 
     fun capturePhoto() {
-        if (_isCapturing.value || cameraManager.videoRecordingState.value != CameraManager.VideoRecordingState.IDLE) return
+        if (_isProjectSwitching.value || _isCapturing.value || cameraManager.videoRecordingState.value != CameraManager.VideoRecordingState.IDLE) return
 
         val currentState = uiState.value
         val project = currentState.currentProject ?: return
@@ -708,7 +941,8 @@ class CameraViewModel(
             latitude = captureLocation.latitude,
             longitude = captureLocation.longitude,
             altitude = captureLocation.altitude,
-            addressText = captureLocation.address
+            addressText = captureLocation.address,
+            locationStatus = captureLocation.status
         )
 
         _isCapturing.value = true

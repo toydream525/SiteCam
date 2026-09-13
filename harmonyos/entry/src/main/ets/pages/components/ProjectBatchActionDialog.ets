@@ -36,9 +36,9 @@ export struct ProjectBatchActionDialog {
             }.width('100%').padding({ top: 8, bottom: 8 }).onClick(() => this.choose(action));
           }, (action: string) => action);
         }.width('100%');
-      }.width('100%').constraintSize({ maxHeight: 360 });
+      }.width('100%').constraintSize({ maxHeight: 360 }).scrollBar(BarState.Off);
       Button('取消').width('100%').fontColor(SITE_MUTED).backgroundColor(Color.Transparent).onClick(() => { this.controller.close(); this.onCancel(); });
     }.padding(18).width('90%').backgroundColor(SITE_CARD).borderRadius(14);
-    }.width('100%').constraintSize({maxWidth:600,maxHeight:'90%'}).align(Alignment.Top);
+    }.width('100%').constraintSize({maxWidth:600,maxHeight:'90%'}).align(Alignment.Top).scrollBar(BarState.Off);
   }
 }

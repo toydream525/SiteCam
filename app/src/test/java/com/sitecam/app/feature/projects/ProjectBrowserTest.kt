@@ -39,4 +39,26 @@ class ProjectBrowserTest {
         )
         assertEquals(listOf(2L, 1L), sortedProjects(projects, emptyMap(), ProjectSort.CREATED, false).map { it.id })
     }
+
+    @Test fun projectUndoRestoresOnlyChangedFieldAndRejectsLaterMutation() {
+        val before = ProjectEntity(id = 9, name = "现场", isArchived = false, isCaptureLocked = false)
+        val afterLock = before.copy(isCaptureLocked = true)
+        val undo = ProjectMutationUndo(
+            projectId = before.id,
+            lockedBefore = false,
+            lockedAfter = true,
+            message = "拍摄已锁定：现场"
+        )
+
+        val restored = undo.restore(afterLock, updatedAt = 20L)
+        assertNotNull(restored)
+        assertFalse(restored!!.isCaptureLocked)
+        assertFalse(restored.isArchived)
+        assertEquals(20L, restored.updatedAt)
+
+        val independentlyArchived = afterLock.copy(isArchived = true)
+        assertNotNull(undo.restore(independentlyArchived, updatedAt = 21L))
+        val changedAgain = afterLock.copy(isCaptureLocked = false)
+        assertNull(undo.restore(changedAgain, updatedAt = 22L))
+    }
 }

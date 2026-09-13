@@ -21,7 +21,7 @@ export async function inspectVideo(path: string): Promise<VideoInfo> {
     info.audio = meta.hasAudio === 'yes' || meta.hasAudio === 'true' || meta.hasAudio === '1';
     if (!(info.width > 0 && info.height > 0 && info.duration > 0)) throw new Error('视频尺寸或时长无效');
     return info;
-  } finally {await extractor?.release();await fs.close(file);}
+  } finally {try{await extractor?.release();}finally{await fs.close(file);}}
 }
 export function validateVideoOutput(source: VideoInfo, output: VideoInfo): void {
   const w = source.rotation % 180 ? source.height : source.width;

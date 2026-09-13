@@ -57,6 +57,8 @@ fun HelpScreen(
     var selectedSection by remember { mutableIntStateOf(0) }
     var showTableOfContents by remember { mutableStateOf(true) }
     var retryKey by remember { mutableIntStateOf(0) }
+    val tableOfContentsScrollState = rememberScrollState()
+    val chapterScrollState = rememberScrollState()
 
     fun loadGuide() {
         sections = null
@@ -70,6 +72,10 @@ fun HelpScreen(
                 .onSuccess { sections = it }
                 .onFailure { error = it.message ?: "帮助内容暂时不可用" }
         }
+    }
+
+    LaunchedEffect(selectedSection, showTableOfContents) {
+        if (!showTableOfContents) chapterScrollState.scrollTo(0)
     }
 
     Scaffold(
@@ -136,15 +142,15 @@ fun HelpScreen(
                 val guideSections = sections.orEmpty()
                 val selected = guideSections.getOrNull(selectedSection)
                     ?: guideSections.firstOrNull()
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    if (showTableOfContents) {
+                if (showTableOfContents) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(paddingValues)
+                            .verticalScroll(tableOfContentsScrollState)
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
                         Text(
                             text = "目录",
                             color = TextPrimaryDark,
@@ -183,46 +189,74 @@ fun HelpScreen(
                                 }
                             }
                         }
-                    } else {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = onReplayOnboarding,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(text = "重新查看功能指引", fontSize = 16.sp)
+                        }
+                        Text(
+                            text = "指南内容随应用离线提供，现场没有网络也可以查看。",
+                            color = TextSecondaryDark,
+                            fontSize = 14.sp,
+                            lineHeight = 21.sp
+                        )
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(paddingValues)
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
                         OutlinedButton(
                             onClick = { showTableOfContents = true },
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(text = "返回目录", fontSize = 16.sp)
                         }
-                        selected?.let { section ->
-                            Text(
-                                text = section.title,
-                                color = EngineeringYellow,
-                                fontSize = 24.sp,
-                                lineHeight = 32.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            section.lines.forEach { line ->
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .verticalScroll(chapterScrollState),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            selected?.let { section ->
                                 Text(
-                                    text = line,
-                                    color = TextPrimaryDark,
-                                    fontSize = 17.sp,
-                                    lineHeight = 27.sp,
-                                    modifier = Modifier.fillMaxWidth()
+                                    text = section.title,
+                                    color = EngineeringYellow,
+                                    fontSize = 24.sp,
+                                    lineHeight = 32.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
+                                section.lines.forEach { line ->
+                                    Text(
+                                        text = line,
+                                        color = TextPrimaryDark,
+                                        fontSize = 17.sp,
+                                        lineHeight = 27.sp,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
                             }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = onReplayOnboarding,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(text = "重新查看功能指引", fontSize = 16.sp)
+                            }
+                            Text(
+                                text = "指南内容随应用离线提供，现场没有网络也可以查看。",
+                                color = TextSecondaryDark,
+                                fontSize = 14.sp,
+                                lineHeight = 21.sp
+                            )
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedButton(
-                        onClick = onReplayOnboarding,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(text = "重新查看功能指引", fontSize = 16.sp)
-                    }
-                    Text(
-                        text = "指南内容随应用离线提供，现场没有网络也可以查看。",
-                        color = TextSecondaryDark,
-                        fontSize = 14.sp,
-                        lineHeight = 21.sp
-                    )
                 }
             }
         }

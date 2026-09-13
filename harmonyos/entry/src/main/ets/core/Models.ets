@@ -62,6 +62,11 @@ export class Field {
     this.key = key; this.label = label; this.value = value;
   }
 }
+function defaultWatermarkFields(): Field[] {
+  const elevation=new Field('elevation','海拔');
+  elevation.enabled=false;
+  return [new Field('project','工程名称'),new Field('category','工程类型'),new Field('time','拍摄时间'),new Field('address','现场位置'),elevation,new Field('gps','GPS定位'),new Field('user','拍摄人员')];
+}
 export class Watermark {
   style: string = 'CLASSIC';
   fontScale: number = 1;
@@ -69,7 +74,7 @@ export class Watermark {
   marginDp: number = 16;
   position: string = 'BOTTOM_LEFT';
   user: string = '';
-  fields: Field[] = [new Field('project','工程'),new Field('category','类别'),new Field('time','时间'),new Field('address','地点'),new Field('gps','坐标'),new Field('user','人员')];
+  fields: Field[] = defaultWatermarkFields();
 }
 export class WatermarkTemplate {
   id: number=0;name: string='默认模板';config: string='';updated: number=Date.now();
@@ -106,22 +111,27 @@ export class Settings {
   // Android v0.2.8's single capture/edit quality is photoQuality. Keep editQuality for old UI/data.
   namingPattern: string = '{project}_{date}_{time}';
   flashMode: string = 'AUTO';
+  /** Play a short shutter sound when the camera accepts a photo request. */
+  shutterSoundEnabled: boolean = true;
   quickIssueMode: boolean = false;
   jpegQuality: number = 95;
   exportTreeUri: string = '';
   projectSelectionCleared: boolean = false;
+  /** Most recently selected capture projects, newest first. */
+  recentProjectIds: number[] = [];
   browserSort: string = 'LAST_CAPTURE';
   browserAscending: boolean = false;
 }
 export class Fix {
   latitude: number = 0;
   longitude: number = 0;
-  altitude: number = 0;
+  altitude: number | null = null;
   accuracy: number = 0;
   timestamp: number = 0;
   address: string = '';
 }
 export class Snapshot {
+  presentationVersion: number = 2; // Missing in parsed v0.2.8 snapshots: retain legacy rendering.
   captureRatio: number = 0; // 0 preserves legacy/native framing; new photos freeze 3:4 or 4:3.
   timestamp: number = Date.now();
   project: string = '';
@@ -164,4 +174,38 @@ export function captureSnapshot(p: Project, settings: Settings, fix: Fix|null): 
   s.watermark=JSON.parse(JSON.stringify(settings.watermark)) as Watermark;
   if(fix) { s.fix=JSON.parse(JSON.stringify(fix)) as Fix; const age=s.timestamp-fix.timestamp; s.locationStatus=age>=-30000&&age<=300000?'FRESH':'STALE'; }
   s.address=p.address || (fix?.address || '定位不可用'); return s;
+}
+
+export function resetWatermarkFields(source: Watermark): Watermark {
+  const out=JSON.parse(JSON.stringify(source)) as Watermark;
+  const defaults=new Watermark().fields;
+  const system: Field[]=[];
+  const current=Array.isArray(out.fields)?out.fields:[];
+  for(const d of defaults){const f=current.find((v:Field)=>v.key===d.key);if(f){f.label=d.label;system.push(f);}else{const missing=JSON.parse(JSON.stringify(d)) as Field;missing.enabled=d.key==='elevation'?false:d.enabled;system.push(missing);}}
+  out.fields=system.concat(current.filter((f:Field)=>!defaults.some((d:Field)=>d.key===f.key)));
+  return out;
+}
+
+/**
+ * Load persisted settings without applying the editor's explicit "restore
+ * defaults" action. User labels, values, enabled flags, custom fields and
+ * their order are part of the saved document and must survive reopening.
+ * Deliberately reordered, customized, and partial field lists are left intact;
+ * only the newly introduced opt-in field is inserted when it is absent.
+ */
+export function migrateWatermarkFields(source: Watermark): Watermark {
+  const out=JSON.parse(JSON.stringify(source)) as Watermark;
+  const defaults=new Watermark().fields;
+  if(!Array.isArray(out.fields)) {out.fields=JSON.parse(JSON.stringify(defaults)) as Field[];for(const f of out.fields)if(f.key==='elevation')f.enabled=false;return out;}
+  const fields=out.fields as Field[];
+  // Older serialized fields did not always include the enabled flag. Restore
+  // the historical enabled default while leaving every present user value,
+  // label, and relative position untouched.
+  for(const f of fields){if((f.enabled as boolean)===undefined)f.enabled=f.key==='elevation'?false:true;}
+  if(fields.some((f:Field)=>f.key==='elevation'))return out;
+  const elevation=new Field('elevation','海拔');
+  elevation.enabled=false;
+  const address=fields.find((f:Field)=>f.key==='address');
+  if(address)fields.splice(fields.indexOf(address)+1,0,elevation);else fields.push(elevation);
+  return out;
 }

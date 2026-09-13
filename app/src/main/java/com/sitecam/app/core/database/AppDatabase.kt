@@ -206,9 +206,16 @@ abstract class AppDatabase : RoomDatabase() {
                 ),
                 WatermarkFieldEntity(
                     templateId = classicTemplateId,
+                    fieldKey = "ELEVATION",
+                    label = "海拔",
+                    displayOrder = 4,
+                    isEnabled = false
+                ),
+                WatermarkFieldEntity(
+                    templateId = classicTemplateId,
                     fieldKey = "GPS",
                     label = "经纬度",
-                    displayOrder = 4,
+                    displayOrder = 5,
                     isEnabled = true
                 ),
                 WatermarkFieldEntity(
@@ -216,7 +223,7 @@ abstract class AppDatabase : RoomDatabase() {
                     fieldKey = "USER_NAME",
                     label = "拍摄人",
                     defaultValue = "施工员",
-                    displayOrder = 5,
+                    displayOrder = 6,
                     isEnabled = false
                 )
             )

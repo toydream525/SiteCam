@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -19,15 +22,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.FlipCameraAndroid
 import androidx.compose.material.icons.filled.FlashAuto
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.FlashlightOn
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.ReportProblem
 import androidx.compose.material.icons.filled.RotateLeft
 import androidx.compose.material.icons.filled.RotateRight
 import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.StayCurrentPortrait
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -43,6 +49,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sitecam.app.core.camera.CaptureOrientation
+import com.sitecam.app.core.camera.CameraLensCapability
+import com.sitecam.app.core.camera.CameraLensRole
+import com.sitecam.app.feature.camera.CaptureMode
 import com.sitecam.app.ui.theme.DarkCard
 import com.sitecam.app.ui.theme.EngineeringYellow
 import com.sitecam.app.ui.theme.ErrorRed
@@ -62,15 +71,27 @@ fun CameraTopBar(
     onOrientationSelected: (CaptureOrientation) -> Unit = {},
     isBusy: Boolean = false,
     isLandscape: Boolean = false,
-    modifier: Modifier = Modifier
+    publicLenses: List<CameraLensCapability> = emptyList(),
+    activeCameraId: String? = null,
+    onLensSelected: (CameraLensCapability) -> Unit = {},
+    addressRefreshState: String? = null,
+    onAddressRefreshClick: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+    captureMode: CaptureMode = CaptureMode.PHOTO
 ) {
     val flashIcon = when (flashMode.uppercase()) {
-        "TORCH" -> Icons.Default.FlashOn
+        "TORCH" -> Icons.Default.FlashlightOn
         "ON" -> Icons.Default.FlashOn
         "AUTO" -> Icons.Default.FlashAuto
         else -> Icons.Default.FlashOff
     }
     val flashSelected = flashMode.uppercase() != "OFF"
+    val flashDescription = when (flashMode.uppercase()) {
+        "TORCH" -> "闪光灯，常亮"
+        "ON" -> "闪光灯，开启"
+        "AUTO" -> "闪光灯，自动"
+        else -> "闪光灯，关闭"
+    }
 
     if (isLandscape) {
         Column(
@@ -78,11 +99,27 @@ fun CameraTopBar(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceEvenly
         ) {
-            ToolIcon(Icons.Default.Folder, EngineeringYellow, "工程项目：$projectName", !isBusy, onProjectClick)
+            ProjectNameTool(projectName, !isBusy, onProjectClick)
+            CameraLensSelector(
+                publicLenses = publicLenses,
+                activeCameraId = activeCameraId,
+                enabled = !isBusy,
+                onLensSelected = onLensSelected,
+                captureMode = captureMode
+            )
+            if (addressRefreshState != null && onAddressRefreshClick != null) {
+                ToolIcon(
+                    Icons.Default.Refresh,
+                    EngineeringYellow,
+                    addressRefreshDescription(addressRefreshState),
+                    !isBusy && addressRefreshState != "REFRESHING",
+                    onAddressRefreshClick
+                )
+            }
             ToolIcon(
                 flashIcon,
                 if (flashSelected) EngineeringYellow else Color.White,
-                "闪光灯，长按常亮",
+                flashDescription,
                 !isBusy,
                 onFlashToggle,
                 onFlashLongPress
@@ -110,7 +147,7 @@ fun CameraTopBar(
             ) {
                 Icon(Icons.Default.Folder, "工程项目", tint = EngineeringYellow, modifier = Modifier.size(20.dp))
                 Text(
-                    text = projectName.ifBlank { "默认工程项目" },
+                    text = projectName.ifBlank { "请选择工程包" },
                     color = Color.White,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -120,11 +157,33 @@ fun CameraTopBar(
                 )
                 Icon(Icons.Default.ArrowDropDown, null, tint = Color.White.copy(alpha = 0.72f), modifier = Modifier.size(17.dp))
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(0.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CameraLensSelector(
+                    publicLenses = publicLenses,
+                    activeCameraId = activeCameraId,
+                    enabled = !isBusy,
+                    onLensSelected = onLensSelected,
+                    captureMode = captureMode
+                )
+                if (addressRefreshState != null && onAddressRefreshClick != null) {
+                    ToolIcon(
+                        Icons.Default.Refresh,
+                        EngineeringYellow,
+                        addressRefreshDescription(addressRefreshState),
+                        !isBusy && addressRefreshState != "REFRESHING",
+                        onAddressRefreshClick
+                    )
+                }
                 ToolIcon(
                     flashIcon,
                     if (flashSelected) EngineeringYellow else Color.White,
-                    "闪光灯，长按常亮",
+                    flashDescription,
                     !isBusy,
                     onFlashToggle,
                     onFlashLongPress
@@ -137,6 +196,161 @@ fun CameraTopBar(
     }
 }
 
+/**
+ * Entry point for all camera profiles, including the narrow cover display
+ * where the normal top shelf is intentionally absent.
+ */
+@Composable
+fun CameraLensSelector(
+    publicLenses: List<CameraLensCapability>,
+    activeCameraId: String?,
+    enabled: Boolean,
+    onLensSelected: (CameraLensCapability) -> Unit,
+    compact: Boolean = false,
+    captureMode: CaptureMode = CaptureMode.PHOTO
+) {
+    // Only independently exposed, rear CameraX groups are selectable here.
+    // Physical IDs that Camera2 reports inside a logical group stay evidence
+    // of hardware and are deliberately absent from this menu.
+    val options = publicLenses
+        .filter { isLensSelectableInMode(it, captureMode) }
+        .distinctBy { it.cameraId }
+    if (options.size <= 1) return
+
+    var expanded by remember { mutableStateOf(false) }
+    val active = options.firstOrNull { it.cameraId == activeCameraId }
+    Box {
+        ToolIcon(
+            icon = Icons.Default.FlipCameraAndroid,
+            tint = if (active != null) EngineeringYellow else Color.White,
+            description = "镜头：${active?.let(::lensLabel) ?: "选择"}",
+            enabled = enabled,
+            onClick = { expanded = true },
+            boxSize = if (compact) 44.dp else 46.dp,
+            iconSize = if (compact) 23.dp else 25.dp
+        )
+        androidx.compose.material3.DropdownMenu(
+            expanded = expanded && enabled,
+            onDismissRequest = { expanded = false },
+            containerColor = DarkCard
+        ) {
+            options.forEach { lens ->
+                androidx.compose.material3.DropdownMenuItem(
+                    text = {
+                        Column(modifier = Modifier.widthIn(min = 190.dp)) {
+                            Text(
+                                text = lensLabel(lens),
+                                color = if (lens.cameraId == activeCameraId) EngineeringYellow else Color.White,
+                                fontWeight = if (lens.cameraId == activeCameraId) FontWeight.Bold else FontWeight.Normal
+                            )
+                            Text(
+                                text = lensDetail(lens, captureMode),
+                                color = Color.White.copy(alpha = .68f),
+                                fontSize = 11.sp
+                            )
+                        }
+                    },
+                    onClick = {
+                        expanded = false
+                        onLensSelected(lens)
+                    }
+                )
+            }
+        }
+    }
+}
+
+/** A lens is offered only when the current capture mode can use it. */
+internal fun isLensSelectableInMode(
+    lens: CameraLensCapability,
+    captureMode: CaptureMode
+): Boolean = lens.lensFacing == androidx.camera.core.CameraSelector.LENS_FACING_BACK &&
+    lens.appAccessible &&
+    lens.photoBindable &&
+    (captureMode != CaptureMode.VIDEO ||
+        lens.videoBindingVerification != com.sitecam.app.core.camera.CameraBindingVerification.VERIFIED ||
+        lens.videoBindable)
+
+private fun lensLabel(lens: CameraLensCapability): String = when (lens.role) {
+    CameraLensRole.WIDE -> "广角"
+    CameraLensRole.MAIN -> "主摄"
+    CameraLensRole.TELE -> "长焦"
+    CameraLensRole.UNKNOWN -> "镜头"
+}
+
+internal fun lensDetail(lens: CameraLensCapability, captureMode: CaptureMode): String = buildString {
+    fun appendDetail(value: String) {
+        if (isNotEmpty()) append(" · ")
+        append(value)
+    }
+
+    lens.equivalentZoomRatio
+        ?.takeIf { it.isFinite() && it > 0f }
+        ?.let { ratio ->
+            val format = if (ratio < 1f) "约%.2f×" else "约%.1f×"
+            appendDetail(String.format(java.util.Locale.US, format, ratio))
+        }
+    when (captureMode) {
+        CaptureMode.PHOTO -> appendDetail(
+            if (lens.photoBindingVerification == com.sitecam.app.core.camera.CameraBindingVerification.VERIFIED) {
+                "可拍照"
+            } else {
+                "拍照待确认"
+            }
+        )
+
+        CaptureMode.VIDEO -> appendDetail(
+            when {
+                lens.videoBindingVerification == com.sitecam.app.core.camera.CameraBindingVerification.VERIFIED && lens.videoBindable -> "可录像"
+                lens.videoBindingVerification == com.sitecam.app.core.camera.CameraBindingVerification.VERIFIED -> "录像不可用"
+                else -> "录像待确认"
+            }
+        )
+    }
+}
+
+private fun addressRefreshDescription(state: String): String = when (state) {
+    "REFRESHING" -> "地址刷新中"
+    "FAILED_PERMISSION" -> "定位未开启，重试地址"
+    "FAILED_LOCATION" -> "定位不可用，重试地址"
+    "FAILED_ADDRESS" -> "地址服务失败，重试"
+    else -> "刷新地址"
+}
+
+@Composable
+private fun ProjectNameTool(
+    projectName: String,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .widthIn(min = 72.dp, max = 102.dp)
+            .heightIn(min = 58.dp, max = 78.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.Folder,
+            contentDescription = "工程项目：$projectName",
+            tint = EngineeringYellow,
+            modifier = Modifier.size(23.dp)
+        )
+        Text(
+            text = projectName.ifBlank { "请选择工程包" },
+            color = Color.White,
+            fontSize = 10.sp,
+            lineHeight = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ToolIcon(
@@ -145,11 +359,13 @@ private fun ToolIcon(
     description: String,
     enabled: Boolean,
     onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null
+    onLongClick: (() -> Unit)? = null,
+    boxSize: androidx.compose.ui.unit.Dp = 46.dp,
+    iconSize: androidx.compose.ui.unit.Dp = 25.dp
 ) {
     Box(
         modifier = Modifier
-            .size(46.dp)
+            .size(boxSize)
             .clip(CircleShape)
             .then(
                 if (onLongClick != null) {
@@ -164,7 +380,7 @@ private fun ToolIcon(
             ),
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, description, tint = tint, modifier = Modifier.size(25.dp))
+        Icon(icon, description, tint = tint, modifier = Modifier.size(iconSize))
     }
 }
 

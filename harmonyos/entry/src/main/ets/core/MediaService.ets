@@ -37,7 +37,7 @@ export class MediaService extends ImageProcessor {
     if (['mp4','mov','m4v','mkv','webm','3gp','avi'].includes(ext)) return uniformTypeDescriptor.UniformDataType.VIDEO;
     return uniformTypeDescriptor.UniformDataType.FILE;
   }
-  async share(paths: string[],video: boolean=false): Promise<void> {
+  async share(paths: string[],video: boolean=false,anchor: string='sitecam-share-anchor'): Promise<void> {
     if (!paths.length) throw new Error('没有可分享的资料');
     for(const path of paths){const file=await fs.open(path,fs.OpenMode.READ_ONLY);await fs.close(file);}
     const first = paths[0];
@@ -48,6 +48,6 @@ export class MediaService extends ImageProcessor {
     }
     const controller=new systemShare.ShareController(data);
     const env=AppStorage.get<WindowEnvironment>('windowEnvironment')||new WindowEnvironment();
-    await controller.show(this.context,{previewMode:systemShare.SharePreviewMode.DETAIL,selectionMode:systemShare.SelectionMode.BATCH,anchor:'sitecam-share-anchor'});
+    await controller.show(this.context,{previewMode:systemShare.SharePreviewMode.DETAIL,selectionMode:systemShare.SelectionMode.BATCH,anchor:anchor});
   }
 }

@@ -9,7 +9,8 @@ import { MediaService } from '../../../main/ets/core/MediaService';
 interface LegacyFix {latitude:number;longitude:number;altitude:number|null;accuracy:number;timestamp:number;}
 interface LegacySnapshot {locationStatus:string;address:string;fix:LegacyFix;}
 export class DataParityChecks {
-  static async templateReopenFixture(ctx:common.Context):Promise<void>{const name='template_reopen_'+Date.now();const first=new Store(name);await first.open(ctx);first.settings.watermark.style='INFO_BOARD';first.settings.watermark.fontScale=1.7;first.settings.watermark.opacity=0.6;first.settings.watermark.position='TOP_RIGHT';first.settings.watermark.fields=[new Field('project','工程','现场A'),new Field('address','地点','北段'),new Field('gps','坐标','30.5,120.25')];first.settings.watermark.fields[0].enabled=true;first.settings.watermark.fields[1].enabled=false;first.settings.watermark.fields[2].enabled=true;await first.saveSettings();const t=new WatermarkTemplate();t.name='持久化样式';t.config=JSON.stringify({style:'INFO_BOARD',fontScale:1.7,opacity:0.6,position:'TOP_RIGHT'});await first.putTemplate(t);const field=new WatermarkField();field.templateId=t.id;field.fieldKey='address';field.label='工程地点';field.displayOrder=3;field.isEnabled=true;await first.putTemplateField(field);await first.close();const reopened=new Store(name);await reopened.open(ctx);const settings=reopened.settings.watermark;const saved=(await reopened.templates()).find(v=>v.id===t.id);const fields=await reopened.templateFields(t.id);if(settings.style!=='INFO_BOARD'||settings.fontScale!==1.7||settings.opacity!==0.6||settings.position!=='TOP_RIGHT')throw new Error('template reopen settings mismatch');if(settings.fields.length!==3||settings.fields[1].key!=='address'||settings.fields[1].enabled||settings.fields[2].value!=='30.5,120.25')throw new Error('settings watermark fields mismatch');if(!saved||!saved.config.includes('INFO_BOARD')||!saved.config.includes('1.7')||!saved.config.includes('0.6')||!saved.config.includes('TOP_RIGHT'))throw new Error('template reopen config mismatch');if(fields.length!==1||fields[0].fieldKey!=='address'||fields[0].label!=='工程地点'||!fields[0].isEnabled)throw new Error('template reopen fields mismatch');await reopened.close();}
+  static async shutterSoundFixture(ctx:common.Context):Promise<void>{const name='shutter_sound_'+Date.now();const first=new Store(name);await first.open(ctx);if(first.settings.shutterSoundEnabled!==true)throw new Error('shutter sound default is not enabled');first.settings.shutterSoundEnabled=false;await first.saveSettings();await first.close();const reopened=new Store(name);await reopened.open(ctx);if(reopened.settings.shutterSoundEnabled!==false)throw new Error('shutter sound disabled state was not retained');await reopened.close();}
+  static async templateReopenFixture(ctx:common.Context):Promise<void>{const name='template_reopen_'+Date.now();const first=new Store(name);await first.open(ctx);first.settings.watermark.style='INFO_BOARD';first.settings.watermark.fontScale=1.7;first.settings.watermark.opacity=0.6;first.settings.watermark.position='TOP_RIGHT';first.settings.watermark.fields=[new Field('project','工程','现场A'),new Field('address','地点','北段'),new Field('gps','坐标','30.5,120.25')];first.settings.watermark.fields[0].enabled=true;first.settings.watermark.fields[1].enabled=false;first.settings.watermark.fields[2].enabled=true;await first.saveSettings();const t=new WatermarkTemplate();t.name='持久化样式';t.config=JSON.stringify({style:'INFO_BOARD',fontScale:1.7,opacity:0.6,position:'TOP_RIGHT'});await first.putTemplate(t);const field=new WatermarkField();field.templateId=t.id;field.fieldKey='address';field.label='工程地点';field.displayOrder=3;field.isEnabled=true;await first.putTemplateField(field);await first.close();const reopened=new Store(name);await reopened.open(ctx);const settings=reopened.settings.watermark;const saved=(await reopened.templates()).find(v=>v.id===t.id);const fields=await reopened.templateFields(t.id);if(settings.style!=='INFO_BOARD'||settings.fontScale!==1.7||settings.opacity!==0.6||settings.position!=='TOP_RIGHT')throw new Error('template reopen settings mismatch');if(settings.fields.length!==4||settings.fields[1].key!=='address'||settings.fields[1].enabled||settings.fields[2].key!=='elevation'||settings.fields[2].enabled||settings.fields[3].value!=='30.5,120.25')throw new Error('settings watermark fields mismatch');if(!saved||!saved.config.includes('INFO_BOARD')||!saved.config.includes('1.7')||!saved.config.includes('0.6')||!saved.config.includes('TOP_RIGHT'))throw new Error('template reopen config mismatch');if(fields.length!==2||fields[0].fieldKey!=='address'||fields[0].label!=='工程地点'||!fields[0].isEnabled||fields[1].fieldKey!=='elevation'||fields[1].isEnabled)throw new Error('template reopen fields mismatch');await reopened.close();}
   static dms(text:string):number{const values=text.split(',');if(values.length<3)throw new Error('GPS EXIF DMS missing');return Number(values[0].trim())+Number(values[1].trim())/60+Number(values[2].trim())/3600;}
   static async exportExifFixture(ctx:common.UIAbilityContext):Promise<void>{const files=new MediaService(ctx);const project=new Project();project.id=302;project.name='导出EXIF';const snap=new Snapshot();snap.project='导出EXIF';snap.projectId=project.id;snap.timestamp=Date.now();snap.locationStatus='FRESH';const fix=new Fix();fix.latitude=30.5;fix.longitude=120.25;fix.altitude=12;fix.timestamp=snap.timestamp;snap.fix=fix;const expectedDate=timeText(snap.timestamp).replace(/-/g,':');const pixels=new Uint8Array(320*240*4);for(let i=0;i<pixels.length;i+=4){pixels[i]=80;pixels[i+1]=120;pixels[i+2]=160;pixels[i+3]=255;}const pm=await image.createPixelMap(pixels.buffer,{editable:true,pixelFormat:image.PixelMapFormat.RGBA_8888,size:{width:320,height:240}});const pack=image.createImagePacker();const bytes=await pack.packing(pm,{format:'image/jpeg',quality:95});await pack.release();await pm.release();const media=await files.capture(bytes,snap,3,0);const stage=ctx.cacheDir+'/exif_stage_'+Date.now();await fs.mkdir(stage);const exporter=new ExportService(ctx,files);await exporter.stage([project],[media],stage,0,()=>{});const path=stage+'/导出EXIF_p302/Photos/'+media.id+'_'+media.name;const source=image.createImageSource(path);try{const date=await source.getImageProperty(image.PropertyKey.DATE_TIME_ORIGINAL);const lat=await source.getImageProperty(image.PropertyKey.GPS_LATITUDE);const lon=await source.getImageProperty(image.PropertyKey.GPS_LONGITUDE);const latRef=await source.getImageProperty(image.PropertyKey.GPS_LATITUDE_REF);const lonRef=await source.getImageProperty(image.PropertyKey.GPS_LONGITUDE_REF);if(String(date)!==expectedDate)throw new Error('compressed export date EXIF mismatch: '+String(date));if(Math.abs(DataParityChecks.dms(String(lat))-30.5)>0.001||String(latRef)!=='N')throw new Error('compressed export latitude EXIF mismatch: '+String(lat)+' '+String(latRef));if(Math.abs(DataParityChecks.dms(String(lon))-120.25)>0.001||String(lonRef)!=='E')throw new Error('compressed export longitude EXIF mismatch: '+String(lon)+' '+String(lonRef));}finally{await source.release();}}
   static async exportDeliveryFixture(ctx:common.UIAbilityContext):Promise<void>{
@@ -22,11 +23,46 @@ export class DataParityChecks {
     await legacy.executeSql('CREATE TABLE media (id INTEGER PRIMARY KEY AUTOINCREMENT,projectId INTEGER NOT NULL,path TEXT,source TEXT,edited TEXT,albumUri TEXT,name TEXT,type TEXT,timestamp INTEGER,width INTEGER,height INTEGER,duration INTEGER,rotation INTEGER,status TEXT,snapshot TEXT,issueTitle TEXT,issueNotes TEXT,severity TEXT,issueStatus TEXT)');
     const legacyFix:LegacyFix={latitude:0,longitude:0,altitude:null,accuracy:0,timestamp:123};const legacySnapshot:LegacySnapshot={locationStatus:'STALE',address:'旧工程地址',fix:legacyFix};const snapshot=JSON.stringify(legacySnapshot);
     const projectValue:relationalStore.ValuesBucket={name:'旧工程',route:'旧线路',category:'道路',address:'旧工程地址',notes:'旧备注',archived:0,locked:0,created:1,updated:1};
-    await legacy.insert('projects',projectValue);
-    const mediaValue:relationalStore.ValuesBucket={projectId:1,path:'/legacy.jpg',source:'/legacy.jpg',name:'旧照片',type:'PHOTO',timestamp:123,width:1,height:1,status:'READY',snapshot,issueTitle:'旧问题',issueNotes:'旧整改',severity:'HIGH',issueStatus:'PENDING'};
-    await legacy.insert('media',mediaValue);
+    // Construct a previously committed v2 database explicitly.  The
+    // pre-close count below keeps fixture-write failures separate from any
+    // close/reopen or migration failure.
+    legacy.beginTransaction();
+    try {
+      const projectId=await legacy.insert('projects',projectValue);
+      if(projectId<=0)throw new Error(`legacy fixture project insert failed: ${projectId}`);
+      const mediaValue:relationalStore.ValuesBucket={projectId:projectId,path:'/legacy.jpg',source:'/legacy.jpg',name:'旧照片',type:'PHOTO',timestamp:123,width:1,height:1,status:'READY',snapshot,issueTitle:'旧问题',issueNotes:'旧整改',severity:'HIGH',issueStatus:'PENDING'};
+      const mediaId=await legacy.insert('media',mediaValue);
+      if(mediaId<=0)throw new Error(`legacy fixture media insert failed: ${mediaId}`);
+      legacy.commit();
+    } catch(e) {
+      try { legacy.rollBack(); } catch(rollbackError) {}
+      throw e as Error;
+    }
+    // Mark the committed fixture as the schema version that the migration
+    // path is meant to upgrade.  This does not change its table shape.
+    legacy.version=2;
+    const beforeClose=await legacy.querySql('SELECT COUNT(*) AS count FROM media');
+    let legacyMediaCount=0;
+    try { if(beforeClose.goToNextRow())legacyMediaCount=beforeClose.getLong(beforeClose.getColumnIndex('count')); }
+    finally { beforeClose.close(); }
+    console.info(`SITECAM_LEGACY_FIXTURE namespace=${namespace} media=${legacyMediaCount}`);
+    if(legacyMediaCount!==1)throw new Error(`legacy fixture media count before close: expected 1, got ${legacyMediaCount}`);
     await legacy.close();
-    const upgraded=new Store(namespace);await upgraded.open(ctx);const media=await upgraded.media();const issues=await upgraded.issues();if(media.length!==1||media[0].latitude!==0||media[0].locationStatus!=='STALE'||media[0].addressText!=='旧工程地址'||issues.length!==1)throw new Error('legacy v2 upgrade fixture failed');await upgraded.close();
+    const reopenedRaw=await relationalStore.getRdbStore(ctx,{name:namespace+'.db',securityLevel:relationalStore.SecurityLevel.S1});
+    const afterClose=await reopenedRaw.querySql('SELECT COUNT(*) AS count FROM media');
+    let reopenedMediaCount=0;
+    try { if(afterClose.goToNextRow())reopenedMediaCount=afterClose.getLong(afterClose.getColumnIndex('count')); }
+    finally { afterClose.close(); await reopenedRaw.close(); }
+    console.info(`SITECAM_LEGACY_REOPEN namespace=${namespace} media=${reopenedMediaCount}`);
+    if(reopenedMediaCount!==1)throw new Error(`legacy v2 media count after reopen: expected 1, got ${reopenedMediaCount}`);
+    const upgraded=new Store(namespace);await upgraded.open(ctx);try{
+      const media=await upgraded.media();const issues=await upgraded.issues();
+      if(media.length!==1)throw new Error(`legacy v2 media count: expected 1, got ${media.length}`);
+      if(media[0].latitude!==0)throw new Error(`legacy v2 latitude: expected 0, got ${media[0].latitude}`);
+      if(media[0].locationStatus!=='STALE')throw new Error(`legacy v2 status: expected STALE, got ${media[0].locationStatus}`);
+      if(media[0].addressText!=='旧工程地址')throw new Error(`legacy v2 fixture address mismatch: ${media[0].addressText}`);
+      if(issues.length!==1)throw new Error(`legacy v2 issue count: expected 1, got ${issues.length}`);
+    }finally{await upgraded.close();}
   }
   static async check(store:Store):Promise<void>{
     const p=new Project();p.name='parity';p.notes='';p.coverMediaId=7;p.watermarkTemplateId=1;await store.putProject(p);

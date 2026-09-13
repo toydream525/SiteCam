@@ -81,11 +81,25 @@ interface WatermarkDao {
 
     @Transaction
     suspend fun ensureBuiltInFields(templateId: Long, defaults: List<WatermarkFieldEntity>) {
-        val existingKeys = getFieldsForTemplateSync(templateId).mapTo(mutableSetOf()) { it.fieldKey }
+        val existing = getFieldsForTemplateSync(templateId)
+        val existingKeys = existing.mapTo(mutableSetOf()) { it.fieldKey }
         val missing = defaults.filter {
             it.fieldKey in BuiltInWatermarkFieldKeys.all && it.fieldKey !in existingKeys
         }
-        if (missing.isNotEmpty()) insertFields(missing)
+        missing.forEach { field ->
+            if (field.fieldKey == BuiltInWatermarkFieldKeys.ELEVATION) {
+                val addressOrder = existing.firstOrNull {
+                    it.fieldKey == BuiltInWatermarkFieldKeys.ADDRESS
+                }?.displayOrder ?: (field.displayOrder - 1)
+                val insertionOrder = addressOrder + 1
+                existing.filter { it.displayOrder >= insertionOrder }
+                    .sortedByDescending { it.displayOrder }
+                    .forEach { updateFieldOrder(it.id, it.displayOrder + 1) }
+                insertField(field.copy(displayOrder = insertionOrder, isEnabled = false))
+            } else {
+                insertField(field)
+            }
+        }
     }
 
     @Transaction

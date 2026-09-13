@@ -91,6 +91,8 @@ class CameraManager(private val context: Context) {
     val cameraError: StateFlow<String?> = _cameraError.asStateFlow()
 
     private var currentLensFacing = CameraSelector.LENS_FACING_BACK
+    private var currentCameraId: String? = null
+    private var lensInspection = CameraCapabilityInspection()
     private var currentFlashMode = "AUTO" // AUTO, ON, OFF, TORCH
     private var activeZoomObserver: Observer<androidx.camera.core.ZoomState>? = null
     private var activeZoomInfo: CameraInfo? = null
@@ -128,9 +130,12 @@ class CameraManager(private val context: Context) {
                 if (hasCamera(provider, fallback)) fallback else lensFacing
             }
             if (bindCameraUseCases(lifecycleOwner, previewView, requestedLens)) {
-                camera?.cameraInfo?.zoomState?.value?.let { zoom ->
-                    camera?.cameraControl?.setZoomRatio(previousZoom.coerceIn(zoom.minZoomRatio, zoom.maxZoomRatio))
-                }
+                // previousZoom is already expressed in the main-camera
+                // display scale.  setZoomRatio maps it to the newly bound
+                // session (including an independent tele camera's native
+                // 1x), instead of passing a display value to CameraX as if
+                // it were the new session's native ratio.
+                setZoomRatio(previousZoom)
             }
         } catch (error: Exception) {
             _isCameraReady.value = false
@@ -153,80 +158,139 @@ class CameraManager(private val context: Context) {
     private fun bindCameraUseCases(
         lifecycleOwner: LifecycleOwner,
         previewView: PreviewView,
-        requestedLensFacing: Int = currentLensFacing
+        requestedLensFacing: Int = currentLensFacing,
+        requestedCameraId: String? = null
     ): Boolean {
         val provider = cameraProvider ?: return false
         val previousLensFacing = currentLensFacing
-        if (!hasCamera(provider, requestedLensFacing)) {
+        val previousCameraId = currentCameraId
+        val defaultSelector = CameraSelector.Builder().requireLensFacing(requestedLensFacing).build()
+        // An explicit camera ID is a user selection and therefore remains the
+        // only candidate.  For the ordinary front/back path, inspect the
+        // public CameraX inventory first so a suitable logical group gets the
+        // first real Preview + ImageCapture + Video bind attempt.  The facing
+        // selector remains the compatibility fallback for devices whose
+        // metadata is incomplete or whose preferred group cannot bind.
+        val candidates = buildList<Pair<String?, CameraSelector>> {
+            if (requestedCameraId != null) {
+                add(requestedCameraId to CameraCapabilityInspector.selectorForCameraId(requestedCameraId))
+            } else {
+                val preferredCameraId = CameraCapabilityInspector.preferredPublicCameraId(
+                    context = context,
+                    provider = provider,
+                    lensFacing = requestedLensFacing,
+                    includeVideo = true
+                )
+                if (preferredCameraId != null) {
+                    add(preferredCameraId to CameraCapabilityInspector.selectorForCameraId(preferredCameraId))
+                }
+                add(null to defaultSelector)
+            }
+        }
+
+        val availableCandidates = candidates.filter { (_, selector) -> hasCamera(provider, selector) }
+        if (availableCandidates.isEmpty()) {
             reportCameraError("当前设备没有可用的${lensName(requestedLensFacing)}摄像头")
             return false
         }
 
-        try {
-            bindUseCases(
-                provider = provider,
-                lifecycleOwner = lifecycleOwner,
-                previewView = previewView,
-                lensFacing = requestedLensFacing,
-                includeVideo = true
-            )
-            currentLensFacing = requestedLensFacing
-            _isCameraReady.value = true
-            _cameraError.value = null
-            return true
-        } catch (videoBindingError: Exception) {
-            Log.w("CameraManager", "Preview/photo/video binding failed; retrying without video", videoBindingError)
+        var lastBindingError: Exception? = null
+        // Try every public candidate with the complete capture combination
+        // before accepting a still-photo-only fallback.  A preferred logical
+        // group must not hide a later public group that can record video.
+        for ((candidateCameraId, selector) in availableCandidates) {
             try {
-                // Some vendor Camera2 implementations cannot bind all three
-                // use cases at once. Keep preview and still capture usable and
-                // expose a clear warning instead of leaving a black preview.
                 bindUseCases(
                     provider = provider,
                     lifecycleOwner = lifecycleOwner,
                     previewView = previewView,
-                    lensFacing = requestedLensFacing,
-                    includeVideo = false
+                    cameraSelector = selector,
+                    includeVideo = true
                 )
                 currentLensFacing = requestedLensFacing
+                currentCameraId = CameraCapabilityInspector.cameraIdOf(camera?.cameraInfo) ?: candidateCameraId
+                _isCameraReady.value = true
+                _cameraError.value = null
+                return true
+            } catch (videoBindingError: Exception) {
+                lastBindingError = videoBindingError
+                Log.w("CameraManager", "Preview/photo/video binding failed for candidate", videoBindingError)
+            }
+        }
+
+        // Some vendor Camera2 implementations cannot bind all three use
+        // cases at once. Keep preview and still capture usable only after all
+        // complete candidates have had a chance to bind.
+        for ((candidateCameraId, selector) in availableCandidates) {
+            try {
+                bindUseCases(
+                    provider = provider,
+                    lifecycleOwner = lifecycleOwner,
+                    previewView = previewView,
+                    cameraSelector = selector,
+                    includeVideo = false,
+                    videoBindingAttempted = true
+                )
+                currentLensFacing = requestedLensFacing
+                currentCameraId = CameraCapabilityInspector.cameraIdOf(camera?.cameraInfo) ?: candidateCameraId
                 _isCameraReady.value = true
                 _cameraError.value = "当前设备不支持同时录像，已启用拍照模式"
                 return true
             } catch (bindingError: Exception) {
-                Log.e("CameraManager", "Camera use case binding failed", bindingError)
-                // A lens switch is transactional: restore the lens that was
-                // already working before reporting failure to the UI.
-                if (requestedLensFacing != previousLensFacing && hasCamera(provider, previousLensFacing)) {
-                    runCatching {
-                        bindUseCases(
-                            provider = provider,
-                            lifecycleOwner = lifecycleOwner,
-                            previewView = previewView,
-                            lensFacing = previousLensFacing,
-                            includeVideo = true
-                        )
-                        currentLensFacing = previousLensFacing
-                        _isCameraReady.value = true
-                    }.onFailure { restoreError ->
-                        Log.e("CameraManager", "Failed to restore previous camera", restoreError)
-                        _isCameraReady.value = false
-                    }
-                } else {
-                    _isCameraReady.value = false
-                }
-                reportCameraError("相机启动失败，请检查相机权限或重试")
-                return false
+                lastBindingError = bindingError
+                Log.e("CameraManager", "Camera use case binding failed for candidate", bindingError)
             }
         }
+        lastBindingError?.let { Log.e("CameraManager", "All camera candidates failed to bind", it) }
+
+        // A lens switch is transactional: restore the lens that was already
+        // working before reporting failure to the UI.  If that previous
+        // session was still-photo-only, retain it with the same fallback.
+        val previousSelector = previousCameraId?.let(CameraCapabilityInspector::selectorForCameraId)
+            ?: CameraSelector.Builder().requireLensFacing(previousLensFacing).build()
+        if ((requestedCameraId != previousCameraId || requestedLensFacing != previousLensFacing) &&
+            hasCamera(provider, previousSelector)
+        ) {
+            runCatching {
+                bindUseCases(
+                    provider = provider,
+                    lifecycleOwner = lifecycleOwner,
+                    previewView = previewView,
+                    cameraSelector = previousSelector,
+                    includeVideo = true
+                )
+            }.recoverCatching {
+                bindUseCases(
+                    provider = provider,
+                    lifecycleOwner = lifecycleOwner,
+                    previewView = previewView,
+                    cameraSelector = previousSelector,
+                    includeVideo = false,
+                    videoBindingAttempted = true
+                )
+            }.onSuccess {
+                currentLensFacing = previousLensFacing
+                currentCameraId = previousCameraId
+                _isCameraReady.value = true
+            }.onFailure { restoreError ->
+                Log.e("CameraManager", "Failed to restore previous camera", restoreError)
+                _isCameraReady.value = false
+            }
+        } else {
+            _isCameraReady.value = false
+        }
+        reportCameraError("相机启动失败，请检查相机权限或重试")
+        return false
     }
 
     private fun bindUseCases(
         provider: ProcessCameraProvider,
         lifecycleOwner: LifecycleOwner,
         previewView: PreviewView,
-        lensFacing: Int,
-        includeVideo: Boolean
+        cameraSelector: CameraSelector,
+        includeVideo: Boolean,
+        videoBindingAttempted: Boolean = includeVideo
     ) {
-        val cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
         val newPreview = Preview.Builder()
             .setTargetAspectRatio(AspectRatio.RATIO_4_3)
             .setTargetRotation(previewTargetRotation)
@@ -297,14 +361,29 @@ class CameraManager(private val context: Context) {
         val cameraInfo = boundCamera.cameraInfo
         val hasFront = hasCamera(provider, CameraSelector.LENS_FACING_FRONT)
         val hasBack = hasCamera(provider, CameraSelector.LENS_FACING_BACK)
-        _cameraCapability.value = CameraCapability.fromCameraInfo(cameraInfo, hasFront, hasBack)
+        lensInspection = CameraCapabilityInspector.inspect(
+            context = context,
+            provider = provider,
+            activeInfo = cameraInfo,
+            activeVideoBindable = includeVideo && newVideoCapture != null,
+            activeVideoBindingAttempted = videoBindingAttempted
+        )
+        val activeEquivalentRatio = activeLensEquivalentZoomRatio()
+        _cameraCapability.value = capabilityFromZoomState(cameraInfo, hasFront, hasBack)
+        _currentZoomRatio.value = CameraZoomMapping.displayRatioFromSession(
+            cameraInfo.zoomState.value?.zoomRatio ?: 1.0f,
+            activeEquivalentRatio
+        )
         val zoomObserver = Observer<androidx.camera.core.ZoomState> { zoomState ->
-            _currentZoomRatio.value = zoomState.zoomRatio
-            _cameraCapability.value = CameraCapability.fromZoomState(
-                zoomState = zoomState,
-                hasFlash = cameraInfo.hasFlashUnit(),
+            _currentZoomRatio.value = CameraZoomMapping.displayRatioFromSession(
+                zoomState.zoomRatio,
+                activeEquivalentRatio
+            )
+            _cameraCapability.value = capabilityFromZoomState(
+                cameraInfo = cameraInfo,
                 hasFront = hasFront,
-                hasBack = hasBack
+                hasBack = hasBack,
+                zoomState = zoomState
             )
         }
         activeZoomObserver = zoomObserver
@@ -313,11 +392,33 @@ class CameraManager(private val context: Context) {
     }
 
     private fun hasCamera(provider: ProcessCameraProvider, lensFacing: Int): Boolean =
-        runCatching {
-            provider.hasCamera(
-                CameraSelector.Builder().requireLensFacing(lensFacing).build()
-            )
-        }.getOrDefault(false)
+        hasCamera(provider, CameraSelector.Builder().requireLensFacing(lensFacing).build())
+
+    private fun hasCamera(provider: ProcessCameraProvider, selector: CameraSelector): Boolean =
+        runCatching { provider.hasCamera(selector) }.getOrDefault(false)
+
+    private fun capabilityFromZoomState(
+        cameraInfo: CameraInfo,
+        hasFront: Boolean,
+        hasBack: Boolean,
+        zoomState: androidx.camera.core.ZoomState? = cameraInfo.zoomState.value
+    ): CameraCapability = CameraCapability.fromZoomState(
+        zoomState = zoomState,
+        hasFlash = cameraInfo.hasFlashUnit(),
+        hasFront = hasFront,
+        hasBack = hasBack,
+        activeLensEquivalentZoomRatio = activeLensEquivalentZoomRatio()
+    ).copy(
+        publicLenses = lensInspection.publicLenses,
+        hardwareOnlyLenses = lensInspection.hardwareOnlyLenses,
+        activeCameraId = lensInspection.activeCameraId,
+        activeLensEquivalentZoomRatio = activeLensEquivalentZoomRatio()
+    )
+
+    private fun activeLensEquivalentZoomRatio(): Float {
+        val active = lensInspection.publicLenses.firstOrNull { it.cameraId == lensInspection.activeCameraId }
+        return CameraZoomMapping.referenceRatioForActiveLens(active)
+    }
 
     private fun oppositeLensFacing(lensFacing: Int): Int =
         if (lensFacing == CameraSelector.LENS_FACING_BACK) {
@@ -345,8 +446,44 @@ class CameraManager(private val context: Context) {
             reportCameraError("当前设备没有可用的${lensName(requestedLens)}摄像头")
             return currentLensFacing
         }
+        val previousDisplayZoom = _currentZoomRatio.value
         bindCameraUseCases(lifecycleOwner, previewView, requestedLens)
+        // Both a successful front/back switch and a failed switch restored to
+        // the previous selector must keep the display-scale zoom coherent.
+        setZoomRatio(previousDisplayZoom)
         return currentLensFacing
+    }
+
+    /** Bind one CameraX-public camera group selected from real metadata. */
+    fun switchToPublicLens(
+        lens: CameraLensCapability,
+        lifecycleOwner: LifecycleOwner,
+        previewView: PreviewView
+    ): Boolean {
+        if (_videoRecordingState.value != VideoRecordingState.IDLE || !lens.appAccessible || !lens.photoBindable) {
+            return false
+        }
+        val provider = cameraProvider ?: return false
+        val selector = CameraCapabilityInspector.selectorForCameraId(lens.cameraId)
+        if (!hasCamera(provider, selector)) {
+            reportCameraError("当前镜头暂不可绑定")
+            return false
+        }
+        if (currentCameraId == lens.cameraId) return true
+        val previousDisplayZoom = _currentZoomRatio.value
+        val switched = bindCameraUseCases(
+            lifecycleOwner = lifecycleOwner,
+            previewView = previewView,
+            requestedLensFacing = lens.lensFacing,
+            requestedCameraId = lens.cameraId
+        )
+        // Preserve the user's main-camera reference where the new session
+        // allows it; native 1x on an independent tele naturally clamps to its
+        // displayed equivalent lower bound. bindCameraUseCases restores the
+        // previous selector after a failed switch, so the same call also
+        // restores that selector's displayed ratio.
+        setZoomRatio(previousDisplayZoom)
+        return switched
     }
 
     /**
@@ -404,8 +541,13 @@ class CameraManager(private val context: Context) {
     fun setZoomRatio(ratio: Float) {
         val min = _cameraCapability.value.minZoomRatio
         val max = _cameraCapability.value.maxZoomRatio
-        val clampedRatio = ratio.coerceIn(min, max)
-        camera?.cameraControl?.setZoomRatio(clampedRatio)
+        val displayRatio = ratio.takeIf { it.isFinite() && it > 0f } ?: min
+        val clampedDisplayRatio = displayRatio.coerceIn(min, max)
+        val sessionRatio = CameraZoomMapping.sessionRatioFromDisplay(
+            clampedDisplayRatio,
+            _cameraCapability.value.activeLensEquivalentZoomRatio
+        )
+        camera?.cameraControl?.setZoomRatio(sessionRatio)
     }
 
     fun setLinearZoom(linearRatio: Float) {
@@ -602,6 +744,8 @@ class CameraManager(private val context: Context) {
         preview = null
         imageCapture = null
         videoCapture = null
+        currentCameraId = null
+        lensInspection = CameraCapabilityInspection()
         _isCameraReady.value = false
     }
 }

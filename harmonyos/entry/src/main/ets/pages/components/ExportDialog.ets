@@ -16,6 +16,6 @@ export struct ProjectExportDialog {
       Row({ space: 8 }) { Button('ZIP 压缩包').layoutWeight(1).fontColor(!this.folder?'#231A00':SITE_TEXT).backgroundColor(!this.folder?SITE_ACCENT:'#303030').onClick(()=>this.folder=false);Button('总文件夹').layoutWeight(1).fontColor(this.folder?'#231A00':SITE_TEXT).backgroundColor(this.folder?SITE_ACCENT:'#303030').onClick(()=>this.folder=true); }.width('100%');
       Row({ space: 12 }) { Button('取消').fontColor(SITE_MUTED).backgroundColor(Color.Transparent).onClick(()=>this.controller.close());Button('选择位置并导出').fontColor('#231A00').backgroundColor(SITE_ACCENT).onClick(()=>{this.controller.close();this.onConfirm(this.folder,this.quality);}); }.width('100%').justifyContent(FlexAlign.End);
     }.padding(18).backgroundColor(SITE_CARD).borderRadius(14).width('92%');
-    }.width('100%').constraintSize({maxWidth:600,maxHeight:'90%'}).align(Alignment.Top);
+    }.width('100%').constraintSize({maxWidth:600,maxHeight:'90%'}).align(Alignment.Top).scrollBar(BarState.Off);
   }
 }

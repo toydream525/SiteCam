@@ -150,6 +150,6 @@ export struct DateRangeDialog {
         Button('应用').fontColor('#231A00').backgroundColor(SITE_ACCENT).onClick(() => this.apply());
       }.width('100%').justifyContent(FlexAlign.End);
     }.padding(18).backgroundColor(SITE_CARD).borderRadius(14).width('94%');
-    }.width('100%').constraintSize({maxWidth:600,maxHeight:'90%'}).align(Alignment.Top);
+    }.width('100%').constraintSize({maxWidth:600,maxHeight:'90%'}).align(Alignment.Top).scrollBar(BarState.Off);
   }
 }

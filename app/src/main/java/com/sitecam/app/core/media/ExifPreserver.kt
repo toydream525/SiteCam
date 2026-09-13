@@ -67,8 +67,6 @@ object ExifPreserver {
         if (data.latitude != null && data.longitude != null) {
             exif.setLatLong(data.latitude, data.longitude)
         }
-        if (data.altitude != null) {
-            exif.setAltitude(data.altitude)
-        }
+        data.altitude?.takeIf { it.isFinite() }?.let(exif::setAltitude)
     }
 }

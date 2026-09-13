@@ -1,14 +1,23 @@
-# SiteCam 鸿蒙原生开发版
+# SiteCam 鸿蒙原生版 beta
 
-独立 ArkTS / ArkUI Stage 工程，基于当前 Android v0.2.8 工作区迁移。Android 源码保留。此目录的实现可以构建并在本地 API 26 开发模拟器安装；**尚未达到完整迁移计划的全部验收条件**。最新核心验证为 **36 项中 35 项通过**，视频水印与音轨因模拟器没有 H.264 编解码器而阻塞。普通手机、折叠外屏和 10.2 英寸展开屏已完成相关界面回归；真实平板、悬停、HarmonyOS 5/6、混合媒体分享和系统相册完整回归仍待验收。
+独立 ArkTS / ArkUI Stage 工程，当前公开版本 **v0.3.1（14）**，鸿蒙原生版 beta 已发布。包含双端地址刷新、默认关闭海拔和工程切换锁定，优化安卓及鸿蒙的各类折叠屏、阔直屏和平板适配（beta），并更新鸿蒙侧界面、快门音开关、常用倍率、公开镜头识别、教程、项目操作单行图标、全选闪烁和闪光按钮状态。普通直屏与阔直屏布局继续保留，鸿蒙系统相册仍采用独立副本设计。
 
-[下载 v0.2.8 开发包](https://github.com/toydream525/SiteCam/releases/tag/v0.2.8) · [官网说明](https://yuriaqua.com/sitecam/) · [完整验证记录](VERIFICATION.md)
+> **发布状态：公开 HAP 暂未签名，需要自行签名，公开分发签名包稍后提供。** 本地 debug/profile 产物不作为通用下载包；不同设备的镜头、闪光灯和视频能力仍需按设备确认。
+
+未签名 HAP 需要自行签名后安装。
 
 系统相册入口为“另存到系统相册”：保存独立副本，取消授权不影响工程原件，删除互不联动。
 
 ## 构建与安装
 
-本机已使用 DevEco Studio 26.0.0.821、SDK API 26、Hvigor 6.26.4、OHPM 26 和 Node 24 构建。最低兼容配置为 API 12，编译及目标 API 为 26，当前 Native ABI 为 arm64-v8a。
+v0.3.1 公开下载资产：
+
+- [SiteCam-0.3.1-HarmonyOS-Release-Unsigned.hap](https://github.com/toydream525/SiteCam/releases/download/v0.3.1/SiteCam-0.3.1-HarmonyOS-Release-Unsigned.hap)
+- [SiteCam-0.3.1-HarmonyOS-Debug-Unsigned.hap](https://github.com/toydream525/SiteCam/releases/download/v0.3.1/SiteCam-0.3.1-HarmonyOS-Debug-Unsigned.hap)
+
+以上公开 HAP 均暂未签名，需要自行签名；公开分发签名包稍后提供。
+
+2026-09-12 核对华为官方稳定版：DevEco Studio 26.0.0.821、SDK 26.0.0.105 Release 与本机一致；配套 Hvigor 6.26.4、OHPM 26.0.0.630，使用 IDE 内置 Node。无需升级或重装。最低兼容配置为 API 12，编译及目标 API 为 26，当前 Native ABI 为 arm64-v8a。
 
 ```sh
 cd harmonyos
@@ -49,7 +58,7 @@ HDC=/Applications/DevEco-Studio.app/Contents/sdk/default/openharmony/toolchains/
 ./scripts/ui_smoke.py --target 127.0.0.1:5557
 ```
 
-脚本构建测试模块并在指定模拟器运行。它会停止该模拟器上的 SiteCam 进程，请勿在有未保存工作的设备上运行。测试数据库与主应用分离。最新报告为 `verification/api26-results.json`（36 项中 35 项通过）；视频编解码器缺失时会如实返回非零退出码。
+脚本构建测试模块并在指定模拟器运行。它会停止该模拟器上的 SiteCam 进程，请勿在有未保存工作的设备上运行。测试数据库与主应用分离。最新报告为 `verification/api26-results.json`（44 项中 43 项通过）；视频编解码器缺失时会如实返回非零退出码。
 
 测试页另有“验证相册副本”和“验证文件夹导出”，用于系统交互，需在模拟器操作授权。测试报告和完整限制见 [VERIFICATION.md](VERIFICATION.md)。离线用户说明在 `entry/src/main/resources/rawfile/USER_GUIDE.md`。
 
@@ -64,3 +73,5 @@ HDC=/Applications/DevEco-Studio.app/Contents/sdk/default/openharmony/toolchains/
 - [应用配置及备选图标](https://developer.huawei.com/consumer/cn/doc/doccenter-getting-started/app-configuration-file)
 
 开发中还直接核对了本机 SDK 的 ArkTS 类型声明和 Native 头文件。编译警告包含旧版兼容路径所用接口的弃用提示；没有将 API 26 `AVTranscoder.addWatermark` 用于基础视频路径。
+
+统一屏幕规则及后续 Android 复用基线：[屏幕适配说明](SCREEN-ADAPTATION.md)。小外屏组件尺寸检查可在测试页运行 `scripts/ui_cover_smoke.py --target <模拟器地址>`，不代表真实小折叠外屏验证。

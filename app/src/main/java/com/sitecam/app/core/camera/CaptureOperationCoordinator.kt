@@ -18,4 +18,10 @@ class CaptureOperationCoordinator {
         if (projectId in active) throw CaptureInProgressException()
         action()
     }
+
+    /** Guard global project selection while any capture is still being saved. */
+    suspend fun <T> withAllProjectsIdle(action: suspend () -> T): T = mutex.withLock {
+        if (active.isNotEmpty()) throw CaptureInProgressException()
+        action()
+    }
 }

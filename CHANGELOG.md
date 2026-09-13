@@ -1,5 +1,20 @@
 # 更新日志
 
+## v0.3.1 — 2026-09-13（Android 版本号 14）
+
+- 双端在已有定位权限但地址不可用时支持手动刷新；刷新状态可结束并重试。
+- 双端新增海拔水印字段，默认关闭；只有本次有效海拔读数才会显示，过期或无值不伪造数据。
+- 工程切换支持当前工程持续可见、锁定/归档状态提示和拍摄期间互斥；锁定或归档工程可查看但不能拍摄。
+- 优化安卓及鸿蒙的各类折叠屏、阔直屏和平板适配（beta），保留普通直屏与阔直屏布局。
+- 鸿蒙原生版 beta 已发布：更新界面布局、快门音开关、常用倍率、公开镜头识别、教程章节、项目操作单行图标、全选闪烁和闪光按钮状态。
+- Android 设置页在离开相机后遵循设备正常方向，返回相机时恢复相机既有方向约束。
+
+### v0.3.1 下载资产
+
+- Android：[Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.3.1/SiteCam-0.3.1-Android-Release.apk) · [Debug APK](https://github.com/toydream525/SiteCam/releases/download/v0.3.1/SiteCam-0.3.1-Android-Debug.apk)
+- HarmonyOS：[Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.3.1/SiteCam-0.3.1-HarmonyOS-Release-Unsigned.hap) · [Debug-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.3.1/SiteCam-0.3.1-HarmonyOS-Debug-Unsigned.hap)
+- **鸿蒙公开 HAP 暂未签名，需要自行签名，公开分发签名包稍后提供。**
+
 ## v0.3.0 — 2026-09-12
 
 - **新增折叠屏支持（Beta）。**

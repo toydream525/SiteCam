@@ -22,13 +22,13 @@ export struct ExportChoiceDialog {
             Button(label).width('100%').height(36).fontSize(12).fontColor(this.quality === this.qualityForLabel(label) ? '#231A00' : SITE_TEXT).backgroundColor(this.quality === this.qualityForLabel(label) ? SITE_ACCENT : '#303030').onClick(() => { this.quality = this.qualityForLabel(label); });
           }, (label: string) => label);
         }.width('100%');
-      }.width('100%').constraintSize({ maxHeight: 260 });
+      }.width('100%').constraintSize({ maxHeight: 260 }).scrollBar(BarState.Off);
       Row({ space: 6 }) {
         Button('一个 ZIP').layoutWeight(1).fontColor('#231A00').backgroundColor(SITE_ACCENT).onClick(() => this.chooseZip());
         Button('一个总文件夹').layoutWeight(1).fontColor(SITE_TEXT).backgroundColor('#303030').onClick(() => this.chooseFolder());
       }.width('100%');
       Button('取消').width('100%').fontColor(SITE_MUTED).backgroundColor(Color.Transparent).onClick(() => { this.controller.close(); this.onCancel(); });
     }.padding(18).width('92%').backgroundColor(SITE_CARD).borderRadius(14);
-    }.width('100%').constraintSize({maxWidth:600,maxHeight:'90%'}).align(Alignment.Top);
+    }.width('100%').constraintSize({maxWidth:600,maxHeight:'90%'}).align(Alignment.Top).scrollBar(BarState.Off);
   }
 }

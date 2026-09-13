@@ -1,6 +1,6 @@
 import { LengthMetricsUnit } from '@kit.ArkUI';
 import { image } from '@kit.ImageKit';
-import { Snapshot, STYLES, Field, Style } from './Models';
+import { Snapshot, STYLES, Field, Style, Fix } from './Models';
 
 export class InkLine { text: string=''; x: number=0; y: number=0; width: number=0; size: number=0; color: string=''; bold: boolean=false; key: string=''; role: string='value'; ascent: number=0; descent: number=0; }
 export class InkRect { x: number=0; y: number=0; w: number=0; h: number=0; color: string=''; }
@@ -11,20 +11,27 @@ export function resolveFields(s: Snapshot): Field[] {
   const out: Field[]=[];
   for (const f of s.watermark.fields) {
     if (!f.enabled) continue;
-    let value=f.value;
+    // Elevation is a location measurement, so a saved text override must not
+    // outlive the capture fix or make an unavailable value look valid.
+    let value=f.key==='elevation' ? formatElevation(s.fix,s.locationStatus) : f.value;
     if (!value) switch (f.key) {
       case 'project': value=s.project; break; case 'category': value=s.category; break;
       case 'time': value=watermarkTime(s.timestamp); break; case 'address': value=s.address; break;
       case 'gps': value=s.fix ? `${s.fix.latitude.toFixed(6)}, ${s.fix.longitude.toFixed(6)}${s.locationStatus==='STALE'?'（旧定位）':''}` : ''; break;
       case 'user': value=s.watermark.user; break;
     }
-    if (value) out.push(new Field(f.key,builtInLabel(f.key,f.label),value));
+    if (value) out.push(new Field(f.key,s.presentationVersion===2 ? (f.label || builtInLabel(f.key,f.label)) : builtInLabel(f.key,f.label),value));
   }
-  if (s.watermark.style==='ENGINEERING_BLUE') out.sort((a: Field,b: Field)=>rank(a.key,'project','time')-rank(b.key,'project','time'));
-  if (s.watermark.style==='TIME_LOCATION') out.sort((a: Field,b: Field)=>rank(a.key,'time','address')-rank(b.key,'time','address'));
+  if (s.presentationVersion!==2 && s.watermark.style==='ENGINEERING_BLUE') out.sort((a: Field,b: Field)=>rank(a.key,'project','time')-rank(b.key,'project','time'));
+  if (s.presentationVersion!==2 && s.watermark.style==='TIME_LOCATION') out.sort((a: Field,b: Field)=>rank(a.key,'time','address')-rank(b.key,'time','address'));
   return out;
 }
-function builtInLabel(key: string, fallback: string): string { switch(key){case 'project':return '工程名称';case 'category':return '工程类型';case 'time':return '拍摄时间';case 'address':return '现场位置';case 'gps':return 'GPS定位';case 'user':return '拍摄人员';default:return fallback;} }
+export function formatElevation(fix: Fix|null,locationStatus: string): string {
+  const altitude=fix?.altitude;
+  if(locationStatus!=='FRESH'||altitude===null||altitude===undefined||!Number.isFinite(altitude))return '暂不可用';
+  return `${altitude.toFixed(1)} m`;
+}
+function builtInLabel(key: string, fallback: string): string { switch(key){case 'project':return '工程名称';case 'category':return '工程类型';case 'time':return '拍摄时间';case 'address':return '现场位置';case 'elevation':return '海拔';case 'gps':return 'GPS定位';case 'user':return '拍摄人员';default:return fallback;} }
 function watermarkTime(t: number): string { const d=new Date(t),p=(n:number)=>n.toString().padStart(2,'0'); return `${d.getFullYear()}.${p(d.getMonth()+1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; }
 function rank(k: string,a: string,b: string): number { return k===a?0:k===b?1:2; }
 export function wrapText(ctx: DrawingContext,text: string,width: number): string[] {
@@ -52,9 +59,9 @@ function build(ctx: DrawingContext,w: number,h: number,snap: Snapshot,scale: num
   if(title){y=add(title,pad,y,inner,id==='INFO_BOARD'?32*base:size*1.12,id==='INFO_BOARD'?'#17212A':'#FFFFFF',true,'','heading')+pad*.5;header=y;y+=pad*.5;}
   const fields=resolveFields(snap);
   for(let i=0;i<fields.length;i++){const f=fields[i],rowTop=y,blue=id==='ENGINEERING_BLUE'&&(f.key==='project'||f.key==='time'),big=id==='TIME_LOCATION'&&f.key==='time',highlight=id==='CLASSIC'&&i===0,font=highlight?34*base:size*(big?1.75:blue?1.12:1);
-    if(blue){y=add(f.value,pad,y,inner,font,'#FFFFFF',true,f.key,'value');header=y+gap;}
+    if(blue){if(snap.presentationVersion===2){const top=y;y=add(f.label+': '+f.value,pad,y,inner,font,'#FFFFFF',true,f.key,'value');const bg=new InkRect();bg.x=pad-gap;bg.y=top-gap/2;bg.w=inner+gap*2;bg.h=y-top+gap/2;bg.color=r.accent;r.rects.push(bg);}else{y=add(f.value,pad,y,inner,font,'#FFFFFF',true,f.key,'value');header=y+gap;}}
     else if(light){const lw=inner*(id==='ACCEPTANCE'?.32:.27),a=add(f.label,pad,y,lw-gap,size,label,true,f.key,'label'),b=add(f.value,pad+lw+gap,y,inner-lw-gap,size,fg,false,f.key,'value');y=Math.max(a,b);line(r,pad+lw,rowTop-gap/2,Math.max(base,.2),y-(rowTop-gap/2),'#C0CEDA');}
-    else if(id==='MINIMAL'||id==='TIME_LOCATION'){if(!['project','category','time','address','gps','user'].includes(f.key)&&f.label)y=add(f.label,pad,y,inner,size*.85,label,true,f.key,'label');y=add(f.value,pad,y,inner,font,fg,big,f.key,'value');}
+    else if(id==='MINIMAL'||id==='TIME_LOCATION'){if((snap.presentationVersion===2||!['project','category','time','address','gps','user'].includes(f.key))&&f.label)y=add(f.label,pad,y,inner,size*.85,label,true,f.key,'label');y=add(f.value,pad,y,inner,font,fg,big,f.key,'value');}
     else {
       const labelText=f.label+': ';
       ctx.font='bold '+font+'px sans-serif';

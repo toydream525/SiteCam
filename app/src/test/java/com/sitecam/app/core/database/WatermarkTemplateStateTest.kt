@@ -249,7 +249,9 @@ class WatermarkTemplateStateTest {
                 dao.getFieldsForTemplate(id).first { it.first().label == "工程名称" }
             }
             assertEquals(defaults.map { it.fieldKey } + listOf("CUSTOM_FIRST", "CUSTOM_SECOND"), restored.map { it.fieldKey })
-            assertEquals((0..7).toList(), restored.map { it.displayOrder })
+            // Seven built-in rows now include the opt-in elevation row; the
+            // two custom rows remain after them in their original order.
+            assertEquals((0 until restored.size).toList(), restored.map { it.displayOrder })
             restored.forEach { field ->
                 val before = original.getValue(field.fieldKey)
                 assertEquals(before.defaultValue, field.defaultValue)
@@ -283,6 +285,62 @@ class WatermarkTemplateStateTest {
             assertEquals("PROJECT_CATEGORY", current.first().fieldKey)
             assertEquals("今日水印", current[1].label)
             assertEquals("刚刚填写的内容", current[1].defaultValue)
+        } finally { database.close() }
+    }
+
+    @Test fun legacyTemplateGetsOptInElevationAfterAddressWithoutResettingRows(): Unit = runBlocking {
+        val database = Room.inMemoryDatabaseBuilder(RuntimeEnvironment.getApplication(), AppDatabase::class.java)
+            .allowMainThreadQueries().build()
+        try {
+            val dao = database.watermarkDao()
+            val id = dao.insertTemplate(WatermarkTemplateEntity(name = "旧模板", isDefault = true))
+            val legacy = com.sitecam.app.core.watermark.model.builtInWatermarkFieldsForTemplate(id)
+                .filterNot { it.fieldKey == com.sitecam.app.core.watermark.model.BuiltInWatermarkFieldKeys.ELEVATION }
+                .mapIndexed { index, field ->
+                    field.copy(
+                        label = "旧标签$index",
+                        defaultValue = "旧内容$index",
+                        displayOrder = index,
+                        isEnabled = index % 2 == 0
+                    )
+                }
+            val custom = WatermarkFieldEntity(
+                templateId = id,
+                fieldKey = "CUSTOM_legacy",
+                label = "旧自定义",
+                defaultValue = "保留自定义内容",
+                isEnabled = false,
+                displayOrder = legacy.size
+            )
+            dao.insertFields(legacy + custom)
+            val before = dao.getFieldsForTemplateSync(id).associateBy { it.fieldKey }
+
+            dao.ensureBuiltInFields(
+                id,
+                com.sitecam.app.core.watermark.model.builtInWatermarkFieldsForTemplate(id)
+            )
+            val migrated = dao.getFieldsForTemplateSync(id)
+
+            assertEquals(
+                listOf("PROJECT_NAME", "PROJECT_CATEGORY", "DATE_TIME", "ADDRESS", "ELEVATION", "GPS", "USER_NAME", "CUSTOM_legacy"),
+                migrated.map { it.fieldKey }
+            )
+            migrated.filter { it.fieldKey != "ELEVATION" }.forEach { field ->
+                val original = before.getValue(field.fieldKey)
+                assertEquals(original.label, field.label)
+                assertEquals(original.defaultValue, field.defaultValue)
+                assertEquals(original.isEnabled, field.isEnabled)
+            }
+            assertEquals(false, migrated.first { it.fieldKey == "ELEVATION" }.isEnabled)
+            assertEquals((0 until migrated.size).toList(), migrated.map { it.displayOrder })
+
+            // Opening the same template again is idempotent and does not
+            // reset the user's labels, values, switches, or custom row.
+            dao.ensureBuiltInFields(
+                id,
+                com.sitecam.app.core.watermark.model.builtInWatermarkFieldsForTemplate(id)
+            )
+            assertEquals(migrated, dao.getFieldsForTemplateSync(id))
         } finally { database.close() }
     }
 

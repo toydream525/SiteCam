@@ -9,7 +9,10 @@ import org.json.JSONObject
  * ignored so snapshots made by an older build remain readable.
  */
 object WatermarkSnapshotCodec {
-    private const val VERSION = 1
+    // Version 1 snapshots predate the opt-in elevation row. Keep the version
+    // boundary explicit so a legacy snapshot can never gain that row merely
+    // because the current build knows about it.
+    private const val VERSION = 2
 
     fun encode(data: WatermarkData): String = JSONObject().apply {
         put("version", VERSION)
@@ -19,6 +22,7 @@ object WatermarkSnapshotCodec {
         putNullable("latitude", data.latitude)
         putNullable("longitude", data.longitude)
         putNullable("altitude", data.altitude)
+        put("locationStatus", data.locationStatus)
         put("addressText", data.addressText)
         put("userName", data.userName)
         put("enabledSystemFields", JSONArray(data.enabledSystemFields.toList()))
@@ -46,16 +50,20 @@ object WatermarkSnapshotCodec {
         if (json.isNullOrBlank()) return null
         return runCatching {
             val root = JSONObject(json)
+            val snapshotVersion = root.optInt("version", 0)
             val enabledArray = root.optJSONArray("enabledSystemFields")
             // A missing field is an old snapshot and should use the historical
             // default. An explicitly present empty array means the user
             // disabled every built-in field and must remain empty.
             val enabled = if (enabledArray == null) {
-                BuiltInWatermarkFieldKeys.all
+                // Snapshots from before the opt-in elevation row existed keep
+                // the historical built-in defaults.
+                BuiltInWatermarkFieldKeys.defaultEnabled
             } else {
                 buildSet {
                     val array = enabledArray
                     for (index in 0 until array.length()) add(array.optString(index))
+                    if (snapshotVersion < VERSION) remove(BuiltInWatermarkFieldKeys.ELEVATION)
                 }
             }
             val overrides = buildMap {
@@ -101,6 +109,10 @@ object WatermarkSnapshotCodec {
                 latitude = root.optNullableDouble("latitude"),
                 longitude = root.optNullableDouble("longitude"),
                 altitude = root.optNullableDouble("altitude"),
+                locationStatus = root.optString(
+                    "locationStatus",
+                    if (root.optNullableDouble("altitude") != null) "FRESH" else "UNAVAILABLE"
+                ),
                 addressText = root.optString("addressText"),
                 userName = root.optString("userName"),
                 enabledSystemFields = enabled,
@@ -118,9 +130,9 @@ object WatermarkSnapshotCodec {
     }
 
     private fun JSONObject.putNullable(key: String, value: Double?) {
-        put(key, value ?: JSONObject.NULL)
+        put(key, value?.takeIf { it.isFinite() } ?: JSONObject.NULL)
     }
 
     private fun JSONObject.optNullableDouble(key: String): Double? =
-        if (isNull(key)) null else optDouble(key).takeUnless { it.isNaN() }
+        if (isNull(key)) null else optDouble(key).takeUnless { !it.isFinite() }
 }

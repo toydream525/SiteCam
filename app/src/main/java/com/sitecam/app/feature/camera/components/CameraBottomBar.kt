@@ -7,6 +7,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -26,14 +28,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FlipCameraAndroid
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.sitecam.app.feature.camera.CaptureMode
+import com.sitecam.app.feature.camera.smallCoverAddressFallbackSlot
 import com.sitecam.app.feature.gallery.VideoThumbnail
 import com.sitecam.app.ui.theme.EngineeringYellow
 import com.sitecam.app.ui.theme.ErrorRed
@@ -64,6 +73,7 @@ import java.util.Locale
  * can change spacing without allowing independently-positioned controls to
  * overlap.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun CameraBottomBar(
     latestThumbnailUri: String?,
@@ -87,6 +97,8 @@ fun CameraBottomBar(
     isBusy: Boolean = false,
     shutterSoundEnabled: Boolean = true,
     thumbnailBounceToken: Long = 0L,
+    addressRefreshFallbackState: String? = null,
+    onAddressRefreshFallbackClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -121,10 +133,57 @@ fun CameraBottomBar(
     if (smallCover) {
         BoxWithConstraints(modifier.testTag("cover-controls").width(56.dp).fillMaxHeight().background(Color.Black), contentAlignment = Alignment.Center) {
             val showSecondary = maxHeight >= 156.dp
+            val fallbackSlot = smallCoverAddressFallbackSlot(maxHeight.value)
+            var galleryMenuExpanded by remember(addressRefreshFallbackState) { mutableStateOf(false) }
+            val fallbackNeedsMenu = addressRefreshFallbackState != null &&
+                onAddressRefreshFallbackClick != null && fallbackSlot == null
+            if (addressRefreshFallbackState != null && onAddressRefreshFallbackClick != null && fallbackSlot != null) {
+                IconButton(
+                    onClick = onAddressRefreshFallbackClick,
+                    enabled = !isBusy && addressRefreshFallbackState != "REFRESHING",
+                    modifier = Modifier
+                        .offset(fallbackSlot.left.dp, fallbackSlot.top.dp)
+                        .size(fallbackSlot.width().dp)
+                        .align(Alignment.TopStart)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "${addressRefreshFallbackStateDescription(addressRefreshFallbackState)}，点击重试",
+                        tint = EngineeringYellow,
+                        modifier = Modifier.size((fallbackSlot.width() * .72f).dp)
+                    )
+                }
+            }
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (showSecondary) GalleryButton(latestThumbnailUri, latestMediaType, !isBusy, 44.dp, thumbnailScale.value, onGalleryClick)
+                if (showSecondary) {
+                    GalleryButton(
+                        latestThumbnailUri,
+                        latestMediaType,
+                        !isBusy,
+                        44.dp,
+                        thumbnailScale.value,
+                        onGalleryClick,
+                        onLongClick = if (fallbackNeedsMenu) {
+                            { galleryMenuExpanded = true }
+                        } else null
+                    )
+                }
                 ShutterButton(captureMode, isCapturing || (!captureAllowed && !isRecordingVideo), isRecordingVideo, shutterScale.value, 44.dp, ::fireShutter)
                 if (showSecondary) FlipButton(!isBusy, 44.dp, onFlipCameraClick)
+            }
+            if (fallbackNeedsMenu) {
+                DropdownMenu(
+                    expanded = galleryMenuExpanded,
+                    onDismissRequest = { galleryMenuExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("刷新地址") },
+                        onClick = {
+                            galleryMenuExpanded = false
+                            onAddressRefreshFallbackClick?.invoke()
+                        }
+                    )
+                }
             }
         }
     } else if (isLandscape) {
@@ -177,6 +236,14 @@ fun CameraBottomBar(
             onShutterClick = ::fireShutter
         )
     }
+}
+
+private fun addressRefreshFallbackStateDescription(state: String): String = when (state) {
+    "REFRESHING" -> "地址刷新中"
+    "FAILED_PERMISSION" -> "定位未开启"
+    "FAILED_LOCATION" -> "定位不可用"
+    "FAILED_ADDRESS" -> "地址服务失败"
+    else -> "刷新地址"
 }
 
 @Composable
@@ -485,13 +552,15 @@ private fun ShutterButton(
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun GalleryButton(
     uri: String?,
     mediaType: String?,
     enabled: Boolean,
     size: Dp,
     scale: Float = 1f,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null
 ) {
     Box(
         modifier = Modifier
@@ -499,7 +568,22 @@ private fun GalleryButton(
             .scale(scale)
             .clip(RoundedCornerShape(10.dp))
             .background(Color(0xFF171717))
-            .clickable(enabled = enabled, onClick = onClick),
+            .semantics {
+                if (onLongClick != null) {
+                    contentDescription = "相册，长按打开更多动作"
+                }
+            }
+            .then(
+                if (onLongClick != null) {
+                    Modifier.combinedClickable(
+                        enabled = enabled,
+                        onClick = onClick,
+                        onLongClick = onLongClick
+                    )
+                } else {
+                    Modifier.clickable(enabled = enabled, onClick = onClick)
+                }
+            ),
         contentAlignment = Alignment.Center
     ) {
         when {

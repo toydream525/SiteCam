@@ -24,11 +24,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.offset
 import com.sitecam.app.core.layout.cameraGeometry
 import com.sitecam.app.core.layout.rememberScreenEnvironment
 import androidx.window.layout.FoldingFeature
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.WindowInsets
@@ -41,8 +43,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Button
@@ -50,10 +56,14 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -71,6 +81,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -84,7 +96,9 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import android.view.Surface
@@ -94,6 +108,7 @@ import com.sitecam.app.core.camera.resolveCameraTargetRotation
 import com.sitecam.app.core.watermark.engine.WatermarkLayoutEngine
 import com.sitecam.app.core.watermark.renderer.WatermarkPreviewCanvas
 import com.sitecam.app.feature.camera.components.CameraBottomBar
+import com.sitecam.app.feature.camera.components.CameraLensSelector
 import com.sitecam.app.feature.camera.components.CameraTopBar
 import com.sitecam.app.feature.camera.components.FocusRing
 import com.sitecam.app.feature.camera.components.QuickWatermarkEditSheet
@@ -113,6 +128,7 @@ fun CameraScreen(
     val context = LocalContext.current
     val localView = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val lifecycleState by lifecycleOwner.lifecycle.currentStateAsState()
     val uiState by viewModel.uiState.collectAsState()
     val permissionPreferences = remember(context) { OnboardingPreferences(context) }
     val permissionPreferenceState by permissionPreferences.state.collectAsState(initial = null)
@@ -121,6 +137,11 @@ fun CameraScreen(
     val requestedPermissions = permissionPreferenceState?.requestedPermissions.orEmpty() + requestedHere
 
     var showQuickWatermarkSheet by remember { mutableStateOf(false) }
+    var showProjectPicker by remember { mutableStateOf(false) }
+    var showCreateProject by remember { mutableStateOf(false) }
+    var newProjectName by remember { mutableStateOf("") }
+    var addressRefreshNeedsFallback by remember { mutableStateOf(false) }
+    var showAddressMoreMenu by remember { mutableStateOf(false) }
     var shutterFlashToken by remember { mutableStateOf(0L) }
     var photoSaveAnimationToken by remember { mutableStateOf(0L) }
     val previewFlashAlpha = remember { Animatable(0f) }
@@ -162,7 +183,8 @@ fun CameraScreen(
     var locationNeedsSettings by remember { mutableStateOf(false) }
 
     val projectCanCapture = uiState.currentProject?.let { !it.isCaptureLocked && !it.isArchived } == true
-    val isCaptureBusy = uiState.isCapturing || uiState.isRecordingVideo
+    val isProjectSwitching by viewModel.isProjectSwitching.collectAsState()
+    val isCaptureBusy = uiState.isCapturing || uiState.isRecordingVideo || isProjectSwitching
     val orientationContext = LocalContext.current
     val orientationActivity = remember(orientationContext) {
         var candidate: android.content.Context = orientationContext
@@ -170,29 +192,52 @@ fun CameraScreen(
         candidate as? android.app.Activity
     }
     DisposableEffect(orientationActivity) {
-        val previous = orientationActivity?.requestedOrientation
-        onDispose { if (previous != null) orientationActivity?.requestedOrientation = previous }
-    }
-    LaunchedEffect(uiState.captureOrientation, uiState.orientationDegrees, isCaptureBusy) {
-        if (!isCaptureBusy) {
-            val requestedOrientation = if (uiState.captureOrientation == com.sitecam.app.core.camera.CaptureOrientation.AUTO) {
-                // Drive AUTO through the three accepted directions explicitly.
-                // Some vendor implementations treat SENSOR as FULL_SENSOR;
-                // updating the activity lock from the filtered sensor value
-                // prevents a reverse-portrait window from ever being shown.
-                when (com.sitecam.app.core.camera.allowedSensorDegrees(uiState.orientationDegrees)) {
-                    90 -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
-                    270 -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                    else -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                }
-            } else {
-                uiState.captureOrientation.requestedOrientation
-            }
-            orientationActivity?.requestedOrientation = requestedOrientation
+        // Camera orientation is an Activity-wide request. Once this destination
+        // leaves the foreground, release it so settings/help and other screens
+        // follow the device's normal orientation policy.
+        onDispose {
+            orientationActivity?.requestedOrientation =
+                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
+    }
+    LaunchedEffect(uiState.captureOrientation, uiState.orientationDegrees, isCaptureBusy, lifecycleState) {
+        if (isCaptureBusy) return@LaunchedEffect
+        if (lifecycleState != Lifecycle.State.RESUMED) {
+            // NavHost keeps the outgoing destination composed during its
+            // transition. Do not let its sensor updates keep controlling the
+            // global window while another destination is becoming visible.
+            orientationActivity?.requestedOrientation =
+                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            return@LaunchedEffect
+        }
+        val requestedOrientation = if (uiState.captureOrientation == com.sitecam.app.core.camera.CaptureOrientation.AUTO) {
+            // Drive AUTO through the three accepted directions explicitly.
+            // Some vendor implementations treat SENSOR as FULL_SENSOR;
+            // updating the activity lock from the filtered sensor value
+            // prevents a reverse-portrait window from ever being shown.
+            when (com.sitecam.app.core.camera.allowedSensorDegrees(uiState.orientationDegrees)) {
+                90 -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
+                270 -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                else -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            }
+        } else {
+            uiState.captureOrientation.requestedOrientation
+        }
+        orientationActivity?.requestedOrientation = requestedOrientation
     }
 
     val isCameraBusy = isCaptureBusy || !cameraReady
+    val addressNeedsRefresh = hasLocationPermission && uiState.currentAddress.isBlank()
+    val pickerProjects by viewModel.projectPickerProjects.collectAsState()
+    LaunchedEffect(showProjectPicker) {
+        if (showProjectPicker) viewModel.refreshProjectPicker()
+    }
+    LaunchedEffect(addressNeedsRefresh) {
+        if (!addressNeedsRefresh) {
+            addressRefreshNeedsFallback = false
+            showAddressMoreMenu = false
+        }
+    }
 
     fun handleShutterPressed() {
         // CameraBottomBar filters busy/locked taps before invoking this
@@ -332,6 +377,12 @@ fun CameraScreen(
                 is CameraUiEvent.ShowToast -> {
                     Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
                 }
+                is CameraUiEvent.ProjectSwitched -> {
+                    showProjectPicker = false
+                    showCreateProject = false
+                    newProjectName = ""
+                    Toast.makeText(context, "已切换到${event.projectName}", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
@@ -415,6 +466,9 @@ fun CameraScreen(
         val portraitPreviewBottom = (geometry.previewY + geometry.previewHeight).dp
         val landscapeToolBarWidth = geometry.toolbarWidth.dp
         val landscapeControlWidth = geometry.controlsWidth.dp
+        val smallCoverNeedsSecondaryAddressAction = screenEnvironment.profile.smallCover &&
+            addressNeedsRefresh && addressRefreshNeedsFallback &&
+            smallCoverAddressFallbackSlot(maxHeight.value) == null
         val previewFrameModifier = Modifier.offset(geometry.previewX.dp, geometry.previewY.dp)
             .width(geometry.previewWidth.dp).height(geometry.previewHeight.dp)
 
@@ -459,24 +513,84 @@ fun CameraScreen(
                         viewModel.setZoomRatio(newRatio)
                     }
                 }
-                .pointerInput(Unit) {
-                    detectTapGestures { offset ->
-                        focusPosition = offset + with(screenDensity) { Offset(geometry.previewX.dp.toPx(), geometry.previewY.dp.toPx()) }
-                        val preview = previewViewRef
-                        if (preview != null && preview.width > 0 && preview.height > 0) {
-                            viewModel.cameraManager.focusOnPoint(
-                                offset.x,
-                                offset.y,
-                                preview.width.toFloat(),
-                                preview.height.toFloat()
-                            )
+                .pointerInput(smallCoverNeedsSecondaryAddressAction) {
+                    detectTapGestures(
+                        onLongPress = {
+                            if (smallCoverNeedsSecondaryAddressAction) showAddressMoreMenu = true
+                        },
+                        onTap = { offset ->
+                            focusPosition = offset + with(screenDensity) { Offset(geometry.previewX.dp.toPx(), geometry.previewY.dp.toPx()) }
+                            val preview = previewViewRef
+                            if (preview != null && preview.width > 0 && preview.height > 0) {
+                                viewModel.cameraManager.focusOnPoint(
+                                    offset.x,
+                                    offset.y,
+                                    preview.width.toFloat(),
+                                    preview.height.toFloat()
+                                )
+                            }
                         }
-                    }
+                    )
                 },
             update = { previewView ->
                 previewViewRef = previewView
             }
         )
+
+        // The cover display has no full top shelf. Keep the current project
+        // name and the same one-tap chooser entry on the preview itself;
+        // this overlay does not change the camera frame or control geometry.
+        if (screenEnvironment.profile.smallCover) {
+            Box(modifier = previewFrameModifier.zIndex(1f)) {
+                TextButton(
+                    onClick = { showProjectPicker = true },
+                    enabled = !isCaptureBusy,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(4.dp)
+                        .widthIn(max = (geometry.previewWidth - 8f).coerceAtLeast(48f).dp)
+                        .heightIn(min = 40.dp, max = 58.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = uiState.currentProject?.let { project ->
+                            buildString {
+                                append(project.name)
+                                if (project.isCaptureLocked) append(" · 已锁定")
+                                if (project.isArchived) append(" · 已归档")
+                            }
+                        } ?: "请选择工程包",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        lineHeight = 14.sp,
+                        maxLines = 3
+                    )
+                }
+                // The cover has no full top shelf, but independently exposed
+                // rear groups must remain reachable there as well.  Keep the
+                // selector in the preview's top-right corner, separate from
+                // the project chooser at top-left and the narrow control dock.
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(2.dp)
+                ) {
+                    CameraLensSelector(
+                        publicLenses = uiState.cameraCapability.publicLenses,
+                        activeCameraId = uiState.cameraCapability.activeCameraId,
+                        enabled = !isCaptureBusy,
+                        onLensSelected = { lens ->
+                            val preview = previewViewRef
+                            if (preview == null || !viewModel.cameraManager.switchToPublicLens(lens, lifecycleOwner, preview)) {
+                                Toast.makeText(context, "当前镜头暂不可绑定", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        compact = true,
+                        captureMode = uiState.captureMode
+                    )
+                }
+            }
+        }
 
         if (!isLandscape) {
             // An opaque shelf is intentional here: MIUI keeps top actions out
@@ -591,6 +705,30 @@ fun CameraScreen(
             )
         }
 
+        // Address retry stays in the live framing area, but chooses an edge
+        // that does not cover the current watermark card. The preview frame
+        // is already separated from shelves, safe insets, and the shutter
+        // dock by CameraGeometry, so the control cannot steal capture space.
+        if (addressNeedsRefresh && watermarkOverlaySize.width > 0 && watermarkOverlaySize.height > 0) {
+            Box(modifier = previewFrameModifier.zIndex(2f)) {
+                AddressRefreshPill(
+                    state = uiState.addressRefreshState,
+                    watermarkRect = WatermarkLayoutEngine.calculateLayout(
+                        canvasWidth = watermarkOverlaySize.width.toFloat(),
+                        canvasHeight = watermarkOverlaySize.height.toFloat(),
+                        data = uiState.watermarkData
+                    ).cardRect,
+                    enabled = !isCaptureBusy && uiState.addressRefreshState != "REFRESHING",
+                    onClick = viewModel::refreshAddress,
+                    onNoSafePlacement = { noSafePlacement ->
+                        if (addressRefreshNeedsFallback != noSafePlacement) {
+                            addressRefreshNeedsFallback = noSafePlacement
+                        }
+                    }
+                )
+            }
+        }
+
         // 3. Focus Ring
         FocusRing(
             position = focusPosition,
@@ -598,28 +736,90 @@ fun CameraScreen(
         )
 
         if (!projectCanCapture) {
-            Text("${uiState.currentProject?.name ?: "当前工程不可用"}：禁止拍摄，请解锁或切换工程", color = EngineeringYellow,
-                modifier = Modifier.align(Alignment.Center).background(Color.Black.copy(alpha = 0.75f)).padding(12.dp))
+            val blockedProject = uiState.currentProject
+            Column(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .background(Color.Black.copy(alpha = 0.82f))
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "${blockedProject?.name ?: "当前工程不可用"}：禁止拍摄",
+                    color = EngineeringYellow
+                )
+                Text(
+                    when {
+                        blockedProject?.isArchived == true && blockedProject.isCaptureLocked -> "请先恢复工程，再解锁拍摄"
+                        blockedProject?.isArchived == true -> "请恢复工程后再拍摄"
+                        blockedProject?.isCaptureLocked == true -> "请解锁拍摄后再继续"
+                        else -> "请选择可拍摄工程"
+                    },
+                    color = Color.White.copy(alpha = .82f),
+                    fontSize = 13.sp
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (blockedProject?.isArchived == true) {
+                        TextButton(
+                            onClick = viewModel::restoreCurrentProject,
+                            enabled = !isCaptureBusy
+                        ) { Text("恢复工程") }
+                    }
+                    if (blockedProject?.isCaptureLocked == true) {
+                        TextButton(
+                            onClick = viewModel::unlockCurrentProject,
+                            enabled = !isCaptureBusy
+                        ) { Text("解锁拍摄") }
+                    }
+                    if (blockedProject == null || (!blockedProject.isArchived && !blockedProject.isCaptureLocked)) {
+                        TextButton(onClick = { showProjectPicker = true }, enabled = !isCaptureBusy) {
+                            Text("选择工程")
+                        }
+                    }
+                }
+            }
         }
         // 4. Top Controls Bar
         if (!screenEnvironment.profile.smallCover) CameraTopBar(
-            projectName = (uiState.currentProject?.name ?: "默认工程项目") + if (uiState.currentProject?.isCaptureLocked == true) " · 已锁定" else "",
+            projectName = uiState.currentProject?.let { project ->
+                buildString {
+                    append(project.name)
+                    if (project.isCaptureLocked) append(" · 已锁定")
+                    if (project.isArchived) append(" · 已归档")
+                }
+            } ?: "请选择工程包",
             orientationLabel = uiState.captureOrientation.label,
             onOrientationSelected = viewModel::setCaptureOrientation,
             flashMode = uiState.flashMode,
             isQuickIssueMode = uiState.isQuickIssueMode,
-            onProjectClick = onNavigateToProjects,
+            onProjectClick = { showProjectPicker = true },
             onFlashToggle = { viewModel.toggleFlashMode() },
             onFlashLongPress = { viewModel.toggleTorchMode() },
             onQuickIssueToggle = { viewModel.toggleQuickIssueMode() },
             onSettingsClick = onNavigateToSettings,
             isBusy = isCaptureBusy,
             isLandscape = isLandscape,
+            publicLenses = uiState.cameraCapability.publicLenses,
+            activeCameraId = uiState.cameraCapability.activeCameraId,
+            captureMode = uiState.captureMode,
+            onLensSelected = { lens ->
+                val preview = previewViewRef
+                if (preview == null || !viewModel.cameraManager.switchToPublicLens(lens, lifecycleOwner, preview)) {
+                    Toast.makeText(context, "当前镜头暂不可绑定", Toast.LENGTH_SHORT).show()
+                }
+            },
+            addressRefreshState = if (addressNeedsRefresh && addressRefreshNeedsFallback && !screenEnvironment.profile.smallCover) {
+                uiState.addressRefreshState
+            } else null,
+            onAddressRefreshClick = if (addressNeedsRefresh && addressRefreshNeedsFallback && !screenEnvironment.profile.smallCover) {
+                viewModel::refreshAddress
+            } else null,
             modifier = Modifier.offset(geometry.toolbarX.dp, 0.dp)
                 .width(geometry.toolbarWidth.dp).height(geometry.toolbarHeight.dp)
         )
 
-        if (!screenEnvironment.profile.smallCover && (!hasLocationPermission || (uiState.captureMode == CaptureMode.VIDEO && !hasAudioPermission))) {
+        if (!screenEnvironment.profile.smallCover &&
+            (!hasLocationPermission || (uiState.captureMode == CaptureMode.VIDEO && !hasAudioPermission))) {
             Row(
                 modifier = Modifier
                     .align(Alignment.TopStart)
@@ -630,20 +830,23 @@ fun CameraScreen(
                     )
                     .clip(androidx.compose.foundation.shape.RoundedCornerShape(18.dp))
                     .background(Color.Black.copy(alpha = 0.78f))
-                    .clickable(enabled = !isCaptureBusy && permissionPreferenceState != null) { showOptionalPermissions = true }
+                    .clickable(enabled = !isCaptureBusy && permissionPreferenceState != null && uiState.addressRefreshState != "REFRESHING") {
+                        showOptionalPermissions = true
+                    }
                     .padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = if (!hasLocationPermission) Icons.Default.LocationOn else Icons.Default.MicOff,
+                    imageVector = when {
+                        !hasLocationPermission -> Icons.Default.LocationOn
+                        else -> Icons.Default.MicOff
+                    },
                     contentDescription = null,
                     tint = if (!hasLocationPermission) EngineeringYellow else Color.White,
                     modifier = Modifier.size(17.dp)
                 )
                 Text(
                     text = when {
-                        uiState.currentProject?.isArchived == true -> "工程已归档"
-                        uiState.currentProject?.isCaptureLocked == true -> "工程已锁定"
                         !hasLocationPermission -> if (locationNeedsSettings) "无定位 · 去设置" else "无定位 · 可拍摄"
                         else -> if (audioNeedsSettings) "无录音 · 去设置" else "无录音 · 点此开启"
                     },
@@ -687,6 +890,12 @@ fun CameraScreen(
                 latestMediaType = uiState.latestMediaType,
                 shutterSoundEnabled = uiState.shutterSoundEnabled,
                 thumbnailBounceToken = photoSaveAnimationToken,
+                addressRefreshFallbackState = if (addressNeedsRefresh && addressRefreshNeedsFallback && screenEnvironment.profile.smallCover) {
+                    uiState.addressRefreshState
+                } else null,
+                onAddressRefreshFallbackClick = if (addressNeedsRefresh && addressRefreshNeedsFallback && screenEnvironment.profile.smallCover) {
+                    viewModel::refreshAddress
+                } else null,
             )
         } else {
             CameraBottomBar(
@@ -718,6 +927,77 @@ fun CameraScreen(
             )
         }
 
+        if (showAddressMoreMenu && smallCoverNeedsSecondaryAddressAction) {
+            Box(modifier = previewFrameModifier) {
+                androidx.compose.material3.DropdownMenu(
+                    expanded = true,
+                    onDismissRequest = { showAddressMoreMenu = false }
+                ) {
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("刷新地址") },
+                        onClick = {
+                            showAddressMoreMenu = false
+                            viewModel.refreshAddress()
+                        }
+                    )
+                }
+            }
+        }
+
+        if (showProjectPicker) {
+            CameraProjectPicker(
+                currentProject = uiState.currentProject,
+                projects = pickerProjects,
+                isSwitching = isProjectSwitching,
+                isLandscape = isLandscape,
+                wideLayout = screenEnvironment.profile.large,
+                onDismiss = { if (!isProjectSwitching) showProjectPicker = false },
+                onSelect = viewModel::selectProjectFromCamera,
+                onOpenAll = {
+                    showProjectPicker = false
+                    onNavigateToProjects()
+                },
+                onCreate = {
+                    showProjectPicker = false
+                    newProjectName = ""
+                    showCreateProject = true
+                },
+                onCurrent = { showProjectPicker = false }
+            )
+        }
+        if (showCreateProject) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { if (!isProjectSwitching) showCreateProject = false },
+                title = { Text("新建工程包") },
+                text = {
+                    Column {
+                        Text("创建后会立即作为当前拍摄工程。", color = Color.White.copy(alpha = .72f))
+                        OutlinedTextField(
+                            value = newProjectName,
+                            onValueChange = { newProjectName = it },
+                            label = { Text("工程名称") },
+                            singleLine = true,
+                            enabled = !isProjectSwitching
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            viewModel.createProjectFromCamera(newProjectName)
+                        },
+                        enabled = newProjectName.isNotBlank() && !isProjectSwitching
+                    ) { Text(if (isProjectSwitching) "创建中…" else "创建并使用") }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { showCreateProject = false },
+                        enabled = !isProjectSwitching
+                    ) { Text("取消") }
+                }
+            )
+        }
+
         // 6. Quick Watermark Edit Bottom Sheet
         if (showQuickWatermarkSheet) {
             QuickWatermarkEditSheet(
@@ -745,5 +1025,257 @@ fun CameraScreen(
                 }
             )
         }
+    }
+}
+
+@Composable
+private fun AddressRefreshPill(
+    state: String,
+    watermarkRect: android.graphics.RectF,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    onNoSafePlacement: (Boolean) -> Unit
+) {
+    val density = LocalDensity.current
+    val marginPx = with(density) { 12.dp.toPx() }
+    val label = when (state) {
+        "REFRESHING" -> "地址刷新中…"
+        "FAILED_PERMISSION" -> "定位未开启 · 重试"
+        "FAILED_LOCATION" -> "定位不可用 · 重试"
+        "FAILED_ADDRESS" -> "地址服务失败 · 重试"
+        "FAILED" -> "地址不可用 · 重试"
+        else -> "刷新地址"
+    }
+    val minChipWidth = with(density) { 132.dp.toPx() }
+    val minChipHeight = with(density) { 40.dp.toPx() }
+    val gapPx = with(density) { 8.dp.toPx() }
+
+    // Measure the real row, including wrapping at the current font scale,
+    // before selecting a corner.  A fixed 176x40 assumption made large text
+    // both truncate and reserve the wrong protected area.
+    SubcomposeLayout(modifier = Modifier.fillMaxSize()) { constraints ->
+        val maxChipWidth = (constraints.maxWidth - (marginPx * 2f).toInt()).coerceAtLeast(1)
+        val maxChipHeight = (constraints.maxHeight - (marginPx * 2f).toInt()).coerceAtLeast(1)
+        val minWidth = minChipWidth.toInt().coerceAtMost(maxChipWidth)
+        val minHeight = minChipHeight.toInt().coerceAtMost(maxChipHeight)
+        val measured = subcompose("address-refresh-pill") {
+            Row(
+                modifier = Modifier
+                    .widthIn(
+                        min = with(density) { minWidth.toDp() },
+                        max = with(density) { maxChipWidth.toDp() }
+                    )
+                    .heightIn(
+                        min = with(density) { minHeight.toDp() },
+                        max = with(density) { maxChipHeight.toDp() }
+                    )
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+                    .background(Color.Black.copy(alpha = if (enabled) .82f else .64f))
+                    .clickable(enabled = enabled, onClick = onClick)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = label,
+                    tint = EngineeringYellow,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    text = label,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    softWrap = true,
+                    modifier = Modifier.padding(start = 6.dp)
+                )
+            }
+        }.single().measure(
+            Constraints(
+                minWidth = 0,
+                maxWidth = maxChipWidth,
+                minHeight = 0,
+                maxHeight = maxChipHeight
+            )
+        )
+        val corner = chooseAddressRefreshCorner(
+            canvasWidth = constraints.maxWidth.toFloat(),
+            canvasHeight = constraints.maxHeight.toFloat(),
+            chipWidth = measured.width.toFloat(),
+            chipHeight = measured.height.toFloat(),
+            watermarkRect = watermarkRect,
+            margin = marginPx,
+            gap = gapPx
+        )
+        val bounds = addressRefreshRectForCorner(
+            corner = corner,
+            canvasWidth = constraints.maxWidth.toFloat(),
+            canvasHeight = constraints.maxHeight.toFloat(),
+            chipWidth = measured.width.toFloat(),
+            chipHeight = measured.height.toFloat(),
+            margin = marginPx
+        )
+        val x: Int
+        val y: Int
+        if (bounds != null) {
+            x = bounds.left.toInt()
+            y = bounds.top.toInt()
+        } else {
+            // No candidate clears the watermark. The retry is rendered in the
+            // profile's measured safe control shelf by CameraTopBar or
+            // CameraBottomBar; do not draw a negative/out-of-window child here.
+            x = ((constraints.maxWidth - measured.width) / 2f).toInt()
+            y = constraints.maxHeight
+        }
+        layout(constraints.maxWidth, constraints.maxHeight) {
+            // Placement is the first point at which the measured decision is
+            // committed. The callback is guarded by the caller and therefore
+            // only requests a recomposition when the safe-shelf state changes.
+            onNoSafePlacement(corner == AddressRefreshCorner.OUTSIDE_PREVIEW)
+            if (bounds != null) measured.placeRelative(x, y)
+        }
+    }
+}
+
+@Composable
+private fun CameraProjectPicker(
+    currentProject: com.sitecam.app.core.database.entity.ProjectEntity?,
+    projects: List<com.sitecam.app.core.database.entity.ProjectEntity>,
+    isSwitching: Boolean,
+    isLandscape: Boolean,
+    wideLayout: Boolean,
+    onDismiss: () -> Unit,
+    onSelect: (Long) -> Unit,
+    onOpenAll: () -> Unit,
+    onCreate: () -> Unit,
+    onCurrent: () -> Unit
+) {
+    val recent = projects.filter { it.id != currentProject?.id && !it.isArchived }
+    if (!isLandscape && !wideLayout) {
+        androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss) {
+            CameraProjectPickerContent(
+                currentProject = currentProject,
+                recent = recent,
+                isSwitching = isSwitching,
+                onSelect = onSelect,
+                onOpenAll = onOpenAll,
+                onCreate = onCreate,
+                onCurrent = onCurrent,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+        }
+    } else {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("切换工程包") },
+            text = {
+                CameraProjectPickerContent(
+                    currentProject = currentProject,
+                    recent = recent,
+                    isSwitching = isSwitching,
+                    onSelect = onSelect,
+                    onOpenAll = onOpenAll,
+                    onCreate = onCreate,
+                    onCurrent = onCurrent
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = onDismiss, enabled = !isSwitching) { Text("关闭") }
+            }
+        )
+    }
+}
+
+@Composable
+private fun CameraProjectPickerContent(
+    currentProject: com.sitecam.app.core.database.entity.ProjectEntity?,
+    recent: List<com.sitecam.app.core.database.entity.ProjectEntity>,
+    isSwitching: Boolean,
+    onSelect: (Long) -> Unit,
+    onOpenAll: () -> Unit,
+    onCreate: () -> Unit,
+    onCurrent: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        if (isSwitching) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Text("切换中…", color = EngineeringYellow, fontSize = 13.sp)
+        }
+        Text("当前工程", color = EngineeringYellow, fontWeight = FontWeight.Bold)
+        if (currentProject != null) {
+            ProjectPickerRow(
+                project = currentProject,
+                current = true,
+                enabled = !isSwitching,
+                onClick = onCurrent
+            )
+        } else {
+            Text("尚未选择工程包", color = Color.White.copy(alpha = .72f), modifier = Modifier.padding(vertical = 10.dp))
+        }
+        Text("最近选择", color = EngineeringYellow, fontWeight = FontWeight.Bold)
+        if (recent.isEmpty()) {
+            Text("暂无最近选择的可拍摄工程", color = Color.White.copy(alpha = .72f), modifier = Modifier.padding(vertical = 10.dp))
+        } else {
+            LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
+                items(recent, key = { it.id }) { project ->
+                    ProjectPickerRow(
+                        project = project,
+                        current = false,
+                        enabled = !isSwitching,
+                        onClick = { onSelect(project.id) }
+                    )
+                }
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            TextButton(onClick = onOpenAll, enabled = !isSwitching, modifier = Modifier.weight(1f)) {
+                Text("全部工程包", maxLines = 1)
+            }
+            TextButton(onClick = onCreate, enabled = !isSwitching, modifier = Modifier.weight(1f)) {
+                Text("新建工程", maxLines = 1)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProjectPickerRow(
+    project: com.sitecam.app.core.database.entity.ProjectEntity,
+    current: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    TextButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 4.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
+            Text(
+                text = project.name,
+                color = if (current) EngineeringYellow else Color.White,
+                fontWeight = if (current) FontWeight.Bold else FontWeight.Normal,
+                maxLines = 2
+            )
+            Text(
+                text = buildString {
+                    if (project.routeName.isNotBlank()) append("线路 · ${project.routeName} · ")
+                    append(if (project.isArchived) "已归档" else if (project.isCaptureLocked) "已锁定拍摄" else "可拍摄")
+                },
+                color = Color.White.copy(alpha = .65f),
+                fontSize = 12.sp,
+                maxLines = 2
+            )
+        }
+        Text(
+            text = if (current) "返回相机" else "切换",
+            color = if (current) EngineeringYellow else Color.White.copy(alpha = .82f),
+            fontSize = 12.sp
+        )
     }
 }

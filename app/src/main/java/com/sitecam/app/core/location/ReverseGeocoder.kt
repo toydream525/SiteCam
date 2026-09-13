@@ -15,9 +15,13 @@ class ReverseGeocoder(private val context: Context) {
 
     private val cache = ConcurrentHashMap<String, String>()
 
-    suspend fun getAddressText(latitude: Double, longitude: Double): String = withContext(Dispatchers.IO) {
+    suspend fun getAddressText(
+        latitude: Double,
+        longitude: Double,
+        forceRefresh: Boolean = false
+    ): String = withContext(Dispatchers.IO) {
         val cacheKey = String.format(Locale.US, "%.4f_%.4f", latitude, longitude)
-        cache[cacheKey]?.let { return@withContext it }
+        if (!forceRefresh) cache[cacheKey]?.let { return@withContext it }
 
         if (!Geocoder.isPresent()) {
             return@withContext ""

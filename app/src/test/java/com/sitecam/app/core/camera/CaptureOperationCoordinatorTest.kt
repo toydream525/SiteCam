@@ -18,6 +18,22 @@ class CaptureOperationCoordinatorTest {
         assertFalse(coordinator.tryBegin(1) { !locked })
         assertTrue(coordinator.tryBegin(2) { true })
     }
+
+    @Test fun globalProjectSelectionIsBlockedByAnyActiveCapture() = runTest {
+        val coordinator = CaptureOperationCoordinator()
+        assertTrue(coordinator.tryBegin(17) { true })
+        var selected = false
+        try {
+            coordinator.withAllProjectsIdle { selected = true }
+            fail("Selection should wait for every capture to finish")
+        } catch (_: CaptureInProgressException) {
+            // Expected: project 17 is still reserving the global selection.
+        }
+        assertFalse(selected)
+        coordinator.finish(17)
+        coordinator.withAllProjectsIdle { selected = true }
+        assertTrue(selected)
+    }
     @Test fun manualOrientationIgnoresSensorAndAutoUsesIt() {
         assertEquals(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR, CaptureOrientation.AUTO.requestedOrientation)
         assertEquals(android.view.Surface.ROTATION_0, CaptureOrientation.PORTRAIT.targetRotation(270))

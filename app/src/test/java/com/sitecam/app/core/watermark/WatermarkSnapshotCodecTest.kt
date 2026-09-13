@@ -72,4 +72,78 @@ class WatermarkSnapshotCodecTest {
         assertNull(decoded?.fieldOrder)
         assertTrue(decoded?.fieldLabels?.isEmpty() == true)
     }
+
+    @Test
+    fun legacySnapshotDoesNotGainTheNewElevationField() {
+        val json = """
+            {"version":1,"projectName":"旧工程","altitude":0.0,
+             "enabledSystemFields":["PROJECT_NAME","ELEVATION","GPS"]}
+        """.trimIndent()
+
+        val decoded = WatermarkSnapshotCodec.decode(json)
+
+        assertNotNull(decoded)
+        assertTrue(decoded?.enabledSystemFields?.contains(BuiltInWatermarkFieldKeys.PROJECT_NAME) == true)
+        assertTrue(decoded?.enabledSystemFields?.contains(BuiltInWatermarkFieldKeys.GPS) == true)
+        assertTrue(decoded?.enabledSystemFields?.contains(BuiltInWatermarkFieldKeys.ELEVATION) == false)
+    }
+
+    @Test
+    fun currentSnapshotKeepsZeroAndNegativeElevationWhenEnabled() {
+        listOf(0.0, -4.25).forEach { altitude ->
+            val original = WatermarkData(
+                projectName = "现场工程",
+                altitude = altitude,
+                locationStatus = "FRESH",
+                enabledSystemFields = setOf(BuiltInWatermarkFieldKeys.ELEVATION)
+            )
+            val decoded = WatermarkSnapshotCodec.decode(WatermarkSnapshotCodec.encode(original))
+
+            assertEquals(altitude, decoded?.altitude)
+            assertTrue(decoded?.enabledSystemFields?.contains(BuiltInWatermarkFieldKeys.ELEVATION) == true)
+            assertEquals(String.format(java.util.Locale.US, "%.1f m", altitude), decoded?.builtInValue(BuiltInWatermarkFieldKeys.ELEVATION))
+        }
+    }
+
+    @Test
+    fun unavailableElevationIsExplicitAndNeverZero() {
+        val data = WatermarkData(
+            altitude = null,
+            locationStatus = "UNAVAILABLE",
+            enabledSystemFields = setOf(BuiltInWatermarkFieldKeys.ELEVATION)
+        )
+
+        assertEquals("暂不可用", data.builtInValue(BuiltInWatermarkFieldKeys.ELEVATION))
+    }
+
+    @Test
+    fun elevationIgnoresSavedOverrideWhenLocationIsStaleOrNonFinite() {
+        val stale = WatermarkData(
+            altitude = 18.5,
+            locationStatus = "STALE",
+            systemValueOverrides = mapOf(BuiltInWatermarkFieldKeys.ELEVATION to "旧海拔 999.0 m"),
+            enabledSystemFields = setOf(BuiltInWatermarkFieldKeys.ELEVATION)
+        )
+        assertEquals("暂不可用", stale.builtInValue(BuiltInWatermarkFieldKeys.ELEVATION))
+
+        val nan = WatermarkData(
+            altitude = Double.NaN,
+            locationStatus = "FRESH",
+            systemValueOverrides = mapOf(BuiltInWatermarkFieldKeys.ELEVATION to "旧海拔"),
+            enabledSystemFields = setOf(BuiltInWatermarkFieldKeys.ELEVATION)
+        )
+        val infinite = nan.copy(altitude = Double.POSITIVE_INFINITY)
+        assertEquals("暂不可用", nan.builtInValue(BuiltInWatermarkFieldKeys.ELEVATION))
+        assertEquals("暂不可用", infinite.builtInValue(BuiltInWatermarkFieldKeys.ELEVATION))
+    }
+
+    @Test
+    fun otherBuiltInOverridesRemainSupported() {
+        val data = WatermarkData(
+            projectName = "实时工程",
+            systemValueOverrides = mapOf(BuiltInWatermarkFieldKeys.PROJECT_NAME to "固定工程"),
+            enabledSystemFields = setOf(BuiltInWatermarkFieldKeys.PROJECT_NAME)
+        )
+        assertEquals("固定工程", data.builtInValue(BuiltInWatermarkFieldKeys.PROJECT_NAME))
+    }
 }

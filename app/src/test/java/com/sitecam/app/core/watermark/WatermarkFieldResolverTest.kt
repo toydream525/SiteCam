@@ -42,4 +42,25 @@ class WatermarkFieldResolverTest {
         assertTrue(BuiltInWatermarkFieldKeys.PROJECT_NAME !in result.enabledSystemFields)
         assertEquals(listOf("BUILDER"), result.customFields.map { it.key })
     }
+
+    @Test
+    fun emptyOrCustomOnlyTemplatesKeepElevationOptIn() {
+        val empty = resolveWatermarkFields(emptyList())
+        val customOnly = resolveWatermarkFields(
+            listOf(
+                WatermarkFieldEntity(
+                    templateId = 1,
+                    fieldKey = "CUSTOM_NOTE",
+                    label = "备注",
+                    defaultValue = "现场",
+                    displayOrder = 0,
+                    isEnabled = true
+                )
+            )
+        )
+
+        assertTrue(BuiltInWatermarkFieldKeys.ELEVATION !in empty.enabledSystemFields)
+        assertTrue(BuiltInWatermarkFieldKeys.ELEVATION !in customOnly.enabledSystemFields)
+        assertTrue(BuiltInWatermarkFieldKeys.ELEVATION !in empty.customFields.map { it.key })
+    }
 }

@@ -58,6 +58,9 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -113,6 +116,7 @@ fun ProjectListScreen(
     var batchMenu by remember { mutableStateOf(false) }
     var sortMenu by remember { mutableStateOf(false) }
     var batchMode by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
     val projectListState = rememberLazyListState()
     var pendingCreatedProjectId by remember { mutableStateOf<Long?>(null) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -129,6 +133,21 @@ fun ProjectListScreen(
         viewModel.projectCreated.collect {
             create = false
             pendingCreatedProjectId = it
+        }
+    }
+    LaunchedEffect(viewModel) {
+        viewModel.projectSelected.collect { onNavigateBack() }
+    }
+    LaunchedEffect(viewModel) {
+        viewModel.undoEvent.collect { undo ->
+            val result = snackbarHostState.showSnackbar(
+                message = undo.message,
+                actionLabel = "撤销",
+                withDismissAction = true
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                viewModel.undoProjectMutation(undo)
+            }
         }
     }
 
@@ -150,6 +169,7 @@ fun ProjectListScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = DarkBackground,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -666,7 +686,7 @@ fun ProjectListScreen(
                                             ) {
                                                 if (!row.isSelected) {
                                                     DropdownMenuItem(
-                                                        enabled = !state.isExporting && !project.isArchived && !project.isCaptureLocked,
+                                                        enabled = !state.isExporting,
                                                         text = {
                                                             MoreMenuText("设为拍摄工程", "将后续拍摄保存到此工程")
                                                         },
@@ -725,6 +745,64 @@ fun ProjectListScreen(
                                         }
                                     }
                                 }
+                                if (!batchMode) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        TextButton(
+                                            onClick = {
+                                                viewModel.batchChange(
+                                                    setOf(project.id),
+                                                    locked = !project.isCaptureLocked
+                                                )
+                                            },
+                                            enabled = !state.isExporting,
+                                            modifier = Modifier.weight(1f).height(36.dp),
+                                            contentPadding = PaddingValues(horizontal = 2.dp),
+                                            colors = ButtonDefaults.textButtonColors(
+                                                contentColor = if (project.isCaptureLocked) WarningYellow else TextSecondaryDark
+                                            )
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Lock,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                            Spacer(Modifier.size(2.dp))
+                                            Text(
+                                                if (project.isCaptureLocked) "解锁拍摄" else "锁定拍摄",
+                                                fontSize = 11.sp,
+                                                maxLines = 1
+                                            )
+                                        }
+                                        TextButton(
+                                            onClick = {
+                                                viewModel.batchChange(
+                                                    setOf(project.id),
+                                                    archived = !project.isArchived
+                                                )
+                                            },
+                                            enabled = !state.isExporting,
+                                            modifier = Modifier.weight(1f).height(36.dp),
+                                            contentPadding = PaddingValues(horizontal = 2.dp),
+                                            colors = ButtonDefaults.textButtonColors(contentColor = TextSecondaryDark)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Archive,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                            Spacer(Modifier.size(2.dp))
+                                            Text(
+                                                if (project.isArchived) "恢复工程" else "归档工程",
+                                                fontSize = 11.sp,
+                                                maxLines = 1
+                                            )
+                                        }
+                                    }
+                                }
                             }
                             if (!batchMode) {
                                 VerticalDivider(
@@ -734,11 +812,39 @@ fun ProjectListScreen(
                                     thickness = 1.dp,
                                     color = DarkBorder.copy(alpha = 0.65f)
                                 )
-                                Column(
-                                    modifier = Modifier.width(82.dp),
+                                        Column(
+                                            modifier = Modifier.width(82.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    TextButton(
+                                        ) {
+                                            TextButton(
+                                                onClick = {
+                                                    if (row.isSelected) onNavigateBack()
+                                                    else viewModel.selectProject(project.id)
+                                                },
+                                                enabled = !state.isExporting && !state.isSwitchingProject,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(48.dp),
+                                                contentPadding = PaddingValues(horizontal = 2.dp),
+                                                colors = ButtonDefaults.textButtonColors(
+                                                    contentColor = EngineeringYellow,
+                                                    disabledContentColor = TextSecondaryDark.copy(alpha = 0.45f)
+                                                )
+                                            ) {
+                                                Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(17.dp))
+                                                Spacer(Modifier.size(2.dp))
+                                                Text(
+                                                    when {
+                                                        row.isSelected -> "返回相机"
+                                                        state.switchingProjectId == project.id -> "切换中…"
+                                                        else -> "切换"
+                                                    },
+                                                    fontSize = 12.sp,
+                                                    lineHeight = 16.sp,
+                                                    maxLines = 1
+                                                )
+                                            }
+                                            TextButton(
                                         onClick = { editor = project },
                                         enabled = !state.isExporting,
                                         modifier = Modifier

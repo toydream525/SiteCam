@@ -1,7 +1,7 @@
 {
   "modelVersion": "6.0.0",
   "name": "sitecam",
-  "version": "0.2.8",
+  "version": "0.3.1",
   "dependencies": {},
   "devDependencies": {}
 }

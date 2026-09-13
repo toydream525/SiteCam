@@ -16,9 +16,9 @@ export struct ProjectCategoryDialog {
             Button(category).width('100%').height(40).fontSize(13).fontColor(SITE_TEXT).backgroundColor('#303030').onClick(() => { this.controller.close(); this.onSelect(category); });
           }, (category: string) => category);
         }.width('100%');
-      }.width('100%').constraintSize({ maxHeight: 260 });
+      }.width('100%').constraintSize({ maxHeight: 260 }).scrollBar(BarState.Off);
       Button('取消').width('100%').fontColor(SITE_ACCENT).backgroundColor(Color.Transparent).onClick(() => { this.controller.close(); this.onCancel(); });
     }.padding(18).width('90%').backgroundColor(SITE_CARD).borderRadius(14);
-    }.width('100%').constraintSize({maxWidth:600,maxHeight:'90%'}).align(Alignment.Top);
+    }.width('100%').constraintSize({maxWidth:600,maxHeight:'90%'}).align(Alignment.Top).scrollBar(BarState.Off);
   }
 }

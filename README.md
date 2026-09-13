@@ -6,18 +6,22 @@
 
 **拍好现场照片，整理好每个工程。**
 
-📷 拍摄加水印　 ·　 🗂️ 按工程整理　 ·　 ✏️ 标记问题　 ·　 📦 一键导出　 ·　 📱 折叠屏支持（Beta）
+📷 拍摄加水印　 ·　 🗂️ 按工程整理　 ·　 ✏️ 标记问题　 ·　 📦 一键导出　 ·　 📱 折叠屏支持（Beta）　 ·　 🌸 鸿蒙原生版 beta 已发布
 
 **免费 · 开源 · 无广告**
 
-[⬇️ 下载安卓版 Release（推荐）](https://github.com/toydream525/SiteCam/releases/download/v0.3.0/SiteCam-0.3.0-Android-Release.apk)　
+[⬇️ 下载安卓版 Release（推荐）](https://github.com/toydream525/SiteCam/releases/download/v0.3.1/SiteCam-0.3.1-Android-Release.apk)　
+[🧪 Android Debug](https://github.com/toydream525/SiteCam/releases/download/v0.3.1/SiteCam-0.3.1-Android-Debug.apk)　
+[🌸 鸿蒙原生版 beta](harmonyos/README.md)　
 [🌐 官网](https://yuriaqua.com/sitecam/)　
 [📖 使用说明](docs/USER_GUIDE.md)　
 [💬 反馈问题](https://github.com/toydream525/SiteCam/issues)
 
 </div>
 
-默认下载 Release，推荐日常自用安装。[Debug 版](https://github.com/toydream525/SiteCam/releases/download/v0.3.0/SiteCam-0.3.0-Android-Debug.apk)供调试使用，采用独立包名，可与 Release 共存，数据分别保存。
+当前公开版本为 **v0.3.1（Android 版本号 14）**。默认下载 Android Release，推荐日常自用安装；Debug 版采用独立包名，可与 Release 共存，数据分别保存。
+
+> **鸿蒙原生版 beta 已发布。公开 HAP 暂未签名，需要自行签名，公开分发签名包稍后提供。**
 
 ---
 
@@ -44,6 +48,9 @@
 | --- | --- |
 | 📷 拍施工照片 | 自动加上工程名称、时间、地点等水印，支持拍照和录像 |
 | 🗂️ 整理不同项目 | 按工程保存，支持搜索、分类、归档；编辑和导出入口直接可见 |
+| 📍 补充现场信息 | 地址不可用时可手动刷新；海拔水印默认关闭，有效读数才会显示 |
+| 🔒 安全切换工程 | 可查看、锁定或归档工程；锁定和归档工程不能拍摄，拍摄期间不切换工程 |
+| 📱 多形态设备 | 优化安卓及鸿蒙的各类折叠屏、阔直屏和平板适配（beta），保留普通直屏与阔直屏布局 |
 | 📅 找之前的照片 | 按日期、工程和问题状态筛选，还能批量移动和分享 |
 | 🚩 记录现场问题 | 写下问题、标注轻重程度，跟进到处理完成 |
 | ✏️ 给照片做说明 | 裁剪、旋转、画箭头、写文字、打马赛克，编辑后另存成品 |
@@ -61,11 +68,11 @@
 
 | 你的设备 | 当前状态 | 下载 |
 | --- | --- | --- |
-| 🤖 安卓手机 | **v0.3.0，可安装使用**，支持 Android 8.0 及以上 | [下载 APK](https://github.com/toydream525/SiteCam/releases/download/v0.3.0/SiteCam-0.3.0-Android-Release.apk) |
-| 🌸 鸿蒙手机 / 平板 | **v0.2.8 开发版**，还不能作为普通真机安装包 | [开发包与说明](harmonyos/README.md) |
+| 🤖 安卓手机 | **v0.3.1，可安装使用**，支持 Android 8.0 及以上 | [Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.3.1/SiteCam-0.3.1-Android-Release.apk) · [Debug APK](https://github.com/toydream525/SiteCam/releases/download/v0.3.1/SiteCam-0.3.1-Android-Debug.apk) |
+| 🌸 鸿蒙手机 / 平板 | **v0.3.1 原生 beta 已发布**，公开 HAP 暂未签名 | [Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.3.1/SiteCam-0.3.1-HarmonyOS-Release-Unsigned.hap) · [Debug-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.3.1/SiteCam-0.3.1-HarmonyOS-Debug-Unsigned.hap) · [说明](harmonyos/README.md) |
 | 🍎 iPhone / iPad | 开发中，暂无安装包 | — |
 
-**鸿蒙版说明：** 已完成部分手机和大屏界面验证，目前截图来自模拟器。签名、真实平板、折叠悬停和硬件视频还在等待验收。不要把开发包当作已经完成的正式版。
+**鸿蒙版说明：** 原生 beta 已发布，当前公开 Release/Debug HAP 均暂未签名，需要自行签名，公开分发签名包稍后提供。界面和交互覆盖手机、折叠展开与大屏场景；不同设备的镜头、闪光灯和视频能力仍需按设备确认，不把未签名包当作正式签名版。
 
 <details>
 <summary>🌸 展开查看鸿蒙大屏界面（模拟器，非真机）</summary>
@@ -85,7 +92,7 @@
 
 ## 🆕 最近更新
 
-**v0.3.0：新增折叠屏支持（Beta）。**
+**v0.3.1：双端地址刷新、默认关闭海拔和工程切换锁定；优化安卓及鸿蒙的各类折叠屏、阔直屏和平板适配（beta）；鸿蒙原生版 beta 发布并更新界面、教程、常用倍率与镜头识别；安卓设置页方向跟随设备正常方向。**
 
 [查看全部更新](CHANGELOG.md) · [遇到问题？告诉我](https://github.com/toydream525/SiteCam/issues)
 

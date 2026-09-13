@@ -33,6 +33,7 @@ fun ZoomPillGroup(
     if (presets.isEmpty()) return
 
     val visiblePresets = presets.take(5)
+    val selectedRatio = visiblePresets.minByOrNull { abs(currentZoomRatio - it) }
     val buttonWidth = when {
         compact && isVertical -> 42.dp
         compact -> 38.dp
@@ -48,9 +49,14 @@ fun ZoomPillGroup(
 
     @Composable
     fun LensButton(ratio: Float) {
-        val selected = abs(currentZoomRatio - ratio) < 0.15f
-        val label = if (ratio % 1f == 0f) "${ratio.toInt()}×"
-        else String.format(Locale.US, "%.1f×", ratio)
+        // Adjacent controls such as an actual 0.54x lower bound and a 0.6x
+        // convenience preset must never both look selected.
+        val selected = ratio == selectedRatio
+        val label = when {
+            abs(ratio - ratio.toInt()) < 0.001f -> "${ratio.toInt()}×"
+            ratio < 0.75f -> String.format(Locale.US, "%.2f×", ratio)
+            else -> String.format(Locale.US, "%.1f×", ratio)
+        }
         Box(
             modifier = Modifier
                 .width(buttonWidth)

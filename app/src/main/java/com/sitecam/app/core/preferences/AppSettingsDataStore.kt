@@ -34,6 +34,7 @@ class AppSettingsDataStore(
         val JPEG_QUALITY = intPreferencesKey("jpeg_quality")
         val QUICK_ISSUE_MODE = booleanPreferencesKey("quick_issue_mode")
         val EXPORT_TREE_URI = stringPreferencesKey("export_tree_uri")
+        val RECENT_PROJECT_IDS = stringPreferencesKey("recent_project_ids")
     }
 
     val projectSelectionCleared = store.data.map { it[PROJECT_SELECTION_CLEARED] ?: false }
@@ -95,11 +96,34 @@ class AppSettingsDataStore(
         preferences[EXPORT_TREE_URI]
     }
 
+    /** IDs of projects successfully selected from a camera or project list. */
+    val recentProjectIds: Flow<List<Long>> = store.data.map { preferences ->
+        preferences[RECENT_PROJECT_IDS]
+            .orEmpty()
+            .split(',')
+            .mapNotNull { it.trim().toLongOrNull() }
+            .distinct()
+    }
+
     suspend fun setSelectedProjectId(projectId: Long?) {
         store.edit { preferences ->
             preferences[PROJECT_SELECTION_CLEARED] = projectId == null
             if (projectId == null) preferences.remove(SELECTED_PROJECT_ID)
             else preferences[SELECTED_PROJECT_ID] = projectId
+        }
+    }
+
+    /** Select a project and update its recent history in one DataStore edit. */
+    suspend fun setSelectedProjectIdAndRecordRecent(projectId: Long) {
+        store.edit { preferences ->
+            preferences[PROJECT_SELECTION_CLEARED] = false
+            preferences[SELECTED_PROJECT_ID] = projectId
+            val current = preferences[RECENT_PROJECT_IDS]
+                .orEmpty()
+                .split(',')
+                .mapNotNull { it.trim().toLongOrNull() }
+                .filter { it != projectId }
+            preferences[RECENT_PROJECT_IDS] = (listOf(projectId) + current).take(8).joinToString(",")
         }
     }
 
