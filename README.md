@@ -4,7 +4,7 @@
 
 # SiteCam 工程水印相机
 
-**工程人自己做，更懂现场怎么记。**
+**拍好现场照片，整理好每个工程。**
 
 📷 拍摄加水印　 ·　 🗂️ 按工程整理　 ·　 ✏️ 标记问题　 ·　 📦 一键导出
 
@@ -31,9 +31,8 @@
 工程现场的记录、整理与交付。以下为功能宣传示意。
 
 <table>
-<tr><td width="33%"><a href="docs/promo/feature-01.png"><img src="docs/promo/feature-01.png" width="280" alt="工程人自己做，更懂现场怎么记"></a></td><td width="33%"><a href="docs/promo/feature-02.png"><img src="docs/promo/feature-02.png" width="280" alt="工程再多，照片也要分得清"></a></td><td width="33%"><a href="docs/promo/feature-03.png"><img src="docs/promo/feature-03.png" width="280" alt="手机、折叠屏、平板，现场记录都照顾到"></a></td></tr>
-<tr><td width="33%"><a href="docs/promo/feature-04.png"><img src="docs/promo/feature-04.png" width="280" alt="水印按现场需要改"></a></td><td width="33%"><a href="docs/promo/feature-05.png"><img src="docs/promo/feature-05.png" width="280" alt="问题在哪，直接标出来"></a></td><td width="33%"><a href="docs/promo/feature-06.png"><img src="docs/promo/feature-06.png" width="280" alt="整改到哪一步，看记录就清楚"></a></td></tr>
-<tr><td width="33%"><a href="docs/promo/feature-07.png"><img src="docs/promo/feature-07.png" width="280" alt="交资料，整个工程一起带走"></a></td></tr>
+<tr><td width="33%"><a href="docs/promo/feature-02.png"><img src="docs/promo/feature-02.png" width="280" alt="工程再多，照片也要分得清"></a></td><td width="33%"><a href="docs/promo/feature-03.png"><img src="docs/promo/feature-03.png" width="280" alt="手机、折叠屏、平板，现场记录都照顾到"></a></td><td width="33%"><a href="docs/promo/feature-04.png"><img src="docs/promo/feature-04.png" width="280" alt="水印按现场需要改"></a></td></tr>
+<tr><td width="33%"><a href="docs/promo/feature-05.png"><img src="docs/promo/feature-05.png" width="280" alt="问题在哪，直接标出来"></a></td><td width="33%"><a href="docs/promo/feature-06.png"><img src="docs/promo/feature-06.png" width="280" alt="整改到哪一步，看记录就清楚"></a></td><td width="33%"><a href="docs/promo/feature-07.png"><img src="docs/promo/feature-07.png" width="280" alt="交资料，整个工程一起带走"></a></td></tr>
 </table>
 
 ## 🧰 能帮你做什么？
@@ -81,7 +80,7 @@
 
 **v0.3.2：鸿蒙版已提交华为应用市场审核，目前审核中；审核通过并上架后，可在商店下载。**
 
-工程人自己做、自己用的工程水印相机。拍现场、改水印、标问题、跟整改、交资料，把工程记录整理清楚。
+支持拍照加水印、按工程整理照片与视频、标注问题和导出资料。
 
 折叠屏、阔直屏和平板适配（beta）。
 
