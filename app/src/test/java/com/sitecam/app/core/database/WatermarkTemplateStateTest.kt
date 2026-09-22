@@ -264,7 +264,7 @@ class WatermarkTemplateStateTest {
             dao.restoreFieldPresentation(id)
             assertEquals(restored, dao.getFieldsForTemplateSync(id))
         } finally {
-            editor?.viewModelScope?.cancel()
+            editor?.viewModelScope?.coroutineContext?.job?.cancelAndJoin()
             database.close()
             Dispatchers.resetMain()
         }

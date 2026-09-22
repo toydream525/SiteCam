@@ -24,15 +24,15 @@ def tap(key):
 tap('小外屏布局预览');report=[]
 for width,height in [(96,96),(120,180),(180,120),(327,327),(320,240)]:
     ns=nodes();byid={n.get('id'):n for n in ns if n.get('id')}
-    frame=box(byid['cover-qa-frame']);dock=box(byid['camera-controls']);shutter=box(byid['camera-shutter'])
+    frame=box(byid['cover-qa-frame']);dock=box(byid['camera-controls-cover']);shutter=box(byid['camera-shutter-cover'])
     assert dock[2]==frame[2] and dock[0]>frame[0],('not a right dock',frame,dock)
     assert abs(shutter[1]+shutter[3]-frame[1]-frame[3])<=2,('shutter not vertically centered',shutter,frame)
     assert dock[0]<=shutter[0]<shutter[2]<=dock[2] and dock[1]<=shutter[1]<shutter[3]<=dock[3]
-    for key in ['camera-gallery','camera-switch-lens']:
+    for key in ['camera-gallery-cover','camera-switch-lens-cover']:
         assert (key in byid)==(height>=156),('secondary controls do not fit',key,width,height)
         if key in byid:
             b=box(byid[key]);assert dock[0]<=b[0]<b[2]<=dock[2] and dock[1]<=b[1]<b[3]<=dock[3]
-    tap('camera-shutter');after=next(n['text'] for n in nodes() if n.get('id')=='cover-qa-status')
+    tap('camera-shutter-cover');after=next(n['text'] for n in nodes() if n.get('id')=='cover-qa-status')
     assert f'点击 {len(report)+1}' in after,('shutter did not respond',after)
     report.append({'sizeVp':[width,height],'rightDock':True,'shutterCentered':True,'captureCallback':True,'framePx':frame,'dockPx':dock})
     tap('下一尺寸')

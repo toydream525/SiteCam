@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -64,6 +65,7 @@ import com.sitecam.app.feature.camera.smallCoverAddressFallbackSlot
 import com.sitecam.app.feature.gallery.VideoThumbnail
 import com.sitecam.app.ui.theme.EngineeringYellow
 import com.sitecam.app.ui.theme.ErrorRed
+import com.sitecam.app.ui.theme.Letterbox
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -131,7 +133,7 @@ fun CameraBottomBar(
     }
 
     if (smallCover) {
-        BoxWithConstraints(modifier.testTag("cover-controls").width(56.dp).fillMaxHeight().background(Color.Black), contentAlignment = Alignment.Center) {
+        BoxWithConstraints(modifier.testTag("cover-controls").width(56.dp).fillMaxHeight().background(Letterbox), contentAlignment = Alignment.Center) {
             val showSecondary = maxHeight >= 156.dp
             val fallbackSlot = smallCoverAddressFallbackSlot(maxHeight.value)
             var galleryMenuExpanded by remember(addressRefreshFallbackState) { mutableStateOf(false) }
@@ -193,7 +195,7 @@ fun CameraBottomBar(
                 .testTag("camera-controls")
                 .fillMaxHeight()
                 .width(landscapeBarWidth)
-                .background(Color.Black)
+                .background(Letterbox)
                 .clipToBounds(),
             latestThumbnailUri = latestThumbnailUri,
             latestMediaType = latestMediaType,
@@ -216,7 +218,7 @@ fun CameraBottomBar(
         PortraitControlDock(
             modifier = modifier
                 .fillMaxSize()
-                .background(Color.Black)
+                .background(Letterbox)
                 .clipToBounds(),
             latestThumbnailUri = latestThumbnailUri,
             latestMediaType = latestMediaType,
@@ -268,8 +270,13 @@ private fun PortraitControlDock(
 ) {
     BoxWithConstraints(modifier = modifier) {
         val fontScale = LocalDensity.current.fontScale
+        // `compact`/`veryCompact` may now only tighten spacing. They used to also shrink the
+        // shutter and the zoom rail, which made large-font text sit in an even smaller box.
         val compact = maxHeight < 205.dp || fontScale >= 1.25f
         val veryCompact = maxHeight < 170.dp || fontScale >= 1.45f
+        // Button sizes follow the window only, never the font scale.
+        val shortDock = maxHeight < 205.dp
+        val veryShortDock = maxHeight < 170.dp
         val verticalPadding = when {
             veryCompact -> 4.dp
             compact -> 7.dp
@@ -281,23 +288,32 @@ private fun PortraitControlDock(
             else -> 6.dp
         }
         val shutterSize = when {
-            veryCompact -> 56.dp
-            compact -> 64.dp
+            veryShortDock -> 56.dp
+            shortDock -> 64.dp
             else -> 72.dp
         }
-        val sideButtonSize = if (veryCompact) 40.dp else 46.dp
+        val sideButtonSize = if (veryShortDock) 40.dp else 46.dp
         val dockLift = when {
             veryCompact -> 4.dp
             compact -> 6.dp
             else -> 10.dp
         }
 
-        val zoomHeight = if (zoomPresets.isEmpty()) 0.dp else if (compact) 36.dp else 44.dp
+        // Same rule as modeHeight below: the zoom rail keeps its 48dp touch-target floor and grows
+        // with the scaled label line height, matching ZoomPillGroup's own measurement.
+        val zoomHeight = if (zoomPresets.isEmpty()) 0.dp
+            else maxOf(48f, (if (compact) 14f else 17f) * fontScale).dp
         val modeHeight = ((if (isRecordingVideo) { if (compact) 16f else 18f }
             else { if (compact) 17f else 20f }) * fontScale).dp + if (isRecordingVideo) 10.dp else 0.dp
-        val contentHeight = zoomHeight + modeHeight + sectionGap * 2 + shutterSize
+        // Distance between the mode selector and the shutter row. It used to be sectionGap (6dp)
+        // minus an 8dp upward offset on the shutter row, i.e. the two controls were touching and
+        // taps aimed at "拍照/录像" could land on the shutter.
+        val modeShutterGap = if (veryCompact) 10.dp else if (compact) 14.dp else 18.dp
+        val contentHeight = zoomHeight + modeHeight + sectionGap + modeShutterGap + shutterSize
         val liftRoom = ((maxHeight - contentHeight) / 2 - dockLift - 2.dp).coerceAtLeast(0.dp)
-        val controlsLift = (if (veryCompact) 10.dp else if (compact) 22.dp else 40.dp).coerceAtMost(liftRoom)
+        // No extra lift: the dock is top-aligned in its band (see verticalArrangement below), so all
+        // the slack already collects below the shutter exactly like the system camera app does.
+        val controlsLift = 0.dp.coerceAtMost(liftRoom)
 
         Column(
             modifier = Modifier
@@ -305,7 +321,9 @@ private fun PortraitControlDock(
                 .offset(y = -dockLift)
                 .padding(horizontal = 22.dp, vertical = verticalPadding),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            // Top-aligned, not centred: the reference camera app keeps its mode strip right under the
+            // preview and leaves the remaining band empty below the shutter (~66dp on the phone).
+            verticalArrangement = Arrangement.Top
         ) {
             Column(
                 modifier = Modifier.offset(y = -controlsLift),
@@ -333,12 +351,10 @@ private fun PortraitControlDock(
                 }
             }
 
-            Spacer(Modifier.height(sectionGap))
+            Spacer(Modifier.height(modeShutterGap))
 
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .offset(y = (-8).dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -391,15 +407,22 @@ private fun LandscapeControlDock(
 ) {
     BoxWithConstraints(modifier = modifier) {
         val fontScale = LocalDensity.current.fontScale
-        val compact = maxWidth < 235.dp || maxHeight < 360.dp || fontScale >= 1.25f
-        val shutterSize = if (compact) 58.dp else 68.dp
-        val sideButtonSize = if (compact) 40.dp else 46.dp
+        // Window size decides the button sizes; fontScale only tightens the spacing.
+        val windowCompact = maxWidth < 235.dp || maxHeight < 360.dp
+        val compact = windowCompact || fontScale >= 1.25f
+        val shutterSize = if (windowCompact) 58.dp else 68.dp
+        val sideButtonSize = if (windowCompact) 40.dp else 46.dp
         val horizontalPadding = if (compact) 4.dp else 8.dp
         val lensModeGap = if (compact) 2.dp else 4.dp
         // Keep the shutter group's absolute edge distance close to portrait:
         // portrait sits ~100dp above the bottom edge on the connected device,
         // so landscape uses a comparable distance from the right edge.
-        val gripInset = if (compact) 58.dp else 68.dp
+        // Minimum clearance between the mode switch and the shutter column. Measured on the phone
+        // the two were 4dp apart in landscape once the dock filled up, which is why taps aimed at
+        // 拍照/录像 landed on the shutter. Deducted from gripInset to compensate for the clearance
+        // spacer, preserving the shutter column's absolute position.
+        val modeShutterClearance = if (compact) 14.dp else 20.dp
+        val gripInset = (if (compact) 58.dp else 68.dp) - modeShutterClearance
         val groupHeight = (if (compactGroup) maxHeight.coerceAtMost(320.dp) else maxHeight) - 24.dp
 
         Row(
@@ -432,6 +455,7 @@ private fun LandscapeControlDock(
             }
 
             Spacer(Modifier.weight(1f))
+            Spacer(Modifier.width(modeShutterClearance))
 
             Column(
                 modifier = Modifier
@@ -511,8 +535,16 @@ private fun ModeLabel(
         fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
         maxLines = 1,
         softWrap = false,
-        overflow = TextOverflow.Clip,
-        modifier = Modifier.clickable(enabled = enabled, onClick = onClick)
+        // Ellipsis, never Clip: a hard cut is how scaled CJK labels lose their last stroke.
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            // Material's 48dp minimum touch target. The label used to be a bare ~20dp Text, so a
+            // tap that missed it by a few pixels hit the shutter instead.
+            // Invisible 48dp touch target: the label keeps its original text-only look, but a tap
+            // a few pixels off no longer lands on the shutter.
+            .heightIn(min = 48.dp)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 14.dp)
     )
 }
 
@@ -568,7 +600,9 @@ private fun GalleryButton(
             .scale(scale)
             .clip(RoundedCornerShape(10.dp))
             .background(Color(0xFF171717))
-            .semantics {
+            // Merge the thumbnail/icon inside: TalkBack must see one "相册" node, not a second
+            // "最新照片"/"视频" node stacked on top of it.
+            .semantics(mergeDescendants = true) {
                 if (onLongClick != null) {
                     contentDescription = "相册，长按打开更多动作"
                 }
@@ -629,7 +663,7 @@ private fun RecordingTimer(seconds: Int, compact: Boolean, modifier: Modifier = 
         fontWeight = FontWeight.Bold,
         maxLines = 1,
         softWrap = false,
-        overflow = TextOverflow.Clip,
+        overflow = TextOverflow.Ellipsis,
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
             .background(ErrorRed.copy(alpha = 0.24f))

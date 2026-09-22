@@ -8,6 +8,10 @@ package com.sitecam.app.core.media
  * 90/270 degree rotation tag.  Video effects are applied to coded pixels, so
  * an overlay must be laid out in the presented coordinate system and then
  * mapped back before it is handed to Media3.
+ *
+ * Current use: unit-test / reference geometry only (`VideoOrientationTest`). The shipping transcoder
+ * resolves orientation inside its own Media3 transform chain, so nothing in `main` calls these
+ * helpers today. Kept deliberately so the test keeps pinning the mapping rules.
  */
 data class VideoDisplaySize(val width: Int, val height: Int)
 data class VideoPoint(val x: Float, val y: Float)

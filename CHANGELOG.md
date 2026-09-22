@@ -1,5 +1,30 @@
 # 更新日志
 
+## v0.3.3 — 2026-09-22（双端版本号 16）
+
+### 鸿蒙原生版
+
+- 修复首次授权时跳转系统设置未显示权限开关的问题
+- 修复相机预览页面边缘底色色差问题
+- 修复系统大字号下部分界面按钮和文本被截断的问题
+- 修复小折叠外屏无相机权限时无法直接发起授权的问题
+- 修复无定位权限时相机页缺少引导授权提示的问题
+- 修复应用进入后台时相机计时器未及时停止的问题
+
+### 安卓版
+
+- 修复特殊场景下权限状态被误判为永久拒绝的问题
+- 修复系统大字号下倍率组、工程列表及顶栏文本截断的问题
+- 修复相机页面授权前后背景底色不一致的问题
+- 修复大屏分屏与矮屏比例下的相机预览与控制栏布局自适应问题
+- 修复相册与预览界面的无障碍标签重复及返回导航问题
+
+### v0.3.3 下载资产
+
+- Android：[Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.3.3/SiteCam-0.3.3-Android-Release.apk) · [Debug APK](https://github.com/toydream525/SiteCam/releases/download/v0.3.3/SiteCam-0.3.3-Android-Debug.apk)
+- HarmonyOS：[Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.3.3/SiteCam-0.3.3-HarmonyOS-Release-Unsigned.hap)（需要自行签名后安装）· [AppGallery 签名 HAP](https://github.com/toydream525/SiteCam/releases/download/v0.3.3/SiteCam-0.3.3-HarmonyOS-AppGallery-Signed.hap)（上架用，使用发布证书，**不能**侧载安装）
+- 签名与版本核验记录：`harmonyos/dist/appgallery/SIGNING-VERIFICATION.json`（0.3.3 已重新生成并通过 `hap-sign-tool verify-app` 校验）。
+
 ## v0.3.2 — 2026-09-20（版本号 15）
 
 - 鸿蒙版已提交华为应用市场审核，目前审核中；审核通过并上架后，可在商店下载。

@@ -3,6 +3,12 @@ package com.sitecam.app.core.camera
 import android.content.pm.ActivityInfo
 import android.view.Surface
 
+/*
+ * The enum and its `requestedOrientation` are production state (stored in DataStore, consumed by
+ * the camera screen and the orientation selector). The pure helpers in this file —
+ * `CaptureOrientation.targetRotation` and `allowedSensorDegrees` — are currently exercised only by
+ * the unit tests; they are kept because the tests pin the accepted rotation mapping.
+ */
 enum class CaptureOrientation(val label: String, val degrees: Int?, val requestedOrientation: Int) {
     PORTRAIT("竖屏", 0, ActivityInfo.SCREEN_ORIENTATION_PORTRAIT),
     LANDSCAPE_LEFT("左横屏", 270, ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE),

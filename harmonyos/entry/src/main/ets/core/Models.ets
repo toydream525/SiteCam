@@ -107,6 +107,7 @@ export class Settings {
   albumCopy: boolean = false;
   guideDone: boolean = false;
   permissionHandled: boolean = false;
+  systemPermissionsRequested: boolean = false;
   watermark: Watermark = new Watermark();
   // Android v0.2.8's single capture/edit quality is photoQuality. Keep editQuality for old UI/data.
   namingPattern: string = '{project}_{date}_{time}';

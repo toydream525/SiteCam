@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -44,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -55,8 +55,9 @@ import com.sitecam.app.feature.camera.CaptureMode
 import com.sitecam.app.ui.theme.DarkCard
 import com.sitecam.app.ui.theme.EngineeringYellow
 import com.sitecam.app.ui.theme.ErrorRed
+import com.sitecam.app.ui.theme.Letterbox
 
-/** Top tool shelf matching the measured 102dp MIUI camera shelf. */
+/** Top tool shelf matching the measured 56dp camera shelf. */
 @Composable
 fun CameraTopBar(
     projectName: String,
@@ -92,10 +93,12 @@ fun CameraTopBar(
         "AUTO" -> "闪光灯，自动"
         else -> "闪光灯，关闭"
     }
+    // Typography scaling only relaxes widths here; it never shrinks a touch target.
+    val fontScale = LocalDensity.current.fontScale
 
     if (isLandscape) {
         Column(
-            modifier = modifier.fillMaxHeight().background(Color.Black).padding(vertical = 12.dp),
+            modifier = modifier.fillMaxHeight().background(Letterbox).padding(vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceEvenly
         ) {
@@ -130,14 +133,17 @@ fun CameraTopBar(
         }
     } else {
         Row(
-            modifier = modifier.fillMaxWidth().background(Color.Black).padding(horizontal = 16.dp),
+            modifier = modifier.fillMaxWidth().background(Letterbox).padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
                 modifier = Modifier
-                    .widthIn(max = 125.dp)
-                    .height(48.dp)
+                    // 125dp was tuned for 13sp text. Let the capsule widen with the scaled type so
+                    // the project name is not ellipsized at large font scales, and keep 48dp as a
+                    // floor instead of a fixed height the text cannot outgrow.
+                    .widthIn(max = (125f * fontScale.coerceIn(1f, 2f)).dp)
+                    .heightIn(min = 48.dp)
                     .clip(RoundedCornerShape(24.dp))
                     .background(Color(0xFF1B1B1B))
                     .clickable(enabled = !isBusy, onClick = onProjectClick)

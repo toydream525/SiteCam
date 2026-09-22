@@ -35,6 +35,8 @@ def nodes():
 
 def tap(text):
     matches = [n for n in nodes() if n.get('text') == text or n.get('id') == text]
+    if not matches:  # the landscape dock reuses the same control with a -dock id
+        matches = [n for n in nodes() if n.get('id') == text + '-dock']
     if len(matches) != 1:
         raise RuntimeError(f'Expected one visible control: {text}; got {len(matches)}')
     x1, y1, x2, y2 = map(int, re.findall(r'\d+', matches[0]['bounds']))

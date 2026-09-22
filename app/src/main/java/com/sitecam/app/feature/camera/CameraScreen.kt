@@ -88,6 +88,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -111,6 +112,7 @@ import com.sitecam.app.feature.camera.components.FocusRing
 import com.sitecam.app.feature.camera.components.QuickWatermarkEditSheet
 import com.sitecam.app.ui.theme.DarkBackground
 import com.sitecam.app.ui.theme.EngineeringYellow
+import com.sitecam.app.ui.theme.Letterbox
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -132,6 +134,10 @@ fun CameraScreen(
     val permissionScope = rememberCoroutineScope()
     var requestedHere by remember { mutableStateOf(emptySet<String>()) }
     val requestedPermissions = permissionPreferenceState?.requestedPermissions.orEmpty() + requestedHere
+    // Session-only record of the permissions that already look "permanently denied" and have been
+    // retried once through the system dialog. See PermissionAccess.blockedPermissions: rationale
+    // == false alone is not proof of a permanent denial, so settings is only opened after a retry.
+    var blockedRetryIssued by remember { mutableStateOf(emptySet<String>()) }
 
     var showQuickWatermarkSheet by remember { mutableStateOf(false) }
     var showProjectPicker by remember { mutableStateOf(false) }
@@ -178,6 +184,13 @@ fun CameraScreen(
     var audioNeedsSettings by remember { mutableStateOf(false) }
     var showOptionalPermissions by remember { mutableStateOf(false) }
     var locationNeedsSettings by remember { mutableStateOf(false) }
+
+    // A "needs settings" permission still gets one in-session system dialog retry, so the controls
+    // only promise the settings page once that retry has actually happened.
+    val cameraBlockedRetryAvailable = cameraNeedsSettings && Manifest.permission.CAMERA !in blockedRetryIssued
+    val locationBlockedRetryAvailable = locationNeedsSettings &&
+        Manifest.permission.ACCESS_FINE_LOCATION !in blockedRetryIssued
+    val audioBlockedRetryAvailable = audioNeedsSettings && Manifest.permission.RECORD_AUDIO !in blockedRetryIssued
 
     val projectCanCapture = uiState.currentProject?.let { !it.isCaptureLocked && !it.isArchived } == true
     val isProjectSwitching by viewModel.isProjectSwitching.collectAsState()
@@ -271,16 +284,52 @@ fun CameraScreen(
         context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")))
     }
 
+    /**
+     * Returns true when a permission classified as "needs settings" must first be retried through
+     * the system dialog. The persisted "requested" mark is written by the launcher result callbacks
+     * below, never before the dialog has actually run.
+     */
+    fun shouldRetryBlocked(permissions: List<String>): Boolean {
+        if (permissions.isEmpty() || permissions.any { it in blockedRetryIssued }) return false
+        blockedRetryIssued = blockedRetryIssued + permissions
+        return true
+    }
+
+    /**
+     * Launches a request and drops the local retry mark when the launch itself fails, so a dialog
+     * that never appeared is never treated as an already-used retry.
+     */
+    fun launchPermissionRequest(permissions: List<String>, launch: (Array<String>) -> Unit) {
+        if (permissions.isEmpty()) return
+        permissionScope.launch {
+            try {
+                launch(permissions.toTypedArray())
+            } catch (error: Exception) {
+                blockedRetryIssued = blockedRetryIssued - permissions.toSet()
+                Toast.makeText(context, "无法打开权限申请，请稍后重试", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        // The system dialog returned, so this is a genuine "asked" fact. Writing it any earlier
+        // would turn a failed launch into a fake permanent denial.
+        permissionScope.launch { permissionPreferences.markPermissionsRequested(listOf(Manifest.permission.CAMERA)) }
         refreshPermissions()
         if (!hasCameraPermission) Toast.makeText(context,
             if (cameraNeedsSettings) "相机未开启，请到系统设置允许；仍可管理已有资料" else "相机未开启，仍可管理已有资料", Toast.LENGTH_LONG).show()
     }
     val audioPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        permissionScope.launch { permissionPreferences.markPermissionsRequested(listOf(Manifest.permission.RECORD_AUDIO)) }
         refreshPermissions()
         Toast.makeText(context, if (hasAudioPermission) "麦克风已开启，下次录像将包含声音" else "麦克风未开启，仍可录制无声视频", Toast.LENGTH_LONG).show()
     }
     val locationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        permissionScope.launch {
+            permissionPreferences.markPermissionsRequested(
+                listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+            )
+        }
         refreshPermissions()
         if (hasLocationPermission) viewModel.startForegroundServices(locationEnabled = true)
         else Toast.makeText(context, "定位未开启，照片仍可拍摄但不含现场定位", Toast.LENGTH_LONG).show()
@@ -289,24 +338,27 @@ fun CameraScreen(
     fun requestCameraPermission() {
         val actual = PermissionAccess.read(context, requestedPermissions)
         if (actual.camera) { refreshPermissions(); return }
-        if (actual.cameraNeedsSettings) { openPermissionSettings(); return }
-        requestedHere = requestedHere + Manifest.permission.CAMERA
-        permissionScope.launch {
-            permissionPreferences.markPermissionsRequested(listOf(Manifest.permission.CAMERA))
-            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        val camera = listOf(Manifest.permission.CAMERA)
+        if (actual.cameraNeedsSettings && !shouldRetryBlocked(camera)) {
+            openPermissionSettings(); return
         }
+        requestedHere = requestedHere + camera
+        launchPermissionRequest(camera) { cameraPermissionLauncher.launch(it.first()) }
     }
     fun requestOptionalPermission(forLocation: Boolean) {
         val actual = PermissionAccess.read(context, requestedPermissions)
         if (forLocation && !actual.location) {
-            if (actual.locationNeedsSettings) { openPermissionSettings(); return }
             val permissions = listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+            if (actual.locationNeedsSettings && !shouldRetryBlocked(permissions)) { openPermissionSettings(); return }
             requestedHere = requestedHere + permissions
-            permissionScope.launch { permissionPreferences.markPermissionsRequested(permissions); locationPermissionLauncher.launch(permissions.toTypedArray()) }
+            launchPermissionRequest(permissions) { locationPermissionLauncher.launch(it) }
         } else if (!forLocation && !actual.microphone) {
-            if (actual.microphoneNeedsSettings) { openPermissionSettings(); return }
-            requestedHere = requestedHere + Manifest.permission.RECORD_AUDIO
-            permissionScope.launch { permissionPreferences.markPermissionsRequested(listOf(Manifest.permission.RECORD_AUDIO)); audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }
+            val microphone = listOf(Manifest.permission.RECORD_AUDIO)
+            if (actual.microphoneNeedsSettings && !shouldRetryBlocked(microphone)) {
+                openPermissionSettings(); return
+            }
+            requestedHere = requestedHere + microphone
+            launchPermissionRequest(microphone) { audioPermissionLauncher.launch(it.first()) }
         }
     }
 
@@ -393,10 +445,10 @@ fun CameraScreen(
                     Text("不授权也能继续使用：照片不含定位，视频不含声音。")
                     if (!hasLocationPermission) androidx.compose.material3.TextButton(onClick = {
                         showOptionalPermissions = false; requestOptionalPermission(forLocation = true)
-                    }) { Text(if (locationNeedsSettings) "去设置开启位置" else "开启位置权限") }
+                    }) { Text(optionalPermissionActionLabel("位置", locationNeedsSettings, locationBlockedRetryAvailable)) }
                     if (!hasAudioPermission) androidx.compose.material3.TextButton(onClick = {
                         showOptionalPermissions = false; requestOptionalPermission(forLocation = false)
-                    }) { Text(if (audioNeedsSettings) "去设置开启麦克风" else "开启麦克风权限") }
+                    }) { Text(optionalPermissionActionLabel("麦克风", audioNeedsSettings, audioBlockedRetryAvailable)) }
                 }
             },
             confirmButton = { androidx.compose.material3.TextButton(onClick = { showOptionalPermissions = false }) { Text("暂时不用") } }
@@ -407,7 +459,9 @@ fun CameraScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(DarkBackground),
+                // Same Letterbox black as the granted viewfinder: granting the camera must not
+                // flip this route from #121212 to pure black.
+                .background(Letterbox),
             contentAlignment = Alignment.Center
         ) {
             androidx.compose.foundation.layout.Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -420,7 +474,7 @@ fun CameraScreen(
                     )
                 ) {
                     Text(
-                        text = if (cameraNeedsSettings) "去系统设置开启相机" else "开启相机权限",
+                        text = if (cameraNeedsSettings && !cameraBlockedRetryAvailable) "去系统设置开启相机" else "开启相机权限",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -442,7 +496,10 @@ fun CameraScreen(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black)
+            // Keep `background` before `windowInsetsPadding`: the letterbox colour has to cover
+            // the safe-drawing inset area too, otherwise the #121212 window background shows as
+            // lighter bars along the notch and gesture edges.
+            .background(Letterbox)
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
         // Layout follows only the currently available window. Sensor
@@ -530,8 +587,10 @@ fun CameraScreen(
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(4.dp)
+                        // Width follows the preview; height only has a 48dp touch-target floor so
+                        // the 11sp/3-line project name keeps its room at large font scales.
                         .widthIn(max = (geometry.previewWidth - 8f).coerceAtLeast(48f).dp)
-                        .heightIn(min = 40.dp, max = 58.dp),
+                        .heightIn(min = 48.dp),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     Text(
@@ -545,7 +604,8 @@ fun CameraScreen(
                         color = Color.White,
                         fontSize = 11.sp,
                         lineHeight = 14.sp,
-                        maxLines = 3
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
                 // The cover has no full top shelf, but independently exposed
@@ -577,19 +637,20 @@ fun CameraScreen(
         if (!isLandscape) {
             // An opaque shelf is intentional here: MIUI keeps top actions out
             // of the live image, which makes the fixed frame visually obvious.
+            // Same Letterbox black as the root, so the route has one colour.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(portraitTopBarHeight)
                     .align(Alignment.TopCenter)
-                    .background(Color.Black)
+                    .background(Letterbox)
             )
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height((maxHeight - portraitPreviewBottom).coerceAtLeast(0.dp))
                     .align(Alignment.BottomCenter)
-                    .background(Color.Black)
+                    .background(Letterbox)
             )
         }
 
@@ -722,7 +783,7 @@ fun CameraScreen(
             Column(
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .background(Color.Black.copy(alpha = 0.82f))
+                    .background(Letterbox.copy(alpha = 0.82f))
                     .padding(horizontal = 14.dp, vertical = 10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -811,7 +872,7 @@ fun CameraScreen(
                         end = 12.dp
                     )
                     .clip(androidx.compose.foundation.shape.RoundedCornerShape(18.dp))
-                    .background(Color.Black.copy(alpha = 0.78f))
+                    .background(Letterbox.copy(alpha = 0.78f))
                     .clickable(enabled = !isCaptureBusy && permissionPreferenceState != null && uiState.addressRefreshState != "REFRESHING") {
                         showOptionalPermissions = true
                     }
@@ -1052,7 +1113,7 @@ private fun AddressRefreshPill(
                         max = with(density) { maxChipHeight.toDp() }
                     )
                     .clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
-                    .background(Color.Black.copy(alpha = if (enabled) .82f else .64f))
+                    .background(Letterbox.copy(alpha = if (enabled) .82f else .64f))
                     .clickable(enabled = enabled, onClick = onClick)
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1263,3 +1324,10 @@ private fun ProjectPickerRow(
         )
     }
 }
+
+/**
+ * Label for the optional-permission entry points. The system settings page is only promised once
+ * the in-session system dialog retry has been used up.
+ */
+private fun optionalPermissionActionLabel(name: String, needsSettings: Boolean, retryAvailable: Boolean): String =
+    if (needsSettings && !retryAvailable) "去设置开启$name" else "开启${name}权限"

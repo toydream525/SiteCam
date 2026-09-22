@@ -17,6 +17,13 @@ const LOCATION_MAX_AGE_MS: number = 5 * 60 * 1000;
 const LOCATION_FUTURE_TOLERANCE_MS: number = 30 * 1000;
 const CURRENT_LOCATION_TIMEOUT_MS: number = 10 * 1000;
 const ADDRESS_LOOKUP_TIMEOUT_MS: number = 8 * 1000;
+/** An explicit refresh must reject a coarse/cached solution instead of reporting it as new. */
+const CURRENT_LOCATION_MAX_ACCURACY_M: number = 50;
+/** The continuous listener may reuse a 5-minute-old fix; an explicit refresh may not. */
+const REFRESH_FIX_MAX_AGE_MS: number = 30 * 1000;
+/** Skip the geocoder for a fix that barely moved while an address is already displayed. */
+const GEOCODE_MIN_INTERVAL_MS: number = 60 * 1000;
+const GEOCODE_MIN_MOVE_M: number = 20;
 
 interface LocationPlatformError {
   code?: number;
@@ -69,6 +76,31 @@ export function addressFromGeoAddresses(rows: Array<geoLocationManager.GeoAddres
   return parts.join('');
 }
 
+/**
+ * HarmonyOS types altitude as a required number, so "no vertical fix" can
+ * arrive as 0. Only trust a 0 reading when the platform also reports vertical
+ * accuracy; otherwise the reading is unusable and the caller keeps the
+ * previous real altitude instead of writing a fabricated 0.0 m into a
+ * permanent site record.
+ */
+export function usableAltitude(altitude: number, altitudeAccuracy: number | undefined): number | null {
+  if (!Number.isFinite(altitude)) return null;
+  const vertical = Number.isFinite(altitudeAccuracy) && (altitudeAccuracy as number) > 0;
+  if (altitude === 0 && !vertical) return null;
+  return altitude;
+}
+
+/** Great-circle distance in meters, used to throttle repeated geocoding. */
+export function movedMeters(from: Fix, to: Fix): number {
+  const earthRadius = 6371000;
+  const dLat = (to.latitude - from.latitude) * Math.PI / 180;
+  const dLon = (to.longitude - from.longitude) * Math.PI / 180;
+  const sinLat = Math.sin(dLat / 2);
+  const sinLon = Math.sin(dLon / 2);
+  const a = sinLat * sinLat + Math.cos(from.latitude * Math.PI / 180) * Math.cos(to.latitude * Math.PI / 180) * sinLon * sinLon;
+  return 2 * earthRadius * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
 export class LocationService {
   fix: Fix | null = null;
 
@@ -79,13 +111,17 @@ export class LocationService {
   /** ArkUI can assign a small invalidation callback without coupling this service to a page. */
   onChange: (() => void) | null = null;
 
-  private listening: boolean = false;
+  /** True while the platform listener is attached. ohosTest sets it to drive receiveLocation directly. */
+  listening: boolean = false;
   private lifecycleEpoch: number = 0;
   private permissionEpoch: number = 0;
   private refreshToken: number = 0;
   private refreshPromise: Promise<boolean> | null = null;
   private refreshResolver: ((value: boolean) => void) | null = null;
   private lastPlatformFailure: LocationFailureReason = '';
+  /** Throttle state for the continuous listener's reverse geocoding. */
+  private lastGeocodeFix: Fix | null = null;
+  private lastGeocodeAt: number = 0;
   private readonly dependencies: LocationServiceDependencies;
 
   constructor(dependencies: LocationServiceDependencies = {}) {
@@ -191,14 +227,10 @@ export class LocationService {
     const fix = new Fix();
     fix.latitude = value.latitude;
     fix.longitude = value.longitude;
-    fix.altitude = Number.isFinite(value.altitude) ? value.altitude : null;
+    fix.altitude = usableAltitude(value.altitude, value.altitudeAccuracy);
     fix.accuracy = Number.isFinite(value.accuracy) ? value.accuracy : 0;
     fix.timestamp = value.timeStamp;
     return fix;
-  }
-
-  private isNewer(candidate: Fix, current: Fix | null): boolean {
-    return current === null || candidate.timestamp > current.timestamp;
   }
 
   private reverseAddress = async (fix: Fix): Promise<string> => {
@@ -254,10 +286,13 @@ export class LocationService {
         : await geoLocationManager.getCurrentLocation({
             priority: geoLocationManager.LocationRequestPriority.ACCURACY,
             scenario: geoLocationManager.LocationRequestScenario.UNSET,
+            maxAccuracy: CURRENT_LOCATION_MAX_ACCURACY_M,
             timeoutMs: CURRENT_LOCATION_TIMEOUT_MS
           });
       const fix = this.asFix(value);
-      if (!fix || !isFreshFix(fix)) throw new RefreshFailure('location-timeout');
+      // The listener tolerates a 5-minute-old fix; an explicit refresh must not,
+      // otherwise "refresh" can hand back the exact cached reading it replaced.
+      if (!fix || !isFreshFix(fix) || Date.now() - fix.timestamp > REFRESH_FIX_MAX_AGE_MS) throw new RefreshFailure('location-timeout');
       return fix;
     } catch (e) {
       const reason = this.reasonFromFailure(e as Object, 'location-timeout');
@@ -291,29 +326,49 @@ export class LocationService {
   }
 
   private async performRefresh(token: number, lifecycle: number, permission: number): Promise<boolean> {
-    let candidate = this.fix;
-    if (!isFreshFix(candidate)) {
+    let candidate: Fix | null = null;
+    try {
       candidate = await this.currentFix();
       if (!this.canCommit(token, lifecycle, permission)) return this.finishFailure(token, this.staleReason());
-      if (this.isNewer(candidate, this.fix)) {
+      if (candidate.altitude === null && this.fix && Number.isFinite(this.fix.altitude)) {
+        candidate.altitude = this.fix.altitude;
+      }
+      if (!candidate.address && this.fix && this.fix.address) {
+        candidate.address = this.fix.address;
+      }
+      // A newer continuous-location fix may have arrived while the hardware
+      // query was in flight; never regress to an older reading.
+      if (!this.fix || candidate.timestamp > this.fix.timestamp) {
         this.fix = candidate;
-        this.notifyChange();
       } else {
         candidate = this.fix;
       }
+      this.notifyChange();
+    } catch (e) {
+      if (!this.canCommit(token, lifecycle, permission)) return this.finishFailure(token, this.staleReason());
+      // A failed hardware query must not be reported as a successful refresh.
+      return this.finishFailure(token, this.reasonFromFailure(e as Object, 'location-timeout'));
     }
     if (!candidate) return this.finishFailure(token, 'location-timeout');
 
     // A continuous callback may deliver a newer fix while reverse geocoding.
     // Retry that newer fix once so its address cannot be overwritten by an old result.
     let activeCandidate: Fix = candidate;
+    let lastAddress: string = '';
     for (let attempt = 0; attempt < 2; attempt++) {
       if (!isFreshFix(activeCandidate)) return this.finishFailure(token, 'location-timeout');
       const address = await this.reverseAddress(activeCandidate);
+      lastAddress = address;
       if (!this.canCommit(token, lifecycle, permission)) return this.finishFailure(token, this.staleReason());
       if (this.fix !== activeCandidate) {
         const newer: Fix | null = this.fix;
         if (newer && isFreshFix(newer) && newer.timestamp >= activeCandidate.timestamp) {
+          if (newer.altitude === null && activeCandidate.altitude !== null) {
+            newer.altitude = activeCandidate.altitude;
+          }
+          if (!newer.address && activeCandidate.address) {
+            newer.address = activeCandidate.address;
+          }
           activeCandidate = newer;
           continue;
         }
@@ -321,6 +376,17 @@ export class LocationService {
       }
       if (!isFreshFix(activeCandidate)) return this.finishFailure(token, 'location-timeout');
       activeCandidate.address = address;
+      this.notifyChange();
+      return this.finishSuccess(token);
+    }
+    // Both retries were spent on broadcasts that kept arriving. Commit the
+    // freshest fix we hold together with the address that was actually
+    // resolved, instead of reporting a valid refresh as a failure.
+    if (!this.canCommit(token, lifecycle, permission)) return this.finishFailure(token, this.staleReason());
+    const newest: Fix = this.fix !== null && isFreshFix(this.fix) && this.fix.timestamp >= activeCandidate.timestamp ? this.fix : activeCandidate;
+    if (isFreshFix(newest)) {
+      if (lastAddress) newest.address = lastAddress;
+      this.fix = newest;
       this.notifyChange();
       return this.finishSuccess(token);
     }
@@ -363,24 +429,47 @@ export class LocationService {
     return promise;
   }
 
-  private receive = (value: geoLocationManager.Location): void => {
+  private receive = (value: geoLocationManager.Location): void => { this.receiveLocation(value); };
+
+  /**
+   * Continuous-location entry point. Also the seam ohosTest uses to drive
+   * broadcast interleavings without replacing the platform manager.
+   */
+  receiveLocation(value: geoLocationManager.Location): void {
     if (!this.listening) return;
     const fix = this.asFix(value);
     if (!fix || !isFreshFix(fix)) return;
     if (this.fix && fix.timestamp <= this.fix.timestamp) return;
+    if (fix.altitude === null && this.fix && Number.isFinite(this.fix.altitude)) {
+      fix.altitude = this.fix.altitude;
+    }
+    if (!fix.address && this.fix && this.fix.address) {
+      fix.address = this.fix.address;
+    }
     this.fix = fix;
     this.notifyChange();
     if (this.refreshState === 'refreshing') return;
+    // A stationary site would otherwise hit the geocoder on every broadcast.
+    // Re-resolve as soon as the fix actually moves or the interval elapses.
+    if (this.geocodeSkipApplies(fix)) return;
     const lifecycle = this.lifecycleEpoch;
     const token = this.refreshToken;
     const permission = this.permissionEpoch;
+    this.lastGeocodeFix = fix;
+    this.lastGeocodeAt = Date.now();
     this.reverseAddress(fix).then((address: string) => {
       if (this.listening && this.lifecycleEpoch === lifecycle && this.refreshToken === token && this.permissionEpoch === permission && this.refreshState !== 'refreshing' && this.fix === fix && isFreshFix(fix)) {
         fix.address = address;
         this.notifyChange();
       }
     }).catch(() => {});
-  };
+  }
+
+  private geocodeSkipApplies(fix: Fix): boolean {
+    if (!fix.address || this.lastGeocodeFix === null) return false;
+    if (Date.now() - this.lastGeocodeAt > GEOCODE_MIN_INTERVAL_MS) return false;
+    return movedMeters(this.lastGeocodeFix, fix) < GEOCODE_MIN_MOVE_M;
+  }
 
   start(): void {
     if (this.listening) return;

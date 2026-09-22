@@ -2,8 +2,8 @@
   "app": {
     "bundleName": "com.sitecam.app",
     "vendor": "ninjaaqua",
-    "versionCode": 15,
-    "versionName": "0.3.2",
+    "versionCode": 16,
+    "versionName": "0.3.3",
     "icon": "$media:app_icon",
     "label": "$string:app_name",
     "configuration": "$profile:configuration",

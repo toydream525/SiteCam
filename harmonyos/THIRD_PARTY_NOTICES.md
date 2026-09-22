@@ -1,13 +1,23 @@
-# Audio resource notice
+# Third-party notices
 
-## `camera_shutter.wav`
+## `camera_shutter.wav` — CC0 field recording
 
-This is an original SiteCam audio cue generated locally by
-`harmonyos/scripts/generate_shutter_sound.py`. It is a deterministic synthesis
-of short decaying mechanical transients, body resonances, and shaped noise,
-with two close releases to suggest a camera shutter opening and closing. It
-is not a recording of a particular camera and contains no third-party audio.
+The shutter cue is a real SLR shutter recording, cut and mastered by
+`harmonyos/scripts/prepare_shutter_sound.py`.
 
-The generated resource is mono PCM16 at 44.1 kHz and is approximately 0.285 s
-long. SiteCam loads it only as the camera shutter cue after the camera accepts
-a photo request; it is not a notification or video microphone track.
+- Source: *Auslösegeräusch SLR Serienaufnahme bis Puffer voll.oga*
+  <https://commons.wikimedia.org/wiki/File:Ausl%C3%B6seger%C3%A4usch_SLR_Serienaufnahme_bis_Puffer_voll.oga>
+- Author: Smial (Wikimedia Commons)
+- Licence: CC0 1.0 Universal (Public Domain Dedication)
+  <https://creativecommons.org/publicdomain/zero/1.0/>
+- Source SHA-256: `d87123b78a552dd31f77a5fc906abc5b4fe943ee01991e14116edff14e6f0055`
+
+CC0 dedicates the work to the public domain, so no attribution is legally
+required; it is recorded here so the asset can be audited and reproduced. Only
+the final, isolated actuation of the source burst is used (starting at 9.640 s
+for 0.220 s, chosen because the camera's buffer stops there and no neighbouring
+shot bleeds into the tail). It is high-passed at 60 Hz, trimmed below
+-50 dBFS, peak-normalised to 0.92 and faded out over 6 ms. The packaged file is
+mono PCM16 44.1 kHz, 0.135 s long. SiteCam plays it only as the camera shutter
+cue after the camera accepts a photo request; it is not a notification, alarm
+or video microphone track.

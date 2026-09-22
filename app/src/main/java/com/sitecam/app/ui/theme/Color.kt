@@ -11,6 +11,16 @@ val DarkSurface = Color(0xFF1E1E1E)
 val DarkCard = Color(0xFF282828)
 val DarkBorder = Color(0xFF383838)
 
+/**
+ * Camera viewfinder letterbox / control-shelf black.
+ *
+ * The camera route deliberately renders a true black frame (the live image and the shelves around
+ * it), unlike the #121212 [DarkBackground] used by the rest of the app. Keep every camera shelf,
+ * dock, scrim and the un-granted camera page on this single constant so the route never flips
+ * between two near-black backgrounds.
+ */
+val Letterbox = Color(0xFF000000)
+
 val LightBackground = Color(0xFFF5F5F5)
 val LightSurface = Color(0xFFFFFFFF)
 val LightCard = Color(0xFFF0F0F0)

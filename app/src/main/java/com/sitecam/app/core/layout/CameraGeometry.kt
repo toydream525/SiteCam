@@ -42,8 +42,15 @@ fun cameraGeometry(width: Float, height: Float, density: Float, smallCover: Bool
         return CameraGeometry(true, tw, (ph-pw*.75f)/2, pw, pw*.75f, tw, ph,
             tw+pw, cy, w-tw-pw, h-cy)
     }
-    val available = (if (hover) creaseTop-16 else h-196)-102
+    // The button row hugs the status bar: 56dp holds the 48dp project chip with 4dp of breathing
+    // room above and below, instead of the 102dp band that used to push the row down and starve the
+    // preview. Everything saved here goes to the camera area.
+    val topBar = 56f
+    // Keep the reference 254dp bottom band when the window is tall enough; on shorter windows the
+    // preview must keep the full width instead, so the band yields down to 150dp.
+    val bottomReserve = minOf(254f, maxOf(150f, h - topBar - w * 4f / 3f))
+    val available = (if (hover) creaseTop-16 else h-bottomReserve)-topBar
     val pw = minOf(w, available.coerceAtLeast(1f)*.75f)
-    val cy = if (hover) creaseBottom+16 else 102+pw*4/3
-    return CameraGeometry(false, (w-pw)/2, 102f, pw, pw*4/3, w, 102f, 0f, cy, w, h-cy)
+    val cy = if (hover) creaseBottom+16 else topBar+pw*4/3
+    return CameraGeometry(false, (w-pw)/2, topBar, pw, pw*4/3, w, topBar, 0f, cy, w, h-cy)
 }

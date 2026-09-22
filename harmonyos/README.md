@@ -1,18 +1,19 @@
 # SiteCam 鸿蒙原生版 beta
 
-独立 ArkTS / ArkUI Stage 工程，当前公开版本 **v0.3.2（15）**，鸿蒙原生版 beta 已发布。包含双端地址刷新、默认关闭海拔和工程切换锁定，优化安卓及鸿蒙的各类折叠屏、阔直屏和平板适配（beta），并更新鸿蒙侧界面、快门音开关、常用倍率、公开镜头识别、教程、项目操作单行图标、全选闪烁和闪光按钮状态。普通直屏与阔直屏布局继续保留，鸿蒙系统相册仍采用独立副本设计。
+独立 ArkTS / ArkUI Stage 工程，当前公开版本 **v0.3.3（16）**。包含双端地址刷新、默认关闭海拔和工程切换锁定，优化安卓及鸿蒙的各类折叠屏、阔直屏和平板适配（beta），并更新鸿蒙侧界面、快门音开关、常用倍率、公开镜头识别、教程、项目操作单行图标、全选闪烁和闪光按钮状态。普通直屏与阔直屏布局继续保留，鸿蒙系统相册仍采用独立副本设计。
 
-> **发布状态：公开 HAP 暂未签名，需要自行签名，鸿蒙版已提交华为应用市场审核，目前审核中；审核通过并上架后，可在商店下载。** 本地 debug/profile 产物不作为通用下载包；不同设备的镜头、闪光灯和视频能力仍需按设备确认。
+> **发布状态：公开下载的 HAP 未签名，需要自行签名；上架用的 AppGallery 签名包已随 0.3.3 一并生成并通过官方签名校验，但不能侧载安装。** 本地 debug/profile 产物不作为通用下载包；不同设备的镜头、闪光灯和视频能力仍需按设备确认。
 
 未签名 HAP 需要自行签名后安装。
 
-### 本地应用市场签名包（2026-09-20）
+### 本地应用市场签名包（2026-09-22，v0.3.3 / 16）
 
-已为 **SiteCam工程水印相机**（`com.sitecam.app`，v0.3.1 / 14）申请华为发布证书与普通发布 Profile，生成并核验本地签名 HAP 和 APP。公开下载链接仍是上述未签名资产；本次未替换公开下载、未提交应用市场审核，也未验证实机安装。
+已为 **SiteCam工程水印相机**（`com.sitecam.app`）用华为发布证书与普通发布 Profile 生成签名 HAP 与 APP，并通过 `hap-sign-tool verify-app` 校验官方签名链与 profile CMS。
 
-- `dist/appgallery/SiteCam-0.3.1-HarmonyOS-AppGallery-Signed.app`：应用市场上传包。
-- `dist/appgallery/SiteCam-0.3.1-HarmonyOS-AppGallery-Signed.hap`：相同代码与资源的发布签名 HAP；不据此承诺任意设备可侧载安装。
-- `dist/appgallery/SIGNING-VERIFICATION.json`：签名及版本核验记录。
+- `dist/appgallery/SiteCam-0.3.3-HarmonyOS-AppGallery-Signed.app`：应用市场上传包（AGC 用）。
+- `dist/appgallery/SiteCam-0.3.3-HarmonyOS-AppGallery-Signed.hap`：相同代码与资源的发布签名 HAP；**不能**用 `hdc install` 侧载安装。
+- `dist/appgallery/SIGNING-VERIFICATION.json`：签名及版本核验记录（0.3.3 已重新生成）。
+- `dist/release/SiteCam-0.3.3-HarmonyOS-Release-Unsigned.hap`：发布模式未签名包，供自行签名后安装。
 
 本机可运行 `bash harmonyos/scripts/build-store.sh`（从仓库根目录）重新生成包。签名配置从 `~/.ohos/sitecam-release/signing-config.json` 读取，复用本机现有私钥，未写入仓库。该脚本默认使用独立构建目录 `~/Library/Caches/SiteCamHarmonyStoreBuild`，不覆盖原有调试签名配置；不会上传软件包。
 
@@ -22,11 +23,12 @@
 
 ## 构建与安装
 
-v0.3.2 公开下载资产：
+v0.3.3 公开下载资产：
 
-- [SiteCam-0.3.2-HarmonyOS-Release-Unsigned.hap](https://github.com/toydream525/SiteCam/releases/download/v0.3.2/SiteCam-0.3.2-HarmonyOS-Release-Unsigned.hap)
+- [SiteCam-0.3.3-HarmonyOS-Release-Unsigned.hap](https://github.com/toydream525/SiteCam/releases/download/v0.3.3/SiteCam-0.3.3-HarmonyOS-Release-Unsigned.hap)（自行签名后安装）
+- [SiteCam-0.3.3-HarmonyOS-AppGallery-Signed.hap](https://github.com/toydream525/SiteCam/releases/download/v0.3.3/SiteCam-0.3.3-HarmonyOS-AppGallery-Signed.hap)（上架用，发布证书签名，不可侧载）
 
-以上公开 HAP 均暂未签名，需要自行签名；鸿蒙版已提交华为应用市场审核，目前审核中；审核通过并上架后，可在商店下载。
+应用市场审核通过并上架后，可直接在商店下载。
 
 2026-09-12 核对华为官方稳定版：DevEco Studio 26.0.0.821、SDK 26.0.0.105 Release 与本机一致；配套 Hvigor 6.26.4、OHPM 26.0.0.630，使用 IDE 内置 Node。无需升级或重装。最低兼容配置为 API 12，编译及目标 API 为 26，当前 Native ABI 为 arm64-v8a。
 

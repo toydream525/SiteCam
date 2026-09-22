@@ -46,7 +46,9 @@ fun GalleryScreen(viewModel: GalleryViewModel, onNavigateBack: () -> Unit,
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets.safeDrawing,
         topBar = { TopAppBar(title = { Text(state.currentProject?.name ?: "全部工程相册") },
-        navigationIcon = { IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
+        // Distinct from PhotoDetailScreen's back action: on a wide split screen both are on screen
+        // at once, and they do different things (leave the gallery vs. close the preview pane).
+        navigationIcon = { IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "退出相册") } },
         actions = { TextButton(onClick = { projectPicker = true }) { Text("切换工程") } }) }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {

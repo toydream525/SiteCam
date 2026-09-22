@@ -188,11 +188,3 @@ fun IssueDialog(
         }
     )
 }
-
-@Composable
-fun QuickIssueDialog(
-    mediaId: Long,
-    onDismiss: () -> Unit,
-    onConfirm: (title: String, severity: String, description: String) -> Unit
-) = IssueDialog(mediaId = mediaId, onDismiss = onDismiss,
-    onConfirm = { title, severity, description, _ -> onConfirm(title, severity, description) })

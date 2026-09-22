@@ -60,9 +60,11 @@ fun VideoThumbnail(uri: String, modifier: Modifier = Modifier) {
         } else {
             Box(Modifier.fillMaxSize().background(Color(0xFF303030)))
         }
+        // Decorative play badge: "视频缩略图" on the frame above already describes the node, and a
+        // second "视频" node made TalkBack announce the same thumbnail twice.
         Icon(
             imageVector = Icons.Default.PlayArrow,
-            contentDescription = "视频",
+            contentDescription = null,
             tint = Color.White,
             modifier = Modifier
                 .background(Color.Black.copy(alpha = 0.55f))

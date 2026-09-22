@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -239,7 +240,9 @@ fun ProjectListScreen(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp)
+                    // A fixed 50dp box clipped the label and the search text at large font
+                    // scales; 48dp is the Material touch-target floor and the field may grow.
+                    .heightIn(min = 48.dp)
                     .padding(horizontal = 12.dp),
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
@@ -259,9 +262,11 @@ fun ProjectListScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(36.dp)
+                    // Chips keep the 48dp minimum touch target instead of a 36dp box.
+                    .heightIn(min = 48.dp)
                     .padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 listOf("ACTIVE" to "进行中", "ARCHIVED" to "已归档", "ALL" to "全部").forEach { (value, label) ->
                     FilterChip(
@@ -300,7 +305,7 @@ fun ProjectListScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(40.dp)
+                        .heightIn(min = 48.dp)
                         .padding(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -308,7 +313,7 @@ fun ProjectListScreen(
                     Box(modifier = Modifier.weight(1f)) {
                         OutlinedButton(
                             onClick = { sortMenu = true },
-                            modifier = Modifier.fillMaxWidth().height(38.dp),
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                             shape = RoundedCornerShape(10.dp),
                             border = BorderStroke(1.dp, DarkBorder),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimaryDark),
@@ -347,7 +352,8 @@ fun ProjectListScreen(
                     }
                     OutlinedButton(
                         onClick = { viewModel.setSort(state.sort, !state.ascending) },
-                        modifier = Modifier.size(width = 54.dp, height = 38.dp),
+                        // Icon-only control: a square 48dp target instead of 54x38.
+                        modifier = Modifier.size(48.dp),
                         shape = RoundedCornerShape(10.dp),
                         border = BorderStroke(1.dp, DarkBorder),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimaryDark),
@@ -365,11 +371,13 @@ fun ProjectListScreen(
                             batchMode = true
                         },
                         enabled = !state.isExporting,
-                        modifier = Modifier.size(width = 82.dp, height = 38.dp),
-                        contentPadding = PaddingValues(horizontal = 2.dp),
+                        // No fixed 82dp: the label decides its own width so four CJK glyphs at
+                        // fontScale 3.2 are not squeezed into a narrow column.
+                        modifier = Modifier.heightIn(min = 48.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp),
                         colors = ButtonDefaults.textButtonColors(contentColor = EngineeringYellow)
                     ) {
-                        Text("批量管理", fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1)
+                        Text("批量管理", fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             } else {
@@ -410,14 +418,14 @@ fun ProjectListScreen(
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(horizontal = 0.dp, vertical = 5.dp),
                             colors = ButtonDefaults.textButtonColors(contentColor = EngineeringYellow)
-                        ) { Text("全选", maxLines = 1) }
+                        ) { Text("全选", maxLines = 1, overflow = TextOverflow.Ellipsis) }
                         TextButton(
                             onClick = { viewModel.clearSelection() },
                             enabled = !state.isExporting && state.checkedIds.isNotEmpty(),
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(horizontal = 0.dp, vertical = 5.dp),
                             colors = ButtonDefaults.textButtonColors(contentColor = TextSecondaryDark)
-                        ) { Text("清空", maxLines = 1) }
+                        ) { Text("清空", maxLines = 1, overflow = TextOverflow.Ellipsis) }
                         TextButton(
                             onClick = {
                                 exportIds = state.checkedIds
@@ -428,7 +436,7 @@ fun ProjectListScreen(
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(horizontal = 0.dp, vertical = 5.dp),
                             colors = ButtonDefaults.textButtonColors(contentColor = EngineeringYellow)
-                        ) { Text("导出", maxLines = 1) }
+                        ) { Text("导出", maxLines = 1, overflow = TextOverflow.Ellipsis) }
                         Box(Modifier.weight(1f)) {
                             TextButton(
                                 onClick = { batchMenu = true },
@@ -437,7 +445,7 @@ fun ProjectListScreen(
                                 contentPadding = PaddingValues(horizontal = 0.dp, vertical = 5.dp),
                                 colors = ButtonDefaults.textButtonColors(contentColor = EngineeringYellow)
                             ) {
-                                Text("更多", maxLines = 1)
+                                Text("更多", maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                             DropdownMenu(
                                 expanded = batchMenu,
@@ -762,7 +770,7 @@ fun ProjectListScreen(
                                                 )
                                             },
                                             enabled = !state.isExporting,
-                                            modifier = Modifier.weight(1f).height(36.dp),
+                                            modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                                             contentPadding = PaddingValues(horizontal = 2.dp),
                                             colors = ButtonDefaults.textButtonColors(
                                                 contentColor = if (project.isCaptureLocked) WarningYellow else TextSecondaryDark
@@ -777,7 +785,8 @@ fun ProjectListScreen(
                                             Text(
                                                 if (project.isCaptureLocked) "解锁拍摄" else "锁定拍摄",
                                                 fontSize = 11.sp,
-                                                maxLines = 1
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                         }
                                         TextButton(
@@ -788,7 +797,7 @@ fun ProjectListScreen(
                                                 )
                                             },
                                             enabled = !state.isExporting,
-                                            modifier = Modifier.weight(1f).height(36.dp),
+                                            modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                                             contentPadding = PaddingValues(horizontal = 2.dp),
                                             colors = ButtonDefaults.textButtonColors(contentColor = TextSecondaryDark)
                                         ) {
@@ -801,7 +810,8 @@ fun ProjectListScreen(
                                             Text(
                                                 if (project.isArchived) "恢复工程" else "归档工程",
                                                 fontSize = 11.sp,
-                                                maxLines = 1
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                         }
                                     }
@@ -815,44 +825,44 @@ fun ProjectListScreen(
                                     thickness = 1.dp,
                                     color = DarkBorder.copy(alpha = 0.65f)
                                 )
-                                        Column(
-                                            modifier = Modifier.width(82.dp),
+                                // Adaptive width instead of a fixed 82dp. The buttons must size to
+                                // their own label (no fillMaxWidth) so the column grows with the
+                                // scaled text rather than squeezing four CJK glyphs into 82dp.
+                                Column(
+                                    modifier = Modifier.widthIn(min = 82.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
-                                        ) {
-                                            TextButton(
-                                                onClick = {
-                                                    if (row.isSelected) onNavigateBack()
-                                                    else viewModel.selectProject(project.id)
-                                                },
-                                                enabled = !state.isExporting && !state.isSwitchingProject,
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .height(48.dp),
-                                                contentPadding = PaddingValues(horizontal = 2.dp),
-                                                colors = ButtonDefaults.textButtonColors(
-                                                    contentColor = EngineeringYellow,
-                                                    disabledContentColor = TextSecondaryDark.copy(alpha = 0.45f)
-                                                )
-                                            ) {
-                                                Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(17.dp))
-                                                Spacer(Modifier.size(2.dp))
-                                                Text(
-                                                    when {
-                                                        row.isSelected -> "返回相机"
-                                                        state.switchingProjectId == project.id -> "切换中…"
-                                                        else -> "切换"
-                                                    },
-                                                    fontSize = 12.sp,
-                                                    lineHeight = 16.sp,
-                                                    maxLines = 1
-                                                )
-                                            }
-                                            TextButton(
+                                ) {
+                                    TextButton(
+                                        onClick = {
+                                            if (row.isSelected) onNavigateBack()
+                                            else viewModel.selectProject(project.id)
+                                        },
+                                        enabled = !state.isExporting && !state.isSwitchingProject,
+                                        modifier = Modifier.heightIn(min = 48.dp),
+                                        contentPadding = PaddingValues(horizontal = 2.dp),
+                                        colors = ButtonDefaults.textButtonColors(
+                                            contentColor = EngineeringYellow,
+                                            disabledContentColor = TextSecondaryDark.copy(alpha = 0.45f)
+                                        )
+                                    ) {
+                                        Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(17.dp))
+                                        Spacer(Modifier.size(2.dp))
+                                        Text(
+                                            when {
+                                                row.isSelected -> "返回相机"
+                                                state.switchingProjectId == project.id -> "切换中…"
+                                                else -> "切换"
+                                            },
+                                            fontSize = 12.sp,
+                                            lineHeight = 16.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    TextButton(
                                         onClick = { editor = project },
                                         enabled = !state.isExporting,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(48.dp),
+                                        modifier = Modifier.heightIn(min = 48.dp),
                                         contentPadding = PaddingValues(horizontal = 2.dp),
                                         colors = ButtonDefaults.textButtonColors(
                                             contentColor = TextSecondaryDark,
@@ -865,14 +875,12 @@ fun ProjectListScreen(
                                             modifier = Modifier.size(17.dp)
                                         )
                                         Spacer(Modifier.size(2.dp))
-                                        Text("编辑", fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1)
+                                        Text("编辑", fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                     TextButton(
                                         onClick = { exportIds = setOf(project.id) },
                                         enabled = !state.isExporting,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(48.dp),
+                                        modifier = Modifier.heightIn(min = 48.dp),
                                         contentPadding = PaddingValues(horizontal = 2.dp),
                                         colors = ButtonDefaults.textButtonColors(
                                             contentColor = EngineeringYellow,
@@ -885,7 +893,7 @@ fun ProjectListScreen(
                                             modifier = Modifier.size(17.dp)
                                         )
                                         Spacer(Modifier.size(2.dp))
-                                        Text("导出", fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1)
+                                        Text("导出", fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                 }
                             }

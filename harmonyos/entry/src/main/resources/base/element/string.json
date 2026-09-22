@@ -1,10 +1,6 @@
 {
   "string": [
     {
-      "name": "app_name",
-      "value": "SiteCam工程水印相机"
-    },
-    {
       "name": "module_desc",
       "value": "工程拍摄、现场记录与资料归档"
     },

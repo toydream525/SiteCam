@@ -154,7 +154,9 @@ fun PhotoDetailScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = Color.White)
+                        // Not just "返回": on a wide split screen this closes the preview pane while
+                        // the gallery list next to it keeps its own distinct back action.
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "关闭预览", tint = Color.White)
                     }
                 },
                 actions = {

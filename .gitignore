@@ -16,3 +16,4 @@ build/
 /.rebuild_*.sh
 
 .kotlin/
+dist/

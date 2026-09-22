@@ -2,6 +2,14 @@ package com.sitecam.app.core.camera
 
 import android.view.Surface
 
+/*
+ * Current use of this file:
+ *  - [resolveCameraTargetRotation] below is the production entry point used by the camera screen.
+ *  - The pure helpers `normalizeDisplayRotation`, `safeCameraTargetRotation` and
+ *    `isQuarterTurnDisplayRotation` are referenced only by `CameraRotationTest` today; they are kept
+ *    so the test keeps pinning the accepted rotation set.
+ */
+
 /** Keeps CameraX use cases on the current physical display rotation. */
 fun normalizeDisplayRotation(rotation: Int): Int = when (rotation) {
     Surface.ROTATION_0,

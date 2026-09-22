@@ -3,7 +3,14 @@ package com.sitecam.app.feature.camera
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 
-/** Geometry for the explicit 48dp edit affordance, separate from the camera surface. */
+/**
+ * Geometry for the explicit 48dp edit affordance, separate from the camera surface.
+ *
+ * Currently referenced only by [WatermarkEditEntryTest]: the production camera overlay resolves
+ * its tap target through `WatermarkLayoutEngine`/`pointerInteropFilter` instead of these helpers.
+ * Kept because the unit test pins the 48dp affordance geometry; do not delete without removing
+ * that test too.
+ */
 fun watermarkEditEntryRect(
     containerWidth: Float,
     containerHeight: Float,

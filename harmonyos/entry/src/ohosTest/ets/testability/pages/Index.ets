@@ -19,6 +19,7 @@ import { DataParityChecks } from '../DataParityChecks';
 import { DateRangeDialogChecks } from '../DateRangeDialogChecks';
 import { Review031DataChecks } from '../Review031DataChecks';
 import { LocationServiceChecks } from '../LocationServiceChecks';
+import { PermissionGuideChecks } from '../PermissionGuideChecks';
 import { AddressRefreshPlacementChecks } from '../AddressRefreshPlacementChecks';
 import { ProjectPanelGeometryChecks } from '../ProjectPanelGeometryChecks';
 import { buildReferenceZoomPresets, buildZoomPresets, isNearestZoomPreset, isValidZoomRatio, lensRoleForCameraType, lensRoleFromPublicFacts, nearbyZoomPointFocalLength, referenceZoomFactor, referenceZoomFromSession, sessionZoomFromReference, zoomPresetLabel } from '../../../../main/ets/core/CameraCapability';
@@ -47,6 +48,7 @@ struct Verification {
   await this.check('删除媒体拒绝迟到写入',async()=>Review031DataChecks.deletedTargetsAreRejected(this.ctx));
   await this.check('地址刷新定位与地址边界',async()=>LocationServiceChecks.check());
   await this.check('地址刷新无缓存及撤权收尾',async()=>LocationServiceChecks.serviceBoundaries());
+  await this.check('权限引导未申请时不跳系统设置',async()=>{PermissionGuideChecks.check();});
   await this.check('地址刷新按钮避让水印边界',async()=>AddressRefreshPlacementChecks.check());
   await this.check('工程切换面板窗口边界',async()=>ProjectPanelGeometryChecks.check());
   await this.check('小折叠阔折叠阔直屏方案隔离',async()=>{
