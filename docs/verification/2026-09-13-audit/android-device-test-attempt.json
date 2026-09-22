@@ -1,0 +1,28 @@
+{
+  "date": "2026-09-13",
+  "initialAttempt": "connectedDebugAndroidTest failed while installing the test APK; no test method executed.",
+  "deviceEffect": "The previously installed com.sitecam.app.debug was absent after test-run cleanup, including pm list packages -u. Formal com.sitecam.app remained installed with unchanged version and update timestamp.",
+  "followupMethod": "Use explicit install -r only when needed and manual am instrument; no connectedDebugAndroidTest on user installations and no post-test uninstall. USB prompt investigation stopped at user request; current deliverable is the plan.",
+  "permissionContext": "User authorized routine test installation and requested no repeated confirmation questions for the same scope.",
+  "sourceChanges": "No business code, existing tests, version files or device security settings changed.",
+  "initialInstrumentedTestsExecuted": 0,
+  "initialRecoveryAttempt": "Explicit adb install -r attempted after user authorization. The observed SiteCam USB install dialog was targeted for confirmation, but installation still returned USER_RESTRICTED. Debug app not restored at the end of this audit stage; retained debug data cannot be confirmed.",
+  "recovery": "Subsequent explicit install -r succeeded for the debug app and test APK. Live package list contains com.sitecam.app, com.sitecam.app.debug and com.sitecam.app.debug.test. Earlier debug data recovery is not confirmed.",
+  "manualRuns": {
+    "lens": {
+      "started": true,
+      "completed": false,
+      "captureCount": 0,
+      "result": "Public Camera2 IDs 0 and 1 were written to the diagnostic report; execution did not proceed to a completed camera capture."
+    },
+    "controls": {
+      "planned": 4,
+      "started": 1,
+      "completed": 0,
+      "result": "First method reported start, with no completed assertion result. The stalled debug process was explicitly stopped; the final Process crashed message is not independent evidence of an app crash."
+    }
+  },
+  "latestTemporaryHarness": "Activity-start diagnostic revised and compiled successfully; this revision was not installed or run.",
+  "initialErrorCode": "INSTALL_FAILED_USER_RESTRICTED",
+  "initialErrorText": "Install canceled by user"
+}

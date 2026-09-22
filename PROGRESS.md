@@ -2,9 +2,9 @@
 
 ## 状态总览
 
-- Android 当前版本 v0.2.9（versionCode 11）：修复系统相册删除后的旧图片残留，保留回收站恢复关联。
+- Android v0.3.0（versionCode 13）已同步发布 Debug/Release，默认推荐 Release；修复变焦控件被取景裁切，并成功覆盖安装真机 Release。完整真机操作与折叠硬件握持体验仍待逐项检查。
 - Debug / Release 单元测试各 93 项通过，Release lint 与构建通过。
-- 鸿蒙未签名开发包保持 v0.2.8，真机签名和验收待设备到位。
+- 鸿蒙本地开发版升级 v0.3.0（versionCode 13），统一屏幕与折叠适配，保留水印标签、排序与恢复默认对齐；真机签名和硬件验收待设备到位。详见 harmonyos/verification/REVIEW-0.3.0.md。Android 0.3.0 已沿用共同规则，另见 docs/SCREEN-ADAPTATION.md，横竖屏均须保留握持空间。
 - 下方 v0.2.8 内容与设备记录属于历史批次。
 
 ## 2026-09-10 鸿蒙续作与发布

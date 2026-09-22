@@ -1,0 +1,111 @@
+{
+  "kind": "simulated-size-production-component",
+  "realSmallCoverVerified": false,
+  "cases": [
+    {
+      "sizeVp": [
+        96,
+        96
+      ],
+      "rightDock": true,
+      "shutterCentered": true,
+      "captureCallback": true,
+      "framePx": [
+        418,
+        1146,
+        718,
+        1446
+      ],
+      "dockPx": [
+        543,
+        1146,
+        718,
+        1446
+      ]
+    },
+    {
+      "sizeVp": [
+        120,
+        180
+      ],
+      "rightDock": true,
+      "shutterCentered": true,
+      "captureCallback": true,
+      "framePx": [
+        381,
+        1015,
+        756,
+        1578
+      ],
+      "dockPx": [
+        581,
+        1015,
+        756,
+        1578
+      ]
+    },
+    {
+      "sizeVp": [
+        180,
+        120
+      ],
+      "rightDock": true,
+      "shutterCentered": true,
+      "captureCallback": true,
+      "framePx": [
+        287,
+        1109,
+        850,
+        1484
+      ],
+      "dockPx": [
+        675,
+        1109,
+        850,
+        1484
+      ]
+    },
+    {
+      "sizeVp": [
+        327,
+        327
+      ],
+      "rightDock": true,
+      "shutterCentered": true,
+      "captureCallback": true,
+      "framePx": [
+        57,
+        785,
+        1079,
+        1807
+      ],
+      "dockPx": [
+        904,
+        785,
+        1079,
+        1807
+      ]
+    },
+    {
+      "sizeVp": [
+        320,
+        240
+      ],
+      "rightDock": true,
+      "shutterCentered": true,
+      "captureCallback": true,
+      "framePx": [
+        68,
+        921,
+        1068,
+        1671
+      ],
+      "dockPx": [
+        893,
+        921,
+        1068,
+        1671
+      ]
+    }
+  ]
+}

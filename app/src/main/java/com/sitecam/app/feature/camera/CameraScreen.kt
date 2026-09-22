@@ -93,9 +93,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
@@ -471,21 +468,6 @@ fun CameraScreen(
             smallCoverAddressFallbackSlot(maxHeight.value) == null
         val previewFrameModifier = Modifier.offset(geometry.previewX.dp, geometry.previewY.dp)
             .width(geometry.previewWidth.dp).height(geometry.previewHeight.dp)
-
-        // Match the system-camera hierarchy: system bars stay hidden while the
-        // dedicated black tool/control areas frame a non-full-screen preview.
-        val activity = context as? ComponentActivity
-        DisposableEffect(isLandscape, activity) {
-            val controller = activity?.let {
-                WindowCompat.getInsetsController(it.window, it.window.decorView)
-            }
-            controller?.systemBarsBehavior =
-                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            controller?.hide(WindowInsetsCompat.Type.systemBars())
-            onDispose {
-                controller?.show(WindowInsetsCompat.Type.systemBars())
-            }
-        }
 
         // 1. CameraX Preview View with Pinch-to-zoom & Tap-to-focus
         AndroidView(
@@ -1197,39 +1179,9 @@ private fun CameraProjectPickerContent(
     onCurrent: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier) {
-        if (isSwitching) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            Text("切换中…", color = EngineeringYellow, fontSize = 13.sp)
-        }
-        Text("当前工程", color = EngineeringYellow, fontWeight = FontWeight.Bold)
-        if (currentProject != null) {
-            ProjectPickerRow(
-                project = currentProject,
-                current = true,
-                enabled = !isSwitching,
-                onClick = onCurrent
-            )
-        } else {
-            Text("尚未选择工程包", color = Color.White.copy(alpha = .72f), modifier = Modifier.padding(vertical = 10.dp))
-        }
-        Text("最近选择", color = EngineeringYellow, fontWeight = FontWeight.Bold)
-        if (recent.isEmpty()) {
-            Text("暂无最近选择的可拍摄工程", color = Color.White.copy(alpha = .72f), modifier = Modifier.padding(vertical = 10.dp))
-        } else {
-            LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
-                items(recent, key = { it.id }) { project ->
-                    ProjectPickerRow(
-                        project = project,
-                        current = false,
-                        enabled = !isSwitching,
-                        onClick = { onSelect(project.id) }
-                    )
-                }
-            }
-        }
+    Column(modifier = modifier.heightIn(max = 480.dp)) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             TextButton(onClick = onOpenAll, enabled = !isSwitching, modifier = Modifier.weight(1f)) {
@@ -1237,6 +1189,38 @@ private fun CameraProjectPickerContent(
             }
             TextButton(onClick = onCreate, enabled = !isSwitching, modifier = Modifier.weight(1f)) {
                 Text("新建工程", maxLines = 1)
+            }
+        }
+        if (isSwitching) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Text("切换中…", color = EngineeringYellow, fontSize = 13.sp)
+        }
+        LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
+            item {
+                Text("当前工程", color = EngineeringYellow, fontWeight = FontWeight.Bold)
+                if (currentProject != null) {
+                    ProjectPickerRow(
+                        project = currentProject,
+                        current = true,
+                        enabled = !isSwitching,
+                        onClick = onCurrent
+                    )
+                } else {
+                    Text("尚未选择工程包", color = Color.White.copy(alpha = .72f), modifier = Modifier.padding(vertical = 10.dp))
+                }
+                Text("最近拍摄", color = EngineeringYellow, fontWeight = FontWeight.Bold)
+                Text("按最近拍照或录像时间排序，不含已归档工程", color = Color.White.copy(alpha = .72f), fontSize = 12.sp)
+                if (recent.isEmpty()) {
+                    Text("暂无其他有拍摄记录的工程", color = Color.White.copy(alpha = .72f), modifier = Modifier.padding(vertical = 10.dp))
+                }
+            }
+            items(recent, key = { it.id }) { project ->
+                ProjectPickerRow(
+                    project = project,
+                    current = false,
+                    enabled = !isSwitching,
+                    onClick = { onSelect(project.id) }
+                )
             }
         }
     }

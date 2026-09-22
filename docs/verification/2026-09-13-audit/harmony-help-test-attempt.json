@@ -1,0 +1,5 @@
+{
+  "source": "Unmodified production HelpPageView; temporary component interaction test",
+  "cases": [],
+  "error": "Cannot read property delayMs of null"
+}

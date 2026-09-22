@@ -1,0 +1,267 @@
+[
+  {
+    "name": "0.2.10标签排序与旧快照",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "0.2.10恢复默认保留内容",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "0.2.10当前模板同步持久化",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "定位新鲜度及快照隔离",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "核心数据字段与事务对齐",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "拍照声音默认开启且关闭后保留",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "设置与模板重开持久化",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "旧v2数据库升级保留",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "导出交付失败完整报告",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "压缩导出EXIF保留",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "移动媒体并发处理保留最新资料",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "删除媒体拒绝迟到写入",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "地址刷新定位与地址边界",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "地址刷新无缓存及撤权收尾",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "地址刷新按钮避让水印边界",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "工程切换面板窗口边界",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "小折叠阔折叠阔直屏方案隔离",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "普通直屏手机竖屏倍率紧凑居中",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "公开镜头能力与动态倍率入口",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "小外屏与上下悬停按钮边界",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "折叠内外屏与三折状态识别",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "方屏与一物理像素临界方向",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "横屏与Android三区规划一致",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "手机横屏与悬停布局边界",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "三向拍摄及倒置保持",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "日期筛选规则",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "水印完整布局 CLASSIC",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "水印完整布局 MINIMAL",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "水印完整布局 INFO_BOARD",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "水印完整布局 ENGINEERING_BLUE",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "水印完整布局 CONSTRUCTION_TABLE",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "水印完整布局 INSPECTION",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "水印完整布局 ACCEPTANCE",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "水印完整布局 TIME_LOCATION",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "水印横竖屏大字号与长地址边界",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "手机取景比例与保存中心裁剪",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "冻结快照定位零值负值与原件元数据",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "照片编码、方向和 EXIF 0",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "照片编码、方向和 EXIF 1",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "照片编码、方向和 EXIF 2",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "照片编码、方向和 EXIF 3",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "编辑成品独立保存",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "编辑工具落图 arrow",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "编辑工具落图 rect",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "编辑工具落图 circle",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "编辑工具落图 freehand",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "编辑工具落图 text",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "编辑工具落图 mosaic",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "数据库事务与升级保留",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "模板设置和中断任务恢复",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "连续裁剪及标注后旋转",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "工程导出实际文件与缺失报告",
+    "pass": true,
+    "message": ""
+  },
+  {
+    "name": "原生视频水印与音轨",
+    "pass": false,
+    "message": "添加视频轨: 3"
+  }
+  ]

@@ -1,0 +1,121 @@
+{
+  "source": "Unmodified production CameraService; temporary test-module page",
+  "startedAt": 1789266524183,
+  "finishedAt": 1789266541812,
+  "devices": [
+    {
+      "id": "device/0",
+      "position": 1,
+      "type": 0,
+      "logical": false,
+      "focalLength": 6.980000019073486,
+      "equivalentFocalLengths": [
+        13,
+        25
+      ],
+      "constituents": []
+    },
+    {
+      "id": "device/1",
+      "position": 2,
+      "type": 0,
+      "logical": false,
+      "focalLength": 2.700000047683716,
+      "equivalentFocalLengths": [
+        27
+      ],
+      "constituents": []
+    }
+  ],
+  "selectedDevice": "device/0",
+  "minimumZoom": 0.54,
+  "maximumZoom": 10,
+  "shots": [
+    {
+      "requested": 0.54,
+      "serviceClamped": 0.54,
+      "bytes": 5258071,
+      "width": 3072,
+      "height": 4096,
+      "focalLength": "1.9 mm",
+      "equivalentFocalLength": "14",
+      "digitalZoomRatio": "0.54",
+      "lensModel": "",
+      "error": ""
+    },
+    {
+      "requested": 1,
+      "serviceClamped": 1,
+      "bytes": 7693151,
+      "width": 3072,
+      "height": 4096,
+      "focalLength": "7.0 mm",
+      "equivalentFocalLength": "25",
+      "digitalZoomRatio": "1.00",
+      "lensModel": "",
+      "error": ""
+    },
+    {
+      "requested": 2,
+      "serviceClamped": 2,
+      "bytes": 4875159,
+      "width": 3072,
+      "height": 4096,
+      "focalLength": "7.0 mm",
+      "equivalentFocalLength": "50",
+      "digitalZoomRatio": "2.00",
+      "lensModel": "",
+      "error": ""
+    },
+    {
+      "requested": 3,
+      "serviceClamped": 3,
+      "bytes": 2016282,
+      "width": 3072,
+      "height": 4096,
+      "focalLength": "7.0 mm",
+      "equivalentFocalLength": "75",
+      "digitalZoomRatio": "3.00",
+      "lensModel": "",
+      "error": ""
+    },
+    {
+      "requested": 5,
+      "serviceClamped": 5,
+      "bytes": 4120884,
+      "width": 3072,
+      "height": 4096,
+      "focalLength": "7.0 mm",
+      "equivalentFocalLength": "125",
+      "digitalZoomRatio": "5.00",
+      "lensModel": "",
+      "error": ""
+    },
+    {
+      "requested": 0.54,
+      "serviceClamped": 0.54,
+      "bytes": 7828503,
+      "width": 3072,
+      "height": 4096,
+      "focalLength": "1.9 mm",
+      "equivalentFocalLength": "14",
+      "digitalZoomRatio": "0.54",
+      "lensModel": "",
+      "error": ""
+    },
+    {
+      "requested": 1,
+      "serviceClamped": 1,
+      "bytes": 6766776,
+      "width": 3072,
+      "height": 4096,
+      "focalLength": "7.0 mm",
+      "equivalentFocalLength": "25",
+      "digitalZoomRatio": "1.00",
+      "lensModel": "",
+      "error": ""
+    }
+  ],
+  "cameraErrors": [],
+  "error": ""
+}

@@ -17,6 +17,16 @@ interface ProjectDao {
     @Query("SELECT * FROM projects ORDER BY updatedAt DESC")
     fun getAllProjects(): Flow<List<ProjectEntity>>
 
+    /** Projects with saved captures, newest capture first; edits/selections do not change this order. */
+    @Query("""
+        SELECT projects.* FROM projects
+        INNER JOIN media_items ON media_items.projectId = projects.id
+        WHERE projects.isArchived = 0
+        GROUP BY projects.id
+        ORDER BY MAX(media_items.captureTimestamp) DESC, projects.id DESC
+    """)
+    suspend fun getProjectsByLatestCapture(): List<ProjectEntity>
+
     @Query("SELECT * FROM projects WHERE id = :id LIMIT 1")
     suspend fun getProjectById(id: Long): ProjectEntity?
 

@@ -1,6 +1,13 @@
 package com.sitecam.app
 
+import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
+import androidx.compose.runtime.DisposableEffect
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.navigation.NavController
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -25,6 +32,17 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val params = window.attributes
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                params.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            } else {
+                params.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+            window.attributes = params
+        }
         super.onCreate(savedInstanceState)
 
         val app = application as SiteCamApplication
@@ -39,6 +57,22 @@ class MainActivity : ComponentActivity() {
                     color = DarkBackground
                 ) {
                     val navController = rememberNavController()
+                    DisposableEffect(navController) {
+                        val controller = WindowCompat.getInsetsController(window, window.decorView)
+                        val bars = WindowInsetsCompat.Type.systemBars()
+                        val listener = NavController.OnDestinationChangedListener { _, destination, _ ->
+                            if (destination.route == "camera") {
+                                controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                                controller.hide(bars)
+                            } else {
+                                controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
+                                // Restore as navigation starts, before the destination enters.
+                                controller.show(bars)
+                            }
+                        }
+                        navController.addOnDestinationChangedListener(listener)
+                        onDispose { navController.removeOnDestinationChangedListener(listener) }
+                    }
                     val environment = rememberScreenEnvironment()
                     val entry by navController.currentBackStackEntryAsState()
                     Box(Modifier.fillMaxSize()) {

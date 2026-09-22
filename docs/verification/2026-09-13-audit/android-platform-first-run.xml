@@ -1,0 +1,38 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<testsuite name="com.sitecam.app.feature.ScreenControlsTest" tests="5" failures="4" errors="0" skipped="0" time="136.869" timestamp="2026-09-13T02:11:41" hostname="localhost">
+  <properties>
+    <property name="device" value="SiteCam_API37_Pixel8(AVD) - 17" />
+    <property name="flavor" value="" />
+    <property name="project" value=":app" />
+  </properties>
+  <testcase name="smallCoverProductionControlsRemainCenteredAndClickable" classname="com.sitecam.app.feature.ScreenControlsTest" time="37.186">
+    <failure>java.lang.IllegalStateException: Missing 测试操作区
+at com.sitecam.app.feature.ScreenControlsTest.bounds(ScreenControlsTest.kt:40)
+at com.sitecam.app.feature.ScreenControlsTest.smallCoverProductionControlsRemainCenteredAndClickable(ScreenControlsTest.kt:65)
+</failure>
+  </testcase>
+  <testcase name="compactPortraitKeepsZoomVisible" classname="com.sitecam.app.feature.ScreenControlsTest" time="22.26">
+    <failure>java.lang.IllegalStateException: Missing 测试操作区
+at com.sitecam.app.feature.ScreenControlsTest.bounds(ScreenControlsTest.kt:40)
+at com.sitecam.app.feature.ScreenControlsTest.checkGrip(ScreenControlsTest.kt:87)
+at com.sitecam.app.feature.ScreenControlsTest.compactPortraitKeepsZoomVisible(ScreenControlsTest.kt:74)
+</failure>
+  </testcase>
+  <testcase name="portraitShutterReservesGripSpace" classname="com.sitecam.app.feature.ScreenControlsTest" time="24.129">
+    <failure>java.lang.IllegalStateException: Missing 测试操作区
+at com.sitecam.app.feature.ScreenControlsTest.bounds(ScreenControlsTest.kt:40)
+at com.sitecam.app.feature.ScreenControlsTest.checkGrip(ScreenControlsTest.kt:87)
+at com.sitecam.app.feature.ScreenControlsTest.checkGrip$default(ScreenControlsTest.kt:75)
+at com.sitecam.app.feature.ScreenControlsTest.portraitShutterReservesGripSpace(ScreenControlsTest.kt:73)
+</failure>
+  </testcase>
+  <testcase name="landscapeShutterReservesGripSpace" classname="com.sitecam.app.feature.ScreenControlsTest" time="30.997">
+    <failure>java.lang.IllegalStateException: Missing 测试操作区
+at com.sitecam.app.feature.ScreenControlsTest.bounds(ScreenControlsTest.kt:40)
+at com.sitecam.app.feature.ScreenControlsTest.checkGrip(ScreenControlsTest.kt:87)
+at com.sitecam.app.feature.ScreenControlsTest.checkGrip$default(ScreenControlsTest.kt:75)
+at com.sitecam.app.feature.ScreenControlsTest.landscapeShutterReservesGripSpace(ScreenControlsTest.kt:72)
+</failure>
+  </testcase>
+  <testcase name="availableStylesUseRealAndroidFontsPreserveLastRowAndMatchVideoPixels" classname="com.sitecam.app.core.watermark.WatermarkPlatformRenderAuditTest" time="19.172" />
+</testsuite>

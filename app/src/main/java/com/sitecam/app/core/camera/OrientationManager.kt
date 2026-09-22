@@ -1,6 +1,9 @@
 package com.sitecam.app.core.camera
 
 import android.content.Context
+import android.os.SystemClock
+import android.os.Handler
+import android.os.Looper
 import android.view.OrientationEventListener
 import android.view.Surface
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,28 +18,32 @@ class OrientationManager(context: Context) {
     private var isLocked: Boolean = false
     private var lockedDegree: Int = 0
     private var lastAllowedDegree: Int = 0
+    private val stabilizer = OrientationStabilizer()
+    private val handler = Handler(Looper.getMainLooper())
+    private var latestAngle = OrientationEventListener.ORIENTATION_UNKNOWN
+    private val settleOrientation = Runnable { applySensorOrientation() }
+
+    private fun resetPendingOrientation() {
+        handler.removeCallbacks(settleOrientation)
+        stabilizer.reset()
+    }
+
+    private fun applySensorOrientation() {
+        handler.removeCallbacks(settleOrientation)
+        if (isLocked) return
+        val now = SystemClock.elapsedRealtime()
+        val allowedDegrees = stabilizer.update(latestAngle, now, lastAllowedDegree)
+        _orientationDegrees.value = allowedDegrees
+        lastAllowedDegree = allowedDegrees
+        // OrientationEventListener may stop callbacks when the angle stays exactly still.
+        stabilizer.remainingDelay(now)?.let { handler.postDelayed(settleOrientation, it) }
+    }
 
     private val orientationListener = object : OrientationEventListener(context) {
         override fun onOrientationChanged(orientation: Int) {
-            if (orientation == ORIENTATION_UNKNOWN || isLocked) return
-
-            // Map angle to nearest 90-degree step. Keep the previous allowed
-            // direction at 180 degrees so the preview never flips upside
-            // down when the camera points toward the floor.
-            val normalizedDegrees = when {
-                orientation >= 315 || orientation < 45 -> 0
-                orientation in 45..134 -> 90
-                orientation in 135..224 -> 180
-                orientation in 225..314 -> 270
-                else -> 0
-            }
-
-            val allowedDegrees = retainAllowedSensorDegrees(normalizedDegrees, lastAllowedDegree)
-
-            if (_orientationDegrees.value != allowedDegrees) {
-                _orientationDegrees.value = allowedDegrees
-            }
-            lastAllowedDegree = allowedDegrees
+            if (isLocked) return
+            latestAngle = orientation
+            applySensorOrientation()
         }
     }
 
@@ -47,10 +54,12 @@ class OrientationManager(context: Context) {
     }
 
     fun stopListening() {
+        resetPendingOrientation()
         orientationListener.disable()
     }
 
     fun setLocked(locked: Boolean) {
+        resetPendingOrientation()
         isLocked = locked
         if (locked) {
             lockedDegree = if (_orientationDegrees.value == 180) lastAllowedDegree else _orientationDegrees.value
@@ -61,6 +70,7 @@ class OrientationManager(context: Context) {
 
     /** Restore the persisted lock and the exact orientation captured with it. */
     fun restoreLockedState(locked: Boolean, degrees: Int) {
+        resetPendingOrientation()
         val normalized = ((degrees % 360) + 360) % 360
         lockedDegree = when (normalized) {
             90, 270 -> normalized

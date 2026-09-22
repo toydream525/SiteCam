@@ -1,0 +1,60 @@
+{
+  "video_fixture": {
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "h264",
+        "width": 320,
+        "height": 240,
+        "avg_frame_rate": "30/1",
+        "start_time": "0.000000",
+        "duration": "3.000000",
+        "nb_read_frames": "90"
+      },
+      {
+        "index": 1,
+        "codec_name": "aac",
+        "sample_rate": "48000",
+        "channels": 1,
+        "avg_frame_rate": "0/0",
+        "start_time": "0.000000",
+        "duration": "3.000000",
+        "nb_read_frames": "141"
+      }
+    ],
+    "videoPtsStrictlyIncreasing": true,
+    "firstPts": 0.0,
+    "lastPts": 2.966667,
+    "decodeExitCode": 0,
+    "decodeErrors": ""
+  },
+  "video_result": {
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "aac",
+        "sample_rate": "48000",
+        "channels": 1,
+        "avg_frame_rate": "0/0",
+        "start_time": "0.000000",
+        "duration": "3.008000",
+        "nb_read_frames": "141"
+      },
+      {
+        "index": 1,
+        "codec_name": "h264",
+        "width": 320,
+        "height": 240,
+        "avg_frame_rate": "2700/89",
+        "start_time": "0.000000",
+        "duration": "2.966667",
+        "nb_read_frames": "90"
+      }
+    ],
+    "videoPtsStrictlyIncreasing": true,
+    "firstPts": 0.0,
+    "lastPts": 2.933333,
+    "decodeExitCode": 0,
+    "decodeErrors": ""
+  }
+}

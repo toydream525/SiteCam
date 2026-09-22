@@ -526,11 +526,8 @@ class CameraViewModel(
                 val projects = appContainer.database.projectDao().getAllProjects().first()
                 val byId = projects.associateBy { it.id }
                 val current = selectedId?.let(byId::get)
-                val recentIds = appContainer.settingsDataStore.recentProjectIds.first()
-                val recent = recentIds.asSequence()
-                    .mapNotNull(byId::get)
-                    .filter { it.id != current?.id && !it.isArchived }
-                    .toList()
+                val recent = appContainer.database.projectDao().getProjectsByLatestCapture()
+                    .filter { it.id != current?.id }
                 _projectPickerProjects.value = buildList {
                     current?.let(::add)
                     addAll(recent)

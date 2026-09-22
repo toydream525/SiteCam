@@ -1,0 +1,33 @@
+{
+  "scope": "Unmodified production CameraManager, plus isolated public CameraX camera selection probes",
+  "model": "23127PN0CC",
+  "androidApi": 36,
+  "package": "com.sitecam.app.debug",
+  "platformCameras": [
+    {
+      "id": "0",
+      "facing": 1,
+      "focalLengthsMm": [
+        6.55
+      ],
+      "physicalIds": [
+        "2",
+        "3"
+      ],
+      "zoomRatioRange": "[0.6, 10.0]",
+      "sensorOrientation": 90
+    },
+    {
+      "id": "1",
+      "facing": 0,
+      "focalLengthsMm": [
+        2.83
+      ],
+      "physicalIds": [],
+      "zoomRatioRange": "[1.0, 10.0]",
+      "sensorOrientation": 270
+    }
+  ],
+  "productionPhotos": [],
+  "auxiliaryPhotos": []
+}

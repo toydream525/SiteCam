@@ -1,0 +1,485 @@
+{
+  "environment": "macOS / OpenJDK 21 / JVM and Robolectric, not physical Android hardware",
+  "suiteCount": 37,
+  "totals": {
+    "tests": 103,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "suites": [
+    {
+      "name": "com.sitecam.app.core.camera.CameraCapabilityTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:05:52.526Z",
+      "cases": [
+        "testDefaultCameraCapability",
+        "testCameraCapabilityPillPresets"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.core.camera.CameraRotationTest",
+      "tests": "6",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:05:52.544Z",
+      "cases": [
+        "missingLandscapeReadingFallsBackToDisplayRotation",
+        "physicalLandscapeDirectionsMapToOppositeCameraSurfaceRotations",
+        "upsideDownDisplayRotationIsNeverPropagatedToCameraTargets",
+        "oppositeLandscapeDirectionsChangeRotationEvenWhenDisplayRotationIsStale",
+        "validDisplayRotationsAreKept",
+        "invalidRotationFallsBackToPortraitAndLandscapeCheckIsFalse"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.core.camera.CaptureOperationCoordinatorTest",
+      "tests": "3",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:05:52.547Z",
+      "cases": [
+        "captureReservationBlocksLockUntilSavingFinishes",
+        "manualOrientationIgnoresSensorAndAutoUsesIt",
+        "upsideDownSensorReadingRetainsTheLastAllowedDirection"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.core.camera.ScreenAdaptationTest",
+      "tests": "3",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:05:52.653Z",
+      "cases": [
+        "geometryKeepsPreviewAndControlsInsideEveryWindow",
+        "coverAndHoverAvoidObstruction",
+        "deviceSchemesDoNotDependOnWindowRotation"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.core.camera.WindowOrientationTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:05:52.658Z",
+      "cases": [
+        "usesOnlyAvailableWindowDimensions",
+        "squareWindowUsesRightDock"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.core.database.ProjectDataTransactionsTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:05:52.785Z",
+      "cases": [
+        "migration3To4PreservesExistingProjectsAndDefaults",
+        "moveAndIssueChangesKeepBothProjectAndIssueFlagConsistent"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.core.database.WatermarkTemplateStateTest",
+      "tests": "7",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:05:57.597Z",
+      "cases": [
+        "editorObservesQuickEntryChangesAndAcceptedWritesSurviveEditorExit",
+        "restoreDefaultsChangesOnlyLabelsAndOrderInTheCurrentTemplate",
+        "failedWriteExposesErrorAndDoesNotStopLaterEdits",
+        "everyStylePreservesFieldsSettingsOldRowsAndSurvivesDatabaseReopen",
+        "renameAndSwapDoNotOverwriteContentsChangedSinceTheEditorRead",
+        "inFlightFontCannotRevertStyleAndRapidRequestsKeepLastInput",
+        "editorPreviewRetainsEnteredSystemValuesAndCustomContentAcrossAllStyles"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.core.export.ProjectExportEngineIntegrationTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:05:59.503Z",
+      "cases": [
+        "realFolderEngineReportsDestinationFailureInDeliveredCsvAndReport",
+        "realEngineExportsSelectedProjectsMissingReportAndCompressedCopyWithCaptureExif"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.core.export.ProjectExportTest",
+      "tests": "3",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:04.442Z",
+      "cases": [
+        "testCsvUtf8BomEncoding",
+        "testZipArchivingStream",
+        "csvEscapesQuotesAndCommasAsOneField"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.core.location.LocationFreshnessTest",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:04.446Z",
+      "cases": [
+        "staleOrMissingFixIsNeverUsedForCapture"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.core.media.MediaAvailabilitySyncTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:04.453Z",
+      "cases": [
+        "migrationPreservesOldMediaAndDefaultsToVisible",
+        "externalDeletionTrashRestoreAndFailuresKeepIndexConsistent"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.core.media.MediaDeletionCoordinatorTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:04.555Z",
+      "cases": [
+        "onlyRestoresWhenPhysicalDeleteWasNotAttempted",
+        "doesNotRestoreAnnotationAfterPhysicalProductWasDeleted"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.core.media.MediaFileReservationTest",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:04.560Z",
+      "cases": [
+        "sameNameNeverOverwritesExistingPhoto"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.core.media.MediaSaveTargetTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:04.573Z",
+      "cases": [
+        "privateDefaultNeedsNoLegacyPermission",
+        "publicRequestNeverFallsBackOnDeniedPermission"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.core.media.NamingEngineTest",
+      "tests": "3",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:04.575Z",
+      "cases": [
+        "testGenerateFileNameDefault",
+        "testGenerateFileNameWithIndex",
+        "testSanitizeFileName"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.core.media.PhotoQualityProfileTest",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:04.578Z",
+      "cases": [
+        "profilesPreserveAspectRatioAndNeverEnlargeSmallPhotos"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.core.media.PhotoQualitySaveTest",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:04.582Z",
+      "cases": [
+        "fourProfilesSaveRealJpegsAtExpectedDimensionsAndQuality"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.core.media.VideoOrientationTest",
+      "tests": "4",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:05.003Z",
+      "cases": [
+        "portraitMetadataSwapsPresentedDimensionsAndMapsOverlayBack",
+        "landscapeMetadataKeepsDimensions",
+        "rotationsAreNormalized",
+        "portraitDisplayBottomLeftMapsToCodedRightBottomForNinetyDegrees"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.core.preferences.CaptureOrientationPreferencesTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:05.006Z",
+      "cases": [
+        "absentOrInvalidDirectionDefaultsToAutoButManualSelectionSurvivesRestart",
+        "shutterSoundDefaultsOnAndSurvivesRestartWhenDisabled"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.core.watermark.UnifiedWatermarkRenderingTest",
+      "tests": "5",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:05.654Z",
+      "cases": [
+        "retiredSitePhotoSnapshotPreservesDataAndRendersAsMinimal",
+        "completeFieldsAndRealFontBoundsAcrossAvailableStyles",
+        "photoAndVideoUseIdenticalPixelsAndWriteReviewImages",
+        "unknownSnapshotStyleFallsBackToClassicWithoutChangingData",
+        "rotatedVideoOverlayUsesPresentationGeometry"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.core.watermark.WatermarkFieldPresentationTest",
+      "tests": "4",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:42.858Z",
+      "cases": [
+        "blankAndDisabledFieldsStayHiddenWhileTheirOrderAndLabelsSurvive",
+        "longRenamedLabelsRemainCompleteAndInsideCardInEveryStyle",
+        "everyStyleUsesSavedLabelsAndMixedOrderWithoutChangingContents",
+        "oldSnapshotsKeepTheirHistoricalLabelsAndStyleOrdering"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.core.watermark.WatermarkFieldResolverTest",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:44.303Z",
+      "cases": [
+        "builtInSwitchesDoNotBecomeDuplicateCustomRows"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.core.watermark.WatermarkLayoutEngineTest",
+      "tests": "9",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:44.320Z",
+      "cases": [
+        "everyStyleBoundsLongFieldsInsideCardOnSmallAndLandscapeCanvases",
+        "minimumFontScaleKeepsGpsAndEveryEnabledLogicalFieldOnShortCanvases",
+        "addressAndGpsSwitchesAreIndependentAcrossAllStyles",
+        "testLongAddressTextWrapping",
+        "classicLongProjectNameStaysInsideCanvasAndUsesAtMostTwoTitleLines",
+        "testClassicLayoutCalculations",
+        "testLandscapeLayoutCalculations",
+        "testInfoBoardLayoutCalculations",
+        "testMinimalLayoutCalculations"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.core.watermark.WatermarkSnapshotCodecTest",
+      "tests": "3",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:44.650Z",
+      "cases": [
+        "roundTripKeepsCaptureTimeLocationAndCustomFields",
+        "explicitEmptyBuiltInFieldArrayRemainsEmpty",
+        "invalidOrMissingSnapshotDoesNotCrashRetryPath"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.feature.annotation.EditRecipeTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:44.675Z",
+      "cases": [
+        "serializedDrawAndTransformKeepCoordinatesAndOrder",
+        "wholeImageTransformsPreservePixelsAndCropDimensions"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.feature.annotation.ImageContentRectTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:49.552Z",
+      "cases": [
+        "fitMappingIncludesLetterboxOffsets",
+        "contentRectKnowsInteractiveBounds"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.feature.annotation.PhotoAnnotationViewModelIntegrationTest",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:49.559Z",
+      "cases": [
+        "opensRealContentUriTransformsSavesAndReopensWithoutChangingOriginal"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.feature.annotation.TextNoteGeometryTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:52.148Z",
+      "cases": [
+        "bubbleIsClampedInsideImageRect",
+        "longTextIsBoundedWithEllipsis"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.feature.camera.WatermarkEditEntryTest",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:52.156Z",
+      "cases": [
+        "hitTestingIsLimitedToExplicitEditEntry"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.feature.gallery.CaptureDateRangeTest",
+      "tests": "3",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:52.158Z",
+      "cases": [
+        "leapMonthAndYearIncludeLastDay",
+        "rangeUsesLocalCaptureDateAndInclusiveEnd",
+        "reversedDatesAreRejected"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.feature.icon.AppIconChoiceTest",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:52.179Z",
+      "cases": [
+        "resolverUsesStableOrderForAllChoicesAndFallsBackToD"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.feature.icon.AppIconPickerPackageManagerTest",
+      "tests": "4",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:52.188Z",
+      "cases": [
+        "upgradeWithOldExplicitBAndNewDefaultDRetainsOnlyBOnStartup[28]",
+        "upgradeWithOldExplicitBAndNewDefaultDRetainsOnlyBOnStartup",
+        "manifestDefaultsAndRuntimeOverridesKeepExactlyOneLauncherThroughAllChoices[28]",
+        "manifestDefaultsAndRuntimeOverridesKeepExactlyOneLauncherThroughAllChoices"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.feature.icon.AppIconVectorTest",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:54.478Z",
+      "cases": [
+        "iconCPathsCanBeParsedWithoutFallingBackToTheApplicationIcon"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.feature.permissions.PermissionAccessTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:54.577Z",
+      "cases": [
+        "actualPermissionReadAcceptsCoarseAndRechecksRevocation[30]",
+        "actualPermissionReadAcceptsCoarseAndRechecksRevocation"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.feature.permissions.PermissionGuidePersistenceTest",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:58.269Z",
+      "cases": [
+        "permissionCompletionPersistsIndependentlyOfFeatureTutorialMarker"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.feature.permissions.PermissionGuidePolicyTest",
+      "tests": "7",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:58.326Z",
+      "cases": [
+        "approximateLocationIsEnoughAndOnlyMissingCameraAndAudioAreRequested",
+        "completedRequestCanShowActualResultsUntilUserContinues",
+        "permanentlyDeniedItemsGoToSettingsInsteadOfBeingRequestedAgain",
+        "waitsForPersistentStateThenShowsFeatureGuideBeforePermissions",
+        "skippedOrDeniedGuideDoesNotReappearOnRestartOrTutorialReplay",
+        "fullyGrantedPermissionsSkipGuideIncludingFineOnlyVendorBehavior",
+        "initialRequestContainsOnlyForegroundCapturePermissionsAndLocationPair"
+      ]
+    },
+    {
+      "name": "com.sitecam.app.feature.projects.ProjectBrowserTest",
+      "tests": "5",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "timestamp": "2026-09-13T02:06:58.330Z",
+      "cases": [
+        "namesUseChineseOrderAndIgnoreLatinCaseWithStableId",
+        "emptyRoutesLastInBothDirectionsAndEqualRoutesKeepIdOrder",
+        "captureStatisticsUseCaptureTimeAcrossYearsNotEditTime",
+        "latestCaptureSortNeverUsesProjectUpdateDate",
+        "descendingCreationSortPutsNewestIdFirstWhenTimestampsTie"
+      ]
+    }
+  ]
+}

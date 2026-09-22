@@ -1,10 +1,19 @@
 package com.sitecam.app.feature.navigation
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Text
 import com.sitecam.app.core.layout.rememberScreenEnvironment
@@ -114,11 +123,37 @@ fun AppNavHost(
             },
             modifier = modifier
         )
-        StartupGate.APP -> NavHost(
-            navController = navController,
-            startDestination = Screen.Camera.route,
-            modifier = modifier
-        ) {
+        StartupGate.APP -> {
+            val springSpec = spring<Float>(
+                dampingRatio = 0.9f,
+                stiffness = Spring.StiffnessMediumLow
+            )
+            val springOffsetSpec = spring<IntOffset>(
+                dampingRatio = 0.9f,
+                stiffness = Spring.StiffnessMediumLow
+            )
+
+            NavHost(
+                navController = navController,
+                startDestination = Screen.Camera.route,
+                modifier = modifier,
+                enterTransition = {
+                    slideInHorizontally(animationSpec = springOffsetSpec) { width -> (width * 0.2f).toInt() } +
+                        fadeIn(animationSpec = springSpec)
+                },
+                exitTransition = {
+                    slideOutHorizontally(animationSpec = springOffsetSpec) { width -> -(width * 0.2f).toInt() } +
+                        fadeOut(animationSpec = springSpec)
+                },
+                popEnterTransition = {
+                    slideInHorizontally(animationSpec = springOffsetSpec) { width -> -(width * 0.2f).toInt() } +
+                        fadeIn(animationSpec = springSpec)
+                },
+                popExitTransition = {
+                    slideOutHorizontally(animationSpec = springOffsetSpec) { width -> (width * 0.2f).toInt() } +
+                        fadeOut(animationSpec = springSpec)
+                }
+            ) {
         composable(Screen.Camera.route) {
             val cameraViewModel: CameraViewModel = viewModel(
                 factory = CameraViewModel.provideFactory(appContainer)
@@ -246,7 +281,23 @@ fun AppNavHost(
                 navArgument("templateId") {
                     type = NavType.LongType
                 }
-            )
+            ),
+            enterTransition = {
+                slideInVertically(animationSpec = springOffsetSpec) { height -> (height * 0.25f).toInt() } +
+                    fadeIn(animationSpec = springSpec)
+            },
+            exitTransition = {
+                slideOutVertically(animationSpec = springOffsetSpec) { height -> (height * 0.25f).toInt() } +
+                    fadeOut(animationSpec = springSpec)
+            },
+            popEnterTransition = {
+                slideInVertically(animationSpec = springOffsetSpec) { height -> (height * 0.25f).toInt() } +
+                    fadeIn(animationSpec = springSpec)
+            },
+            popExitTransition = {
+                slideOutVertically(animationSpec = springOffsetSpec) { height -> (height * 0.25f).toInt() } +
+                    fadeOut(animationSpec = springSpec)
+            }
         ) { backStackEntry ->
             val templateId = backStackEntry.arguments?.getLong("templateId") ?: 1L
             val watermarkViewModel: WatermarkEditorViewModel = viewModel(
@@ -304,6 +355,7 @@ fun AppNavHost(
                 }
             )
         }
+    }
     }
     }
 

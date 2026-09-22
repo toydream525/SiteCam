@@ -1,0 +1,13 @@
+{
+  "device": "Huawei MatePad Mini",
+  "projectCount": 4,
+  "action": "全选",
+  "observedSelectedCounts": [
+    0,
+    4,
+    4,
+    0
+  ],
+  "observation": "Repeated UI snapshots after one select-all click show selection count reversing without another selection click.",
+  "endedWith": "完成"
+}

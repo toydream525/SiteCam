@@ -1,0 +1,12 @@
+0.3.0 (13) Release / SiteCamWideQA / API 26 emulator
+double unfold {'list': [0, 112, 818, 2152], 'detail': [819, 112, 2048, 2152]}
+filter with preview retained {'list': [0, 112, 818, 2152], 'detail': [819, 112, 2048, 2152]}
+triple unfold {'list': [0, 112, 1208, 2152], 'detail': [1209, 112, 3184, 2152]}
+folded preview preserved
+unfold again {'list': [0, 112, 818, 2152], 'detail': [819, 112, 2048, 2152]}
+parallel gallery PASS
+
+Left/right landscape and quick watermark sheet:
+左横屏 {'toolbar': [0, 0, 293, 2048], 'preview': [293, 469, 1772, 1579], 'controls': [1772, 0, 2232, 2048]}
+右横屏 {'toolbar': [0, 0, 293, 2048], 'preview': [293, 469, 1772, 1579], 'controls': [1772, 0, 2232, 2048]}
+wide watermark sheet: PASS

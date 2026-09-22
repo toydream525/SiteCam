@@ -42,9 +42,13 @@ fun GalleryScreen(viewModel: GalleryViewModel, onNavigateBack: () -> Unit,
         if(uri != null) viewModel.exportSelected(context, exportOptions, uri)
     }
     LaunchedEffect(viewModel) { viewModel.events.collect { event -> if(event is GalleryUiEvent.Message) Toast.makeText(context, event.text, Toast.LENGTH_LONG).show() } }
-    Scaffold(modifier = modifier.fillMaxSize(), topBar = { TopAppBar(title = { Text(state.currentProject?.name ?: "全部工程相册") },
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets.safeDrawing,
+        topBar = { TopAppBar(title = { Text(state.currentProject?.name ?: "全部工程相册") },
         navigationIcon = { IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
-        actions = { TextButton(onClick = { projectPicker = true }) { Text("切换工程") } }) }) { padding ->
+        actions = { TextButton(onClick = { projectPicker = true }) { Text("切换工程") } }) }
+    ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf(GalleryFilter.ALL to "全部", GalleryFilter.TODAY to "今天", GalleryFilter.ISSUES_ONLY to "问题").forEach { (filter, label) ->

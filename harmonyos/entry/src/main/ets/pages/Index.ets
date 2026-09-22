@@ -3,7 +3,7 @@ import { WindowEnvironment } from '../core/WindowEnvironment';
  import { CameraLayout, cameraLayout, captureDegrees, windowOrientationTarget } from '../core/CameraLayout';
 import { util } from '@kit.ArkTS';
 import { abilityAccessCtrl, common, Permissions } from '@kit.AbilityKit';
-import { promptAction, display, window } from '@kit.ArkUI';
+import { promptAction, display, window, curves } from '@kit.ArkUI';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { image } from '@kit.ImageKit';
 import { deviceInfo } from '@kit.BasicServicesKit';
@@ -70,6 +70,35 @@ struct Index {
   @State page: string='projects';
   @State pageOrigin: string='camera';
   @State galleryOrigin: string='camera';
+  @State navDirection: string='forward';
+  private readonly forwardTransition: TransitionEffect = TransitionEffect.asymmetric(
+    TransitionEffect.OPACITY.combine(TransitionEffect.translate({ x: '20%' }))
+      .animation({ curve: curves.springMotion(0.35, 0.9) }),
+    TransitionEffect.OPACITY.combine(TransitionEffect.translate({ x: '-20%' }))
+      .animation({ curve: curves.springMotion(0.35, 0.9) })
+  );
+  private readonly backwardTransition: TransitionEffect = TransitionEffect.asymmetric(
+    TransitionEffect.OPACITY.combine(TransitionEffect.translate({ x: '-20%' }))
+      .animation({ curve: curves.springMotion(0.35, 0.9) }),
+    TransitionEffect.OPACITY.combine(TransitionEffect.translate({ x: '20%' }))
+      .animation({ curve: curves.springMotion(0.35, 0.9) })
+  );
+  private readonly modalTransition: TransitionEffect = TransitionEffect.asymmetric(
+    TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: '25%' }))
+      .animation({ curve: curves.springMotion(0.35, 0.9) }),
+    TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: '25%' }))
+      .animation({ curve: curves.springMotion(0.35, 0.9) })
+  );
+
+  private getPageTransition(targetPage: string): TransitionEffect {
+    if (targetPage === 'watermark' || targetPage === 'move' || targetPage === 'category' || this.navDirection === 'modal') {
+      return this.modalTransition;
+    }
+    if (this.navDirection === 'backward') {
+      return this.backwardTransition;
+    }
+    return this.forwardTransition;
+  }
   @State projects: Project[]=[];
   @State items: MediaItem[]=[];
   @State settings: Settings=new Settings();
@@ -166,6 +195,7 @@ struct Index {
   private exportMediaProjectIds: number[]=[];
   private controller: XComponentController=new XComponentController();
   private surface: string='';
+  private openingCamera: boolean=false;
   private timer: number=-1;
   private recordingItem: MediaItem|null=null;
   private photoPermission: boolean=false;
@@ -234,16 +264,16 @@ struct Index {
     if(this.recording||this.busy){this.notify('请先结束当前操作');return true;}
     if(this.page==='gallery'&&this.galleryStack.size()>0&&!this.galleryStack.getAllPathName().includes('media-placeholder')){this.galleryStack.pop();return true;}
     if(this.page==='camera')return false;
-    if(this.page==='editor'){AlertDialog.show({title:'退出编辑？',message:'当前标注和裁剪尚未保存，退出后将丢失。',primaryButton:{value:'继续编辑',action:()=>{}},secondaryButton:{value:'放弃修改',fontColor:'#F44336',action:()=>this.task(async()=>this.navigate('detail'))}});return true;}
-    if(this.page==='projects'||this.page==='settings'){this.task(async()=>this.navigate('camera'));return true;}
-    if(this.page==='gallery'){this.task(async()=>this.navigate(this.galleryOrigin||'camera'));return true;}
+    if(this.page==='editor'){AlertDialog.show({title:'退出编辑？',message:'当前标注和裁剪尚未保存，退出后将丢失。',primaryButton:{value:'继续编辑',action:()=>{}},secondaryButton:{value:'放弃修改',fontColor:'#F44336',action:()=>this.task(async()=>this.navigate('detail','backward'))}});return true;}
+    if(this.page==='projects'||this.page==='settings'){this.task(async()=>this.navigate('camera','backward'));return true;}
+    if(this.page==='gallery'){this.task(async()=>this.navigate(this.galleryOrigin||'camera','backward'));return true;}
     const back=this.page==='detail'||this.page==='move'?'gallery':this.page==='editor'?'detail':this.page==='watermark'?this.styleReturn:this.page==='help'?'settings':this.pageOrigin||'camera';
-    this.task(async()=>{if(this.page==='watermark')await this.persistWatermarkBeforeLeave();await this.navigate(back);});return true;
+    this.task(async()=>{if(this.page==='watermark')await this.persistWatermarkBeforeLeave();await this.navigate(back,'backward');});return true;
   }
-  private async refresh(): Promise<void> {this.projects=await store.projects();this.items=await store.media();this.templates=await store.templates();this.projectCategories=(await store.categories()).map(c=>c.name);if(this.settings.currentProject&&!this.projects.some((p:Project)=>p.id===this.settings.currentProject)){this.settings.currentProject=0;this.settings.projectSelectionCleared=true;await this.persist();}const activeDetailId=this.detail.id;if(activeDetailId){const latest=this.items.find((m:MediaItem)=>m.id===activeDetailId);if(latest)this.detail=JSON.parse(JSON.stringify(latest)) as MediaItem;else{this.detail=new MediaItem();if(this.page==='detail'){this.galleryStack.clear();this.page='gallery';}}}}
+  private async refresh(): Promise<void> {this.projects=await store.projects();this.items=await store.media();this.templates=await store.templates();this.projectCategories=(await store.categories()).map(c=>c.name);if(this.settings.currentProject&&!this.projects.some((p:Project)=>p.id===this.settings.currentProject)){this.settings.currentProject=0;this.settings.projectSelectionCleared=true;await this.persist();}const activeDetailId=this.detail.id;if(activeDetailId){const latest=this.items.find((m:MediaItem)=>m.id===activeDetailId);if(latest)this.detail=JSON.parse(JSON.stringify(latest)) as MediaItem;else{this.detail=new MediaItem();if(this.page==='detail'){this.galleryStack.clear();await this.navigate('gallery','backward');}}}}
   private async task(action: ()=>Promise<void>): Promise<void> {if(this.busy)return;this.busy=true;try{await action();}catch(e){console.error('SITECAM_ACTION '+(e as Error).stack);this.notify((e as Error).message||'操作未完成');}finally{this.busy=false;}}
-  private notify(text: string): void {this.message=text;promptAction.showToast({message:text,duration:3000});}
-  private async copyDiagnostics(): Promise<void> {const cameraInfo=this.camera?`\n闪光：${this.camera.flashDiagnostics}\n倍率：${this.camera.zoomRatio}×（范围 ${this.camera.zoomMin}–${this.camera.zoomMax}，候选 ${this.camera.zoomPresets.join(',')}）`:'';const text=`设备：${deviceInfo.productModel||'未知'}\nSDK：${deviceInfo.sdkApiVersion}\n版本：v0.3.0${cameraInfo}`;const board=pasteboard.getSystemPasteboard();await board.setData(pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN,text));this.notify('诊断信息已复制');}
+  private notify(text: string): void {promptAction.showToast({message:text,duration:3000});}
+  private async copyDiagnostics(): Promise<void> {const cameraInfo=this.camera?`\n闪光：${this.camera.flashDiagnostics}\n倍率：${this.camera.zoomRatio}×（范围 ${this.camera.zoomMin}–${this.camera.zoomMax}，候选 ${this.camera.zoomPresets.join(',')}）`:'';const text=`设备：${deviceInfo.productModel||'未知'}\nSDK：${deviceInfo.sdkApiVersion}\n版本：v0.3.2${cameraInfo}`;const board=pasteboard.getSystemPasteboard();await board.setData(pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN,text));this.notify('诊断信息已复制');}
   private async openExternal(url: string): Promise<void> {await this.context.startAbility({uri:url,action:'ohos.want.action.viewData'});}
   private current(): Project {return this.projects.find(p=>p.id===this.settings.currentProject)||new Project();}
   private async persist(): Promise<void> {store.settings=this.settings;await store.saveSettings();}
@@ -306,9 +336,98 @@ struct Index {
     }
     return uri;
   }
-  private async navigate(page: string): Promise<void> {if(this.recording){this.notify('请先结束录像');return;}if(page==='gallery'){this.galleryOrigin=this.page==='projects'?'projects':this.page==='camera'?'camera':this.galleryOrigin;}if(page==='projects'||page==='settings')this.pageOrigin=this.page==='camera'?'camera':this.pageOrigin;
-if(this.page==='editor'&&page!=='editor'){for(const path of this.previewFiles)await this.files!.removePath(path);this.previewFiles=[];this.editTarget=null;}if(this.page==='camera'&&page!=='camera'){this.lifecycleToken++;this.cameraReady=false;this.syncFlashUi();await this.restoreWindowOrientation();await this.camera?.close();this.syncFlashUi();this.location.stop();if(this.timer>=0){clearInterval(this.timer);this.timer=-1;}}this.page=page;this.updateCameraSystemBars();this.message='';if(page==='camera'&&!this.current().id){this.page='projects';this.notify('请先新建或选择一个工程');}}
-  private async foregroundChanged(): Promise<void> {this.lifecycleToken++;if(!this.foreground){await this.shutterSound.suspend();await this.restoreWindowOrientation();if(this.recording){try{await this.stopVideo();}catch(e){this.notify((e as Error).message||'录像已安全收尾');}}this.cameraReady=false;this.syncFlashUi();await this.camera?.close();this.syncFlashUi();this.location.stop();this.video.cancel();}else{this.shutterSound.resume();if(this.page==='permissions'){await this.permissions(false);}else if(this.page==='camera'&&this.surface){await this.task(async()=>this.openCamera());}}}
+  private async navigate(page: string, forcedDirection?: string): Promise<void> {
+    if(this.recording){this.notify('请先结束录像');return;}
+    if(this.page===page)return;
+    if(page==='gallery'){this.galleryOrigin=this.page==='projects'?'projects':this.page==='camera'?'camera':this.galleryOrigin;}
+    if(page==='projects'||page==='settings')this.pageOrigin=this.page==='camera'?'camera':this.pageOrigin;
+    if(this.page==='editor'&&page!=='editor'){for(const path of this.previewFiles)await this.files!.removePath(path);this.previewFiles=[];this.editTarget=null;}
+
+    let dir: string;
+    if(forcedDirection){
+      dir=forcedDirection;
+    }else if(page==='watermark'||page==='move'||page==='category'||this.page==='watermark'||this.page==='move'||this.page==='category'){
+      dir='modal';
+    }else{
+      const depth: Record<string, number>={
+        'camera':0,
+        'projects':1,
+        'gallery':1,
+        'settings':1,
+        'permissions':2,
+        'guide':2,
+        'export':2,
+        'help':2,
+        'projectEdit':2,
+        'detail':2,
+        'editor':3
+      };
+      const fromDepth=depth[this.page]!==undefined?depth[this.page]:1;
+      const toDepth=depth[page]!==undefined?depth[page]:1;
+      dir=toDepth>=fromDepth?'forward':'backward';
+    }
+    this.navDirection=dir;
+
+    if(this.page==='camera'&&page!=='camera'){
+      this.lifecycleToken++;
+      this.cameraReady=false;
+      this.syncFlashUi();
+      await this.restoreWindowOrientation();
+      await this.camera?.close();
+      this.syncFlashUi();
+      this.location.stop();
+      if(this.timer>=0){clearInterval(this.timer);this.timer=-1;}
+    }
+    this.getUIContext().animateTo({ curve: curves.springMotion(0.35, 0.9) }, () => {
+      this.page=page;
+    });
+    this.updateCameraSystemBars();
+    this.message='';
+    if(page==='camera'){
+      if(!this.current().id){
+        this.getUIContext().animateTo({ curve: curves.springMotion(0.35, 0.9) }, () => {
+          this.page='projects';
+        });
+        this.notify('请先新建或选择一个工程');
+      }else{
+        void this.ensureCamera();
+      }
+    }
+  }
+  private async ensureCamera(): Promise<void> {
+    if(this.openingCamera)return;
+    if(!this.foreground||this.page!=='camera')return;
+    if(!this.surface){
+      try{
+        const sid=this.controller.getXComponentSurfaceId();
+        if(sid)this.surface=sid;
+      }catch(e){}
+    }
+    if(this.surface){
+      await this.openCamera();
+    }
+  }
+  private async foregroundChanged(): Promise<void> {
+    this.lifecycleToken++;
+    if(!this.foreground){
+      await this.shutterSound.suspend();
+      await this.restoreWindowOrientation();
+      if(this.recording){try{await this.stopVideo();}catch(e){this.notify((e as Error).message||'录像已安全收尾');}}
+      this.cameraReady=false;
+      this.syncFlashUi();
+      await this.camera?.close();
+      this.syncFlashUi();
+      this.location.stop();
+      this.video.cancel();
+    }else{
+      this.shutterSound.resume();
+      if(this.page==='permissions'){
+        await this.permissions(false);
+      }else if(this.page==='camera'){
+        void this.ensureCamera();
+      }
+    }
+  }
   private async permissions(request: boolean): Promise<void> {
     const manager=abilityAccessCtrl.createAtManager();const token=this.context.applicationInfo.accessTokenId;
     const list: Permissions[]=['ohos.permission.CAMERA','ohos.permission.APPROXIMATELY_LOCATION','ohos.permission.LOCATION','ohos.permission.MICROPHONE'];
@@ -353,7 +472,72 @@ if(this.page==='editor'&&page!=='editor'){for(const path of this.previewFiles)aw
       throw e as Error;
     }
   }
-  private async openCamera(): Promise<void> {if(!this.foreground||this.page!=='camera'||!this.surface)return;this.cameraReady=false;this.syncFlashUi();this.updateCameraSystemBars();await this.permissions(false);if(!this.photoPermission){this.cameraReady=false;this.syncFlashUi();this.message='请开启相机权限后拍摄';return;}await this.applyWindowOrientation(this.settings.orientation);await this.camera?.close();if(!this.camera)this.camera=new CameraService(this.context);const cameraLifecycle=this.lifecycleToken;this.camera.onZoomChanged=(value:number)=>{if(this.foreground&&this.page==='camera'&&this.lifecycleToken===cameraLifecycle&&this.cameraReady)this.zoom=value;};this.camera.onError=(msg: string)=>{if(!this.foreground||this.page!=='camera'||this.lifecycleToken!==cameraLifecycle)return;this.cameraReady=false;this.syncFlashUi();if(this.recording)this.stopVideo().catch((e: Error)=>this.notify(e.message));this.notify(msg);};const displayDegrees=this.effectiveDegrees();try{this.controller.setXComponentSurfaceRotation({lock:true});}catch(e){}await this.camera.open(this.surface,'',false,displayDegrees);try{console.info(`SITECAM_XCOMPONENT_CONFIG ${this.camera.previewWidth}x${this.camera.previewHeight} rotation=${JSON.stringify(this.controller.getXComponentSurfaceRotation())}`);}catch(e){console.warn('SITECAM_XCOMPONENT_CONFIG_FAILED '+(e as Error).message);}this.cameraReady=true;this.syncFlashUi();this.syncZoomUi();if(this.settings.shutterSoundEnabled)void this.shutterSound.warmUp(this.context);this.updateFrameRatio();this.message=this.camera.photoSupported?'':'当前设备仅支持预览，拍照能力不可用';this.location.start();this.snapshot=captureSnapshot(this.current(),this.settings,this.location.fix);if(this.timer>=0)clearInterval(this.timer);this.timer=setInterval(()=>{if(!this.recording&&!this.captureInFlight&&!this.videoStarting)this.snapshot=captureSnapshot(this.current(),this.settings,this.location.fix);},1000);}
+  private async openCamera(): Promise<void> {
+    if(this.openingCamera)return;
+    if(!this.foreground||this.page!=='camera'||!this.surface)return;
+    this.openingCamera=true;
+    try {
+      this.cameraReady=false;
+      this.syncFlashUi();
+      this.updateCameraSystemBars();
+      await this.permissions(false);
+      if(!this.photoPermission){
+        this.cameraReady=false;
+        this.syncFlashUi();
+        this.message='请开启相机权限后拍摄';
+        return;
+      }
+      await this.applyWindowOrientation(this.settings.orientation);
+      await this.camera?.close();
+      if(!this.camera)this.camera=new CameraService(this.context);
+      const cameraLifecycle=this.lifecycleToken;
+      this.camera.onZoomChanged=(value:number)=>{
+        if(this.foreground&&this.page==='camera'&&this.lifecycleToken===cameraLifecycle&&this.cameraReady)this.zoom=value;
+      };
+      this.camera.onError=(msg: string)=>{
+        if(!this.foreground||this.page!=='camera'||this.lifecycleToken!==cameraLifecycle)return;
+        this.cameraReady=false;
+        this.syncFlashUi();
+        if(this.recording)this.stopVideo().catch((e: Error)=>this.notify(e.message));
+        this.notify(msg);
+      };
+      const displayDegrees=this.effectiveDegrees();
+      try{
+        this.controller.setXComponentSurfaceRotation({lock:true});
+      }catch(e){}
+      await this.camera.open(this.surface,'',false,displayDegrees);
+      try{
+        console.info(`SITECAM_XCOMPONENT_CONFIG ${this.camera.previewWidth}x${this.camera.previewHeight} rotation=${JSON.stringify(this.controller.getXComponentSurfaceRotation())}`);
+      }catch(e){
+        console.warn('SITECAM_XCOMPONENT_CONFIG_FAILED '+(e as Error).message);
+      }
+      if(!this.foreground||this.page!=='camera'||this.lifecycleToken!==cameraLifecycle){
+        await this.camera.close();
+        this.cameraReady=false;
+        this.syncFlashUi();
+        return;
+      }
+      this.cameraReady=true;
+      this.syncFlashUi();
+      this.syncZoomUi();
+      if(this.settings.shutterSoundEnabled)void this.shutterSound.warmUp(this.context);
+      this.updateFrameRatio();
+      this.message=this.camera.photoSupported?'':'当前设备仅支持预览，拍照能力不可用';
+      this.location.start();
+      this.snapshot=captureSnapshot(this.current(),this.settings,this.location.fix);
+      if(this.timer>=0)clearInterval(this.timer);
+      this.timer=setInterval(()=>{
+        if(!this.recording&&!this.captureInFlight&&!this.videoStarting)this.snapshot=captureSnapshot(this.current(),this.settings,this.location.fix);
+      },1000);
+    } catch(e) {
+      this.cameraReady=false;
+      this.syncFlashUi();
+      this.message='相机启动失败，请重试';
+      console.warn('SITECAM_OPEN_CAMERA_FAILED '+(e as Error).message);
+    } finally {
+      this.openingCamera=false;
+    }
+  }
   private updateFrameRatio(): void {if(!this.camera||this.captureInFlight||this.recording||this.videoStarting)return;const displayDegrees=this.effectiveDegrees();try{this.camera.orientPreview(displayDegrees);}catch(e){}const ratio=this.camera.previewWidth/this.camera.previewHeight;const actual=this.camera.getActualPreviewRotation();this.sourcePreviewRatio=actual>=0&&actual%180!==0?1/ratio:ratio;this.frameRatio=this.captureMode==='photo'?(displayDegrees%180===0?3/4:4/3):this.sourcePreviewRatio;console.info(`SITECAM_FRAME_RATIO source=${this.camera.previewWidth}x${this.camera.previewHeight} displayDegrees=${displayDegrees} actualPreviewRotation=${actual} effective=${this.frameRatio}`);}
   private setPreviewSurfaceArea(width:number,height:number): void {if(width<=0||height<=0)return;try{const density=display.getDefaultDisplaySync().densityPixels||1;const pxWidth=width*density,pxHeight=height*density;this.controller.setXComponentSurfaceRect({offsetX:0,offsetY:0,surfaceWidth:pxWidth,surfaceHeight:pxHeight});console.info(`SITECAM_XCOMPONENT_RECT vp=${width}x${height} px=${pxWidth}x${pxHeight} density=${density}`);}catch(e){console.warn('SITECAM_XCOMPONENT_RECT_FAILED '+(e as Error).message);}}
   private frameWidth(): number {return this.cameraGeometry().previewWidth;}
@@ -435,30 +619,30 @@ if(this.page==='editor'&&page!=='editor'){for(const path of this.previewFiles)aw
   private async batchMoreDialog(): Promise<void> { this.actionDialog=new CustomDialogController({customStyle:true,builder:ProjectBatchActionDialog({selectedCount:this.selected.length,onAction:(action:string)=>{if(action==='category')this.openCategoryDialog();else if(action==='delete')this.confirmDelete(true);else this.task(async()=>this.projectBatch(action));},onCancel:()=>{}})});this.actionDialog!.open(); }
   private projectSortDialog(): void {AlertDialog.show({title:'排序方式',message:'选择工程列表排序',primaryButton:{value:'取消',action:()=>{}},buttons:[{value:'最近拍摄',action:()=>{this.sort=0;}},{value:'创建时间',action:()=>{this.sort=1;}},{value:'最近修改',action:()=>{this.sort=2;}},{value:'名称',action:()=>{this.sort=3;}},{value:'线路',action:()=>{this.sort=4;}}]});}
   private toggleMedia(id: number): void {this.mediaSelection=this.mediaSelection.includes(id)?this.mediaSelection.filter(v=>v!==id):this.mediaSelection.concat(id);}
-  private deleteDetail(): void {AlertDialog.show({title:'删除资料？',message:'将删除工程相册中的原件和编辑成品，系统相册副本不受影响。',primaryButton:{value:'取消',action:()=>{}},secondaryButton:{value:'删除',fontColor:'#F44336',action:()=>{this.task(async()=>{await this.files!.remove(this.detail);await store.deleteMedia(this.detail.id);this.detail=new MediaItem();this.galleryStack.clear();await this.refresh();this.page='gallery';this.notify('资料已删除');});}}});}
+  private deleteDetail(): void {AlertDialog.show({title:'删除资料？',message:'将删除工程相册中的原件和编辑成品，系统相册副本不受影响。',primaryButton:{value:'取消',action:()=>{}},secondaryButton:{value:'删除',fontColor:'#F44336',action:()=>{this.task(async()=>{await this.files!.remove(this.detail);await store.deleteMedia(this.detail.id);this.detail=new MediaItem();this.galleryStack.clear();await this.refresh();await this.navigate('gallery','backward');this.notify('资料已删除');});}}});}
   private editProject(p: Project): void {this.draft=JSON.parse(JSON.stringify(p)) as Project;this.editorDialog=new CustomDialogController({customStyle:true,builder:ProjectEditorDialog({project:this.draft,categories:this.projectCategories.length?this.projectCategories:['其他'],onConfirm:(value: Project)=>this.task(async()=>{this.draft=value;await this.saveProject();}),onCancel:()=>{}})});this.editorDialog!.open();}
-  private async saveProject(): Promise<void> {if(!this.draft.name.trim())throw new Error('请填写工程名称');const creating=!this.draft.id;this.draft.name=this.draft.name.trim();await store.putProject(this.draft);await this.refresh();if(creating){await this.selectProject(this.draft);return;}this.page='projects';}
+  private async saveProject(): Promise<void> {if(!this.draft.name.trim())throw new Error('请填写工程名称');const creating=!this.draft.id;this.draft.name=this.draft.name.trim();await store.putProject(this.draft);await this.refresh();if(creating){await this.selectProject(this.draft);return;}await this.navigate('projects','backward');}
   private async projectBatch(action: string): Promise<void> {if((action==='lock'||action==='unlock'||action==='archive'||action==='restore')&&(this.captureInFlight||this.recording||this.stoppingVideo||this.video.running))throw new Error('正在拍摄或保存，完成后再操作工程');const liveProjects=await store.projects('UPDATED',false,'ALL');for(const id of this.selected){const p=liveProjects.find((value:Project)=>value.id===id);if(!p)continue;if(action==='lock')await store.updateProjectCaptureLock(id,true);else if(action==='unlock')await store.updateProjectCaptureLock(id,false);else if(action==='archive')await store.updateProjectArchive(id,true);else if(action==='restore')await store.updateProjectArchive(id,false);else if(action==='category'){p.category=this.batchProjectCategory||'未分类';await store.putProject(p);}}this.selected=[];this.batchMode=false;await this.refresh();}
   private openProjectMenu(p: Project): void {AlertDialog.show({title:p.name,message:'选择一项工程操作',buttons:[{value:'取消',action:()=>{}},{value:p.id===this.settings.currentProject?'返回当前工程':'切换到此工程',action:()=>this.requestProjectSwitch(p)},{value:'查看资料',action:()=>this.task(async()=>{this.filterProject=p.id;await this.navigate('gallery');})},{value:p.locked?'解锁拍摄':'锁定拍摄',action:()=>this.requestProjectStatus(p,'lock')},{value:p.archived?'恢复工程':'归档工程',action:()=>this.requestProjectStatus(p,'archive')},{value:'删除工程',fontColor:'#F44336',action:()=>{this.selected=[p.id];this.confirmDelete(true);}}]});}
   private openCategoryDialog(): void {this.actionDialog=new CustomDialogController({customStyle:true,builder:ProjectCategoryDialog({categories:this.projectCategories.length?this.projectCategories:['其他'],onSelect:(name:string)=>{this.batchProjectCategory=name;this.task(async()=>this.projectBatch('category'));},onCancel:()=>{}})});this.actionDialog!.open();}
-  private projectPickerDialog(): void {const buttons: AlertDialogButtonOptions[]=[{value:'全部工程',action:()=>{this.filterProject=0;this.page='gallery';}}];for(const p of this.projects)buttons.push({value:p.name,action:()=>{this.mediaSelection=[];this.filterProject=p.id;this.page='gallery';}});AlertDialog.show({title:'选择工程相册',message:'选择要查看的工程',primaryButton:{value:'取消',action:()=>{}},buttons});}
-  private openMoveDialog(): void {this.actionDialog=new CustomDialogController({customStyle:true,builder:ProjectMoveDialog({projects:this.projects,onSelect:(projectId:number)=>this.task(async()=>{await store.moveMedia(this.mediaSelection,projectId);this.mediaSelection=[];await this.refresh();this.page='gallery';}),onCancel:()=>{}})});this.actionDialog!.open();}
+  private projectPickerDialog(): void {const buttons: AlertDialogButtonOptions[]=[{value:'全部工程',action:()=>{this.filterProject=0;this.task(async()=>this.navigate('gallery','forward'));}}];for(const p of this.projects)buttons.push({value:p.name,action:()=>{this.mediaSelection=[];this.filterProject=p.id;this.task(async()=>this.navigate('gallery','forward'));}});AlertDialog.show({title:'选择工程相册',message:'选择要查看的工程',primaryButton:{value:'取消',action:()=>{}},buttons});}
+  private openMoveDialog(): void {this.actionDialog=new CustomDialogController({customStyle:true,builder:ProjectMoveDialog({projects:this.projects,onSelect:(projectId:number)=>this.task(async()=>{await store.moveMedia(this.mediaSelection,projectId);this.mediaSelection=[];await this.refresh();await this.navigate('gallery','backward');}),onCancel:()=>{}})});this.actionDialog!.open();}
   private confirmDelete(projects: boolean): void {AlertDialog.show({title:projects?'删除所选工程？':'删除所选资料？',message:'将删除应用内原件和编辑成品，系统相册副本不受影响。此操作无法撤销。',primaryButton:{value:'取消',action:()=>{}},secondaryButton:{value:'删除',fontColor:'#CF3A31',action:()=>{this.task(async()=>{if(projects){for(const id of this.selected){for(const m of this.items.filter(v=>v.projectId===id))await this.files!.remove(m);await store.deleteProject(id);}this.selected=[];}else{for(const id of this.mediaSelection){const m=this.items.find(v=>v.id===id);if(m){await this.files!.remove(m);await store.deleteMedia(id);}}this.mediaSelection=[];}await this.refresh();});}}});}
   private exportStart(ids: number[],mediaIds: number[]=[]): void {this.exportIds=ids.slice();this.exportMediaIds=mediaIds.slice();this.exportMediaProjectIds=this.exportMediaIds.map(id=>this.items.find((m:MediaItem)=>m.id===id)?.projectId||0);this.actionDialog=new CustomDialogController({customStyle:true,builder:ExportChoiceDialog({onZip:(quality:number)=>{this.exportFolder=false;this.exportQuality=quality;this.task(async()=>this.exportNow());},onFolder:(quality:number)=>{this.exportFolder=true;this.exportQuality=quality;this.task(async()=>this.exportNow());},onCancel:()=>{}})});this.actionDialog!.open();}
   private async exportNow(): Promise<void> {const selectedMediaIds=this.exportMediaIds.slice();const selectedProjectIds=this.exportIds.slice();const liveItems=await store.media();const items=liveItems.filter(m=>selectedMediaIds.length?selectedMediaIds.includes(m.id):selectedProjectIds.includes(m.projectId));if(selectedMediaIds.length!==0){if(items.length!==selectedMediaIds.length)throw new Error('选中的资料已变化，请刷新后重试');for(let i=0;i<selectedMediaIds.length;i++){const live=items.find((m:MediaItem)=>m.id===selectedMediaIds[i]);if(!live||this.exportMediaProjectIds[i]!==live.projectId)throw new Error('选中的资料已移动，请刷新后重试');}}const projectIds=selectedMediaIds.length?Array.from(new Set(items.map(m=>m.projectId))):selectedProjectIds;const liveProjects=await store.projects('UPDATED',false,'ALL');const projects=liveProjects.filter(p=>projectIds.includes(p.id));if(!projects.length)throw new Error('请先选择工程');const path=await this.exporter!.run(projects,items,this.exportFolder,this.exportQuality,v=>this.message=v);this.notify(this.exporter!.failures?`导出完成，${this.exporter!.failures} 项未成功，请查看报告`:'导出完成：'+path);}
   private openDetail(m: MediaItem): void {if(this.detail.id!==m.id){this.detail=JSON.parse(JSON.stringify(m)) as MediaItem;this.showEdited=true;this.viewScale=1;this.viewX=0;this.viewY=0;}if(!this.galleryStack.getAllPathName().includes('media')){this.galleryStack.clear();this.galleryStack.pushPath({name:'media'});}}
-  private openStyles(from: string): void {this.styleDraft=JSON.parse(JSON.stringify(this.settings.watermark)) as Watermark;this.styleReturn=from;this.draftTemplateId=this.settings.templateId||0;this.templateName=this.templates.find(t=>t.id===this.settings.templateId)?.name||'我的模板';this.page='watermark';}
+  private openStyles(from: string): void {this.styleDraft=JSON.parse(JSON.stringify(this.settings.watermark)) as Watermark;this.styleReturn=from;this.draftTemplateId=this.settings.templateId||0;this.templateName=this.templates.find(t=>t.id===this.settings.templateId)?.name||'我的模板';this.task(async()=>this.navigate('watermark','modal'));}
   private styleSnapshot(id: string): Snapshot {const s=captureSnapshot(this.current().id?this.current():this.example(),this.settings,this.location.fix);s.watermark=JSON.parse(JSON.stringify(this.styleDraft)) as Watermark;s.watermark.style=id;return s;}
   private example(): Project {const p=new Project();p.name='滨江路雨污分流改造';p.address='北段雨水管施工现场';return p;}
-  private async saveWatermark(): Promise<void> {this.settings.watermark=JSON.parse(JSON.stringify(this.styleDraft)) as Watermark;await this.persist();const t=new WatermarkTemplate();t.id=this.draftTemplateId;t.name=this.templateName||'我的模板';t.config=JSON.stringify(this.settings.watermark);await store.putTemplate(t);this.settings.templateId=t.id;await this.persist();await this.refresh();this.page=this.styleReturn;}
+  private async saveWatermark(): Promise<void> {this.settings.watermark=JSON.parse(JSON.stringify(this.styleDraft)) as Watermark;await this.persist();const t=new WatermarkTemplate();t.id=this.draftTemplateId;t.name=this.templateName||'我的模板';t.config=JSON.stringify(this.settings.watermark);await store.putTemplate(t);this.settings.templateId=t.id;await this.persist();await this.refresh();await this.navigate(this.styleReturn,'modal');}
   private persistQuickWatermark(): void {this.settings.watermark=JSON.parse(JSON.stringify(this.styleDraft)) as Watermark;store.settings=this.settings;store.saveCurrentWatermark().catch((e:Error)=>this.notify(e.message));}
   private async persistWatermarkBeforeLeave(): Promise<void> {this.settings.watermark=JSON.parse(JSON.stringify(this.styleDraft)) as Watermark;store.settings=this.settings;await store.saveCurrentWatermark();}
-  private async beginEdit(): Promise<void> {const target=JSON.parse(JSON.stringify(this.detail)) as MediaItem;const targetId=target.id;if(!targetId)return;this.editTarget=target;this.recipe=new EditRecipe();const annotations=await store.annotations(targetId);if(this.detail.id!==targetId){this.editTarget=null;return;}if(annotations.length&&annotations[0].vectorDataJson){try{this.recipe=JSON.parse(annotations[0].vectorDataJson) as EditRecipe;}catch(e){this.recipe=new EditRecipe();}}this.history=[];this.redoHistory=[];this.previewFiles=[];this.editPreview=target.path;this.editRatio=target.width/Math.max(1,target.height);this.cropMode=false;this.page='editor';await this.renderEdit();}
+  private async beginEdit(): Promise<void> {const target=JSON.parse(JSON.stringify(this.detail)) as MediaItem;const targetId=target.id;if(!targetId)return;this.editTarget=target;this.recipe=new EditRecipe();const annotations=await store.annotations(targetId);if(this.detail.id!==targetId){this.editTarget=null;return;}if(annotations.length&&annotations[0].vectorDataJson){try{this.recipe=JSON.parse(annotations[0].vectorDataJson) as EditRecipe;}catch(e){this.recipe=new EditRecipe();}}this.history=[];this.redoHistory=[];this.previewFiles=[];this.editPreview=target.path;this.editRatio=target.width/Math.max(1,target.height);this.cropMode=false;await this.navigate('editor','forward');await this.renderEdit();}
   private openCropDialog(): void {this.cropDialog=new CustomDialogController({customStyle:true,builder:CropDialog({previewPath:this.editPreview,imageRatio:this.editRatio,initialLeft:this.cropLeft,initialTop:this.cropTop,initialRight:this.cropRight,initialBottom:this.cropBottom,onApply:(left:number,top:number,right:number,bottom:number)=>{this.cropLeft=left;this.cropTop=top;this.cropRight=right;this.cropBottom=bottom;this.pushEdit();const step=new EditStep('crop');step.mark.x=left;step.mark.y=top;step.mark.endX=right;step.mark.endY=bottom;this.recipe.steps=this.recipe.steps.concat(step);this.task(async()=>this.renderEdit());}})});this.cropDialog!.open();}
   private pushEdit(): void {this.history=this.history.concat(JSON.stringify(this.recipe));this.redoHistory=[];}
   private async renderEdit(): Promise<void> {const target=this.editTarget;if(!target||!target.id||this.detail.id!==target.id)return;const targetId=target.id;const revision=++this.editRevision;const path=await this.files!.edit(JSON.parse(JSON.stringify(target)) as MediaItem,JSON.parse(JSON.stringify(this.recipe)) as EditRecipe,0);if(revision!==this.editRevision||this.detail.id!==targetId||!this.editTarget||this.editTarget.id!==targetId){await this.files!.removePath(path);return;}this.previewFiles.push(path);const source=image.createImageSource(path);try{const info=await source.getImageInfo();if(revision===this.editRevision&&this.detail.id===targetId&&this.editTarget?.id===targetId){this.editPreview=path;this.editRatio=info.size.width/info.size.height;}}finally{await source.release();}}
   private async undo(redo: boolean): Promise<void> {if(redo){if(!this.redoHistory.length)return;this.history=this.history.concat(JSON.stringify(this.recipe));this.recipe=JSON.parse(this.redoHistory[this.redoHistory.length-1]) as EditRecipe;this.redoHistory=this.redoHistory.slice(0,-1);}else{if(!this.history.length)return;this.redoHistory=this.redoHistory.concat(JSON.stringify(this.recipe));this.recipe=JSON.parse(this.history[this.history.length-1]) as EditRecipe;this.history=this.history.slice(0,-1);}await this.renderEdit();}
-  private async saveEdit(): Promise<void> {const editTarget=this.editTarget;if(!editTarget||!editTarget.id||this.detail.id!==editTarget.id)throw new Error('资料已切换，请重新进入编辑');const target=JSON.parse(JSON.stringify(editTarget)) as MediaItem;const targetId=target.id;const recipe=JSON.parse(JSON.stringify(this.recipe)) as EditRecipe;const old=target.edited;let next='';let committed=false;try{next=await this.files!.edit(target,recipe,this.settings.photoQuality);const annotation=new Annotation();annotation.mediaId=targetId;annotation.annotatedContentUri=next;annotation.vectorDataJson=JSON.stringify(recipe);await store.putAnnotation(annotation);committed=true;if(this.detail.id===targetId)this.detail.edited=next;if(this.settings.albumCopy){try{const uri=await this.saveAlbumCopy(target,next);if(uri&&this.detail.id===targetId)this.detail.albumUri=uri;}catch(e){this.notify('成品已保存，但系统相册副本失败：'+(e as Error).message);}}if(old){try{await this.files!.removePath(old);}catch(e){console.warn('SITECAM_OLD_EDIT_CLEANUP '+(e as Error).message);}}for(const path of this.previewFiles)await this.files!.removePath(path);this.previewFiles=[];await this.refresh();this.editTarget=null;if(this.page==='editor')this.page='detail';}catch(e){if(!committed&&next)await this.files!.removePath(next);throw e as Error;}}
+  private async saveEdit(): Promise<void> {const editTarget=this.editTarget;if(!editTarget||!editTarget.id||this.detail.id!==editTarget.id)throw new Error('资料已切换，请重新进入编辑');const target=JSON.parse(JSON.stringify(editTarget)) as MediaItem;const targetId=target.id;const recipe=JSON.parse(JSON.stringify(this.recipe)) as EditRecipe;const old=target.edited;let next='';let committed=false;try{next=await this.files!.edit(target,recipe,this.settings.photoQuality);const annotation=new Annotation();annotation.mediaId=targetId;annotation.annotatedContentUri=next;annotation.vectorDataJson=JSON.stringify(recipe);await store.putAnnotation(annotation);committed=true;if(this.detail.id===targetId)this.detail.edited=next;if(this.settings.albumCopy){try{const uri=await this.saveAlbumCopy(target,next);if(uri&&this.detail.id===targetId)this.detail.albumUri=uri;}catch(e){this.notify('成品已保存，但系统相册副本失败：'+(e as Error).message);}}if(old){try{await this.files!.removePath(old);}catch(e){console.warn('SITECAM_OLD_EDIT_CLEANUP '+(e as Error).message);}}for(const path of this.previewFiles)await this.files!.removePath(path);this.previewFiles=[];await this.refresh();this.editTarget=null;if(this.page==='editor')await this.navigate('detail','backward');}catch(e){if(!committed&&next)await this.files!.removePath(next);throw e as Error;}}
   private async editorTouch(e: TouchEvent): Promise<void> {
     if(this.busy)return;
     if(e.type===TouchType.Down&&e.touches.length){this.touchX=Math.max(0,Math.min(1,e.touches[0].x/this.editorWidth));this.touchY=Math.max(0,Math.min(1,e.touches[0].y/this.editorHeight));this.strokePoints=[this.touchX,this.touchY];}
@@ -485,7 +669,7 @@ Row({space:8}){if(!this.batchMode){Select(PROJECT_SORT_LABELS.map((value: string
 if(this.batchMode){Row({space:4}){Button('锁定').onClick(()=>this.task(async()=>this.projectBatch('lock')));Button('解锁').onClick(()=>this.task(async()=>this.projectBatch('unlock')));Button('归档/恢复').onClick(()=>this.task(async()=>this.projectBatch('archive')));}
 Row({space:4}){Button('分类').onClick(()=>this.openCategoryDialog());Button('导出').onClick(()=>this.exportStart(this.selected));Button('删除').onClick(()=>this.confirmDelete(true));}}}.padding({left:12,right:12,bottom:8});
     Row({space:12}) {Scroll(){GridRow({columns:this.windowWidth>=600&&this.windowWidth<840?2:1,gutter:8}){ForEach(this.projectRows(),(p: Project)=>{GridCol(){this.projectCardNew(p);}},(p: Project)=>p.id.toString());}.padding(12);}.scrollBar(BarState.Off).align(Alignment.Top).layoutWeight(1).height('100%');
-      if(this.windowWidth>=840){Column({space:16}){Text(this.current().id?this.current().name:'选择工程查看详情').fontSize(25).fontWeight(FontWeight.Bold).fontColor($r('app.color.text_primary'));if(this.current().id){Text(this.current().route||'未填写线路').fontColor($r('app.color.text_secondary'));Text(this.current().address).fontColor($r('app.color.text_secondary'));Text(this.current().notes).fontColor($r('app.color.text_secondary'));Text(`照片 ${this.current().photoCount} · 视频 ${this.current().videoCount} · 问题 ${this.current().issueCount}`).fontColor($r('app.color.text_accent'));Button('查看工程资料').onClick(()=>{this.filterProject=this.current().id;this.page='gallery';});Button('编辑工程').onClick(()=>this.editProject(this.current()));Button('导出工程').onClick(()=>this.exportStart([this.current().id]));}Blank();}.width('42%').height('100%').alignItems(HorizontalAlign.Start).padding(24);}
+      if(this.windowWidth>=840){Column({space:16}){Text(this.current().id?this.current().name:'选择工程查看详情').fontSize(25).fontWeight(FontWeight.Bold).fontColor($r('app.color.text_primary'));if(this.current().id){Text(this.current().route||'未填写线路').fontColor($r('app.color.text_secondary'));Text(this.current().address).fontColor($r('app.color.text_secondary'));Text(this.current().notes).fontColor($r('app.color.text_secondary'));Text(`照片 ${this.current().photoCount} · 视频 ${this.current().videoCount} · 问题 ${this.current().issueCount}`).fontColor($r('app.color.text_accent'));Button('查看工程资料').onClick(()=>{this.filterProject=this.current().id;this.task(async()=>this.navigate('gallery','forward'));});Button('编辑工程').onClick(()=>this.editProject(this.current()));Button('导出工程').onClick(()=>this.exportStart([this.current().id]));}Blank();}.width('42%').height('100%').alignItems(HorizontalAlign.Start).padding(24);}
     }.layoutWeight(1).width('100%');}
 
   @Builder
@@ -635,7 +819,7 @@ Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#3525
       if(!this.environment.coverScreen)this.cameraToolbar();
       Stack() {
         XComponent({id:'sitecam-preview',type:XComponentType.SURFACE,controller:this.controller})
-          .width(this.surfaceWidth()).height(this.surfaceHeight()).onAreaChange((a,b)=>this.setPreviewSurfaceArea(Number(b.width),Number(b.height))).onLoad(()=>{this.surface=this.controller.getXComponentSurfaceId();this.task(async()=>this.openCamera());})
+          .width(this.surfaceWidth()).height(this.surfaceHeight()).onAreaChange((a,b)=>this.setPreviewSurfaceArea(Number(b.width),Number(b.height))).onLoad(()=>{this.surface=this.controller.getXComponentSurfaceId();void this.ensureCamera();})
           .onDestroy(()=>this.cameraSurfaceLost())
           .onTouch(e=>{if(e.type===TouchType.Down&&this.cameraReady&&e.touches.length)this.camera?.focus(e.touches[0].x/this.surfaceWidth(),e.touches[0].y/this.surfaceHeight());})
           .gesture(PinchGesture().onActionStart(()=>this.pinchStartZoom=this.zoom).onActionUpdate(e=>{if(this.cameraReady&&this.camera)this.zoom=this.camera.zoom(this.pinchStartZoom*e.scale);}));
@@ -647,7 +831,7 @@ Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#3525
             .onClick(()=>{this.styleDraft=JSON.parse(JSON.stringify(this.settings.watermark)) as Watermark;this.quickSheet=true;});
         }
         Rect().width('100%').height('100%').fill(Color.White).opacity(this.shutterFlash).hitTestBehavior(HitTestMode.None);
-        if(!this.cameraReady) {Column(){Text(this.message||'正在打开相机').fontColor(SITE_TEXT);if(!this.photoPermission)Button('打开权限设置').onClick(()=>this.page='permissions');}.padding(12);}
+        if(!this.cameraReady) {Column(){Text(this.message||'正在打开相机').fontColor(SITE_TEXT);if(!this.photoPermission)Button('打开权限设置').onClick(()=>this.task(async()=>this.navigate('permissions','forward')));}.padding(12);}
       }.width(this.frameWidth()).height(this.frameWidth()/this.frameRatio).backgroundColor(Color.Black).clip(true)
         .position({x:this.cameraGeometry().previewX,y:this.cameraGeometry().previewY})
         .id('camera-preview');
@@ -666,7 +850,7 @@ Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#3525
     }.width('100%').height('100%').backgroundColor(Color.Black);
   }
   @Builder
-  galleryRootPage() {GalleryPageView({pathStack:this.galleryStack,detailContent:()=>{this.galleryDetailContent();},items:this.galleryRows(),projects:this.projects,currentProjectName:this.filterProject?(this.projects.find((p:Project)=>p.id===this.filterProject)?.name||'工程相册'):'全部工程相册',previewItem:this.detail,windowWidth:this.windowWidth,parallelEnabled:this.environment.largeScreenScheme&&this.windowWidth>=600,categories:Array.from(new Set(this.projects.map((p:Project)=>p.category).filter((v:string)=>!!v))),selectedFilter:this.fromDate===dateText(Date.now())?'TODAY':this.issueFilter===1?'ISSUES_ONLY':'ALL',selectedCategory:this.category,selectedStatus:this.issueFilter>1?['','','PENDING','IN_PROGRESS','COMPLETED'][this.issueFilter]:'',selectedSeverity:this.severityFilter?['','NORMAL','IMPORTANT','CRITICAL'][this.severityFilter]:'',dateRangeText:this.fromDate||this.toDate?`${this.fromDate||'起始'} 至 ${this.toDate||'结束'}`:'',selectedIds:this.mediaSelection,onBack:()=>this.task(async()=>this.navigate(this.galleryOrigin||'camera')),onSwitchProject:()=>this.projectPickerDialog(),onFilter:(v:string)=>{this.mediaSelection=[];if(v==='TODAY'){this.fromDate=dateText(Date.now());this.toDate=dateText(Date.now());this.issueFilter=0;}else if(v==='ISSUES_ONLY'){this.fromDate='';this.toDate='';this.issueFilter=1;}else{this.fromDate='';this.toDate='';this.issueFilter=0;}},onDateRange:()=>this.pickDateRange(),onClearDate:()=>{this.mediaSelection=[];this.fromDate='';this.toDate='';},onCategory:(v:string)=>{this.mediaSelection=[];this.category=v;},onStatus:(v:string)=>{this.mediaSelection=[];this.issueFilter=v?['','','PENDING','IN_PROGRESS','COMPLETED'].indexOf(v):0;},onSeverity:(v:string)=>{this.mediaSelection=[];this.severityFilter=v?['','NORMAL','IMPORTANT','CRITICAL'].indexOf(v):0;},onSelectAll:()=>this.mediaSelection=this.galleryRows().map((m:MediaItem)=>m.id),onClearSelection:()=>this.mediaSelection=[],onOpen:(m:MediaItem)=>this.openDetail(m),onOpenFull:()=>this.page='detail',onToggle:(m:MediaItem)=>this.toggleMedia(m.id),onIssue:(m:MediaItem)=>this.openIssue(m),onLongPress:(m:MediaItem)=>this.toggleMedia(m.id),onBatchAction:(a:string)=>a==='export'?this.exportStart(this.projects.map((p:Project)=>p.id),this.mediaSelection):this.batchMediaMoreDialog(),onBatchMove:()=>this.openMoveDialog(),onBatchShare:()=>this.task(async()=>this.files!.share(this.items.filter((m:MediaItem)=>this.mediaSelection.includes(m.id)).map((m:MediaItem)=>m.edited||m.path),false,'gallery-share-anchor')),onBatchIssue:()=>{}});}
+  galleryRootPage() {GalleryPageView({pathStack:this.galleryStack,detailContent:()=>{this.galleryDetailContent();},items:this.galleryRows(),projects:this.projects,currentProjectName:this.filterProject?(this.projects.find((p:Project)=>p.id===this.filterProject)?.name||'工程相册'):'全部工程相册',previewItem:this.detail,windowWidth:this.windowWidth,parallelEnabled:this.environment.largeScreenScheme&&this.windowWidth>=600,categories:Array.from(new Set(this.projects.map((p:Project)=>p.category).filter((v:string)=>!!v))),selectedFilter:this.fromDate===dateText(Date.now())?'TODAY':this.issueFilter===1?'ISSUES_ONLY':'ALL',selectedCategory:this.category,selectedStatus:this.issueFilter>1?['','','PENDING','IN_PROGRESS','COMPLETED'][this.issueFilter]:'',selectedSeverity:this.severityFilter?['','NORMAL','IMPORTANT','CRITICAL'][this.severityFilter]:'',dateRangeText:this.fromDate||this.toDate?`${this.fromDate||'起始'} 至 ${this.toDate||'结束'}`:'',selectedIds:this.mediaSelection,onBack:()=>this.task(async()=>this.navigate(this.galleryOrigin||'camera','backward')),onSwitchProject:()=>this.projectPickerDialog(),onFilter:(v:string)=>{this.mediaSelection=[];if(v==='TODAY'){this.fromDate=dateText(Date.now());this.toDate=dateText(Date.now());this.issueFilter=0;}else if(v==='ISSUES_ONLY'){this.fromDate='';this.toDate='';this.issueFilter=1;}else{this.fromDate='';this.toDate='';this.issueFilter=0;}},onDateRange:()=>this.pickDateRange(),onClearDate:()=>{this.mediaSelection=[];this.fromDate='';this.toDate='';},onCategory:(v:string)=>{this.mediaSelection=[];this.category=v;},onStatus:(v:string)=>{this.mediaSelection=[];this.issueFilter=v?['','','PENDING','IN_PROGRESS','COMPLETED'].indexOf(v):0;},onSeverity:(v:string)=>{this.mediaSelection=[];this.severityFilter=v?['','NORMAL','IMPORTANT','CRITICAL'].indexOf(v):0;},onSelectAll:()=>this.mediaSelection=this.galleryRows().map((m:MediaItem)=>m.id),onClearSelection:()=>this.mediaSelection=[],onOpen:(m:MediaItem)=>this.openDetail(m),onOpenFull:()=>this.task(async()=>this.navigate('detail','forward')),onToggle:(m:MediaItem)=>this.toggleMedia(m.id),onIssue:(m:MediaItem)=>this.openIssue(m),onLongPress:(m:MediaItem)=>this.toggleMedia(m.id),onBatchAction:(a:string)=>a==='export'?this.exportStart(this.projects.map((p:Project)=>p.id),this.mediaSelection):this.batchMediaMoreDialog(),onBatchMove:()=>this.openMoveDialog(),onBatchShare:()=>this.task(async()=>this.files!.share(this.items.filter((m:MediaItem)=>this.mediaSelection.includes(m.id)).map((m:MediaItem)=>m.edited||m.path),false,'gallery-share-anchor')),onBatchIssue:()=>{}});}
   @Builder
   galleryPage() {this.header('工程相册');Column({space:8}){Row({space:6}){ForEach(['全部','今天','问题'],(label: string,i: number)=>{Button(label).fontSize(13).backgroundColor(i===2&&this.issueFilter===1?SITE_ACCENT:i===1&&this.fromDate===dateText(Date.now())?SITE_ACCENT:i===0&&!this.fromDate&&!this.issueFilter?SITE_ACCENT:SITE_CARD_RAISED).onClick(()=>{if(i===0){this.fromDate='';this.toDate='';this.issueFilter=0;}else if(i===1){this.fromDate=dateText(Date.now());this.toDate=dateText(Date.now());this.issueFilter=0;}else{this.fromDate='';this.toDate='';this.issueFilter=1;}});},(label: string)=>label);}.width('100%');Select([{value:'全部工程'},...this.projects.map((p: Project): SelectOption=>({value:p.name}))]).selected(this.filterProject?this.projects.findIndex(p=>p.id===this.filterProject)+1:0).value(this.projects.find(p=>p.id===this.filterProject)?.name||'全部工程').onSelect(i=>this.filterProject=i?this.projects[i-1].id:0).width('100%');Row({space:6}){Button(this.fromDate||'开始日期').onClick(()=>this.pickDate(true)).layoutWeight(1);Button(this.toDate||'结束日期').onClick(()=>this.pickDate(false)).layoutWeight(1);}
 Row({space:6}){Select([{value:'全部问题状态'},{value:'全部问题'},{value:'待处理'},{value:'处理中'},{value:'已完成'}]).selected(this.issueFilter).value(['全部问题状态','全部问题','待处理','处理中','已完成'][this.issueFilter]).onSelect(i=>this.issueFilter=i);Select([{value:'全部等级'},{value:'一般'},{value:'重要'},{value:'严重'}]).selected(this.severityFilter).value(['全部等级','一般','重要','严重'][this.severityFilter]).onSelect(i=>this.severityFilter=i);Button('清空').onClick(()=>{this.fromDate='';this.toDate='';this.filterYear=0;this.filterMonth=0;this.category='';this.issueFilter=0;this.severityFilter=0;});}
@@ -674,13 +858,13 @@ Row({space:6}){Select([{value:'全部年份'},...this.years().map((year: number)
 TextInput({text:this.category,placeholder:'按工程类别筛选（留空为全部）'}).fontColor('#FFFFFF').placeholderColor('#B0BEC5').backgroundColor('#303030').caretColor('#FFB300').borderRadius(10).onChange(v=>this.category=v);if(this.mediaSelection.length){Row({space:6}){Text(`已选 ${this.mediaSelection.length}`).fontColor($r('app.color.text_accent'));Button('移动').onClick(()=>this.openMoveDialog());Button('导出').onClick(()=>this.exportStart(this.projects.map(p=>p.id),this.mediaSelection));Button('分享').onClick(()=>this.task(async()=>this.files!.share(this.items.filter(m=>this.mediaSelection.includes(m.id)).map(m=>m.edited||m.path))));Button('删除').onClick(()=>this.confirmDelete(false));}}}.padding(10);
     Row({space:12}){Scroll(){Column({space:10}){ForEach(this.galleryDates(),(day: string)=>{Column({space:6}){Text(`${day} · ${this.galleryRowsForDate(day).length} 项`).fontSize(16).fontWeight(FontWeight.Bold).fontColor(SITE_TEXT).width('100%');GridRow({columns:this.windowWidth>=840?3:this.windowWidth>=600?4:3,gutter:6}){ForEach(this.galleryRowsForDate(day),(m: MediaItem)=>{GridCol(){Column({space:4}){Stack({alignContent:Alignment.TopEnd}){if(m.type==='PHOTO'){Image('file://'+(m.edited||m.path)).width('100%').aspectRatio(1).objectFit(ImageFit.Cover).onClick(()=>this.batchMode?this.toggleMedia(m.id):this.openDetail(m));}else{Column({space:8}){Text('▶').fontSize(34).fontColor(Color.White);Text(m.status==='READY'?'视频':'待处理视频').fontSize(11);}.width('100%').aspectRatio(1).justifyContent(FlexAlign.Center).backgroundColor(SITE_CARD_RAISED).onClick(()=>this.openDetail(m));}Checkbox().width(18).height(18).select(this.mediaSelection.includes(m.id)).onChange(()=>this.toggleMedia(m.id));}
 Text(`${m.type==='VIDEO'?'视频':'照片'} · ${this.projects.find(p=>p.id===m.projectId)?.name||'未分类'}`).fontSize(10).fontColor(SITE_MUTED);Text(day).fontSize(11).fontColor(SITE_MUTED);if(m.issueTitle)Text(`${m.issueTitle} · ${m.issueStatus==='PENDING'?'待处理':m.issueStatus==='IN_PROGRESS'?'处理中':'已完成'}`).maxLines(1).fontSize(11).fontColor(SITE_ACCENT);}.padding(3).gesture(LongPressGesture({repeat:false}).onAction(()=>this.toggleMedia(m.id)));}},(m: MediaItem)=>m.id.toString());};}.width('100%');},(day: string)=>day);}.padding(8);}.scrollBar(BarState.Off).align(Alignment.Top).layoutWeight(1).height('100%');
-      if(this.windowWidth>=840){Column({space:14}){Text(this.detail.id?'资料预览':'选择资料查看').fontSize(24).fontColor($r('app.color.text_primary'));if(this.detail.id){if(this.detail.type==='PHOTO'){Image('file://'+(this.detail.edited||this.detail.path)).width('100%').height(300).objectFit(ImageFit.Contain);}else{Video({src:'file://'+this.detail.path}).width('100%').height(300).controls(true);}Text(timeText(this.detail.timestamp)).fontColor($r('app.color.text_secondary'));Text(this.detail.issueTitle).fontColor($r('app.color.text_accent'));Button('详情、编辑与问题记录').onClick(()=>this.page='detail');}Blank();}.padding(18).width('42%').height('100%');}
+      if(this.windowWidth>=840){Column({space:14}){Text(this.detail.id?'资料预览':'选择资料查看').fontSize(24).fontColor($r('app.color.text_primary'));if(this.detail.id){if(this.detail.type==='PHOTO'){Image('file://'+(this.detail.edited||this.detail.path)).width('100%').height(300).objectFit(ImageFit.Contain);}else{Video({src:'file://'+this.detail.path}).width('100%').height(300).controls(true);}Text(timeText(this.detail.timestamp)).fontColor($r('app.color.text_secondary'));Text(this.detail.issueTitle).fontColor($r('app.color.text_accent'));Button('详情、编辑与问题记录').onClick(()=>this.task(async()=>this.navigate('detail','forward')));}Blank();}.padding(18).width('42%').height('100%');}
     }.layoutWeight(1).width('100%');}
 
   @Builder
   galleryDetailContent() {if(this.detail.id&&!this.galleryStack.getAllPathName().includes('media-placeholder')){this.detailRootPage();}else{Column({space:12}){Image($r('app.media.ic_camera')).width(48).height(48);Text('选择照片或视频').fontSize(20).fontWeight(FontWeight.Bold).fontColor(SITE_TEXT);Text('在左侧查看工程资料，在这里预览、编辑和分享').fontSize(14).fontColor(SITE_MUTED).textAlign(TextAlign.Center);}.width('100%').height('100%').justifyContent(FlexAlign.Center).padding(24).backgroundColor(SITE_BG);}}
   @Builder
-  detailRootPage() {DetailPageView({item:this.detail,showEdited:this.showEdited,issueTitle:this.detail.issueTitle,issueNotes:this.detail.issueNotes,issueSeverity:this.detail.severity,issueStatus:this.detail.issueStatus,retrying:this.busy,onSaveAlbum:()=>this.task(async()=>{const uri=await this.saveAlbumCopy(this.detail,this.showEdited&&this.detail.edited?this.detail.edited:this.detail.path);if(uri){await this.refresh();this.notify('已另存到系统相册，工程原件不受影响');}else this.notify('已取消另存，工程原件不受影响');}),onBack:()=>{if(this.page==='gallery')this.galleryStack.pop();else{this.galleryStack.clear();this.task(async()=>this.navigate('gallery'));}},onEdit:()=>this.task(async()=>this.beginEdit()),onShare:()=>this.task(async()=>this.files!.share([this.showEdited&&this.detail.edited?this.detail.edited:this.detail.path],this.detail.type==='VIDEO')),onDelete:()=>this.deleteDetail(),onRetryVideo:()=>this.task(async()=>{const item=new MediaItem();item.id=this.detail.id;item.path=this.detail.path;item.edited=this.detail.edited;item.name=this.detail.name;item.type=this.detail.type;await this.video.process(item,this.files!,v=>this.videoProgress=v);await this.refresh();}),onToggleEdited:()=>this.showEdited=!this.showEdited,onIssue:()=>this.openIssue(this.detail)});}
+  detailRootPage() {DetailPageView({item:this.detail,showEdited:this.showEdited,issueTitle:this.detail.issueTitle,issueNotes:this.detail.issueNotes,issueSeverity:this.detail.severity,issueStatus:this.detail.issueStatus,retrying:this.busy,onSaveAlbum:()=>this.task(async()=>{const uri=await this.saveAlbumCopy(this.detail,this.showEdited&&this.detail.edited?this.detail.edited:this.detail.path);if(uri){await this.refresh();this.notify('已另存到系统相册，工程原件不受影响');}else this.notify('已取消另存，工程原件不受影响');}),onBack:()=>{if(this.page==='gallery')this.galleryStack.pop();else{this.galleryStack.clear();this.task(async()=>this.navigate('gallery','backward'));}},onEdit:()=>this.task(async()=>this.beginEdit()),onShare:()=>this.task(async()=>this.files!.share([this.showEdited&&this.detail.edited?this.detail.edited:this.detail.path],this.detail.type==='VIDEO')),onDelete:()=>this.deleteDetail(),onRetryVideo:()=>this.task(async()=>{const item=new MediaItem();item.id=this.detail.id;item.path=this.detail.path;item.edited=this.detail.edited;item.name=this.detail.name;item.type=this.detail.type;await this.video.process(item,this.files!,v=>this.videoProgress=v);await this.refresh();}),onToggleEdited:()=>this.showEdited=!this.showEdited,onIssue:()=>this.openIssue(this.detail)});}
   @Builder
   detailPage() {this.header('资料详情','gallery');Row({space:8}){Button('分享').onClick(()=>this.task(async()=>this.files!.share([this.showEdited&&this.detail.edited?this.detail.edited:this.detail.path],this.detail.type==='VIDEO')));Button('编辑').onClick(()=>this.beginEdit());Button('删除').fontColor('#F44336').onClick(()=>this.deleteDetail());}.padding({left:14,right:14,bottom:6});Scroll(){Column({space:14}){if(this.detail.type==='VIDEO'){Video({src:'file://'+this.detail.path}).width('100%').height(300).controls(true).autoPlay(false);}else{Image('file://'+(this.showEdited&&this.detail.edited?this.detail.edited:this.detail.path)).width('100%').height(350).objectFit(ImageFit.Contain).scale({x:this.viewScale,y:this.viewScale}).translate({x:this.viewX,y:this.viewY}).gesture(GestureGroup(GestureMode.Parallel,PinchGesture().onActionStart(()=>this.imageScale=this.viewScale).onActionUpdate(e=>this.viewScale=Math.max(1,Math.min(8,this.imageScale*e.scale))),PanGesture({fingers:2}).onActionStart(()=>{this.dragX=this.viewX;this.dragY=this.viewY;}).onActionUpdate(e=>{this.viewX=this.dragX+e.offsetX;this.viewY=this.dragY+e.offsetY;}),TapGesture({count:2}).onAction(()=>{this.viewScale=this.viewScale===1?2:1;this.viewX=0;this.viewY=0;})));Row({space:10}){Button(this.showEdited?'查看原图':'查看成品').enabled(!!this.detail.edited).onClick(()=>this.showEdited=!this.showEdited);Button('编辑 / 标注').onClick(()=>this.beginEdit());Button('问题对话框').onClick(()=>this.openIssue(this.detail));}}
       Text(timeText(this.detail.timestamp)).fontColor($r('app.color.text_secondary'));Text(`${this.detail.width} × ${this.detail.height} · ${this.detail.status==='READY'?'已完成':'原片已保留，水印未完成'}`).fontColor($r('app.color.text_secondary'));if(this.detail.type==='VIDEO'&&this.detail.status!=='READY'){Button('重试视频水印').onClick(()=>this.task(async()=>{await this.video.process(this.detail,this.files!,v=>this.videoProgress=v);await this.refresh();}));}
@@ -705,35 +889,75 @@ Row({space:8}){ForEach(['#F44336','#FFB300','#FFC107','#4CAF50','#FFFFFF'],(colo
 this.editorToolsScroll();
 }.layoutWeight(1).width('100%');}.width('100%').height('100%');}
   @Builder
-  watermarkPanelPage() {WatermarkCustomizationPanel({snapshot:this.snapshot,fields:this.styleDraft.fields,selectedStyle:this.styleDraft.style,fontScale:this.styleDraft.fontScale,wmOpacity:this.styleDraft.opacity,wmPosition:this.styleDraft.position,onReset:()=>{this.styleDraft=resetWatermarkFields(this.styleDraft);},onBack:()=>this.task(async()=>{await this.persistWatermarkBeforeLeave();this.page=this.styleReturn;}),onFontScale:(v:number)=>this.styleDraft.fontScale=v,onOpacity:(v:number)=>this.styleDraft.opacity=v,onPosition:(v:string)=>this.styleDraft.position=v,onStyle:(v:string)=>this.styleDraft.style=v,onFieldChange:(i:number,v:string)=>this.styleDraft.fields[i].value=v,onFieldLabelChange:(i:number,v:string)=>this.styleDraft.fields[i].label=v,onFieldToggle:(i:number,v:boolean)=>this.styleDraft.fields[i].enabled=v,onMove:(i:number,d:number)=>{const a=this.styleDraft.fields.slice();const j=i+d;if(j>=0&&j<a.length){const t=a[i];a[i]=a[j];a[j]=t;this.styleDraft.fields=a;}},onDelete:(i:number)=>{this.styleDraft.fields=this.styleDraft.fields.filter((f:Field,index:number)=>index!==i);},onAddField:(label:string,value:string)=>{this.styleDraft.fields=this.styleDraft.fields.concat(new Field('custom_'+Date.now(),label,value));}});}
+  watermarkPanelPage() {WatermarkCustomizationPanel({snapshot:this.snapshot,fields:this.styleDraft.fields,selectedStyle:this.styleDraft.style,fontScale:this.styleDraft.fontScale,wmOpacity:this.styleDraft.opacity,wmPosition:this.styleDraft.position,onReset:()=>{this.styleDraft=resetWatermarkFields(this.styleDraft);},onBack:()=>this.task(async()=>{await this.persistWatermarkBeforeLeave();await this.navigate(this.styleReturn,'modal');}),onFontScale:(v:number)=>this.styleDraft.fontScale=v,onOpacity:(v:number)=>this.styleDraft.opacity=v,onPosition:(v:string)=>this.styleDraft.position=v,onStyle:(v:string)=>this.styleDraft.style=v,onFieldChange:(i:number,v:string)=>this.styleDraft.fields[i].value=v,onFieldLabelChange:(i:number,v:string)=>this.styleDraft.fields[i].label=v,onFieldToggle:(i:number,v:boolean)=>this.styleDraft.fields[i].enabled=v,onMove:(i:number,d:number)=>{const a=this.styleDraft.fields.slice();const j=i+d;if(j>=0&&j<a.length){const t=a[i];a[i]=a[j];a[j]=t;this.styleDraft.fields=a;}},onDelete:(i:number)=>{this.styleDraft.fields=this.styleDraft.fields.filter((f:Field,index:number)=>index!==i);},onAddField:(label:string,value:string)=>{this.styleDraft.fields=this.styleDraft.fields.concat(new Field('custom_'+Date.now(),label,value));}});}
   @Builder
   watermarkPage() {this.header('自定义水印',this.styleReturn);Scroll(){Column({space:12}){Select(this.templates.map((t: WatermarkTemplate): SelectOption=>({value:t.name}))).selected(this.templates.findIndex(t=>t.id===this.draftTemplateId)).value(this.templates.find(t=>t.id===this.draftTemplateId)?.name||'选择模板').onSelect(i=>{this.draftTemplateId=this.templates[i].id;this.styleDraft=JSON.parse(this.templates[i].config) as Watermark;this.templateName=this.templates[i].name;});this.field('模板名称',this.templateName,v=>this.templateName=v);Button('另存为新模板').onClick(()=>this.task(async()=>{const t=new WatermarkTemplate();t.name=this.templateName||'我的模板';t.config=JSON.stringify(this.styleDraft);await store.putTemplate(t);await this.refresh();this.notify('模板已另存，当前拍摄设置未改变');}));Text('当前样式 · 更换样式').fontColor($r('app.color.text_accent')).fontSize(18);GridRow({columns:2,gutter:10}){ForEach(STYLES,(style: Style)=>{GridCol(){Column({space:4}){Stack(){WatermarkView({snapshot:this.styleSnapshot(style.id)});}.width('100%').aspectRatio(4/3).backgroundColor('#576E7A');Text(style.name).fontColor($r('app.color.text_primary')).fontSize(13);}.padding(5).border({width:2,color:this.styleDraft.style===style.id?'#FFCA55':'#304D60'}).borderRadius(8).onClick(()=>{const copy=JSON.parse(JSON.stringify(this.styleDraft)) as Watermark;copy.style=style.id;this.styleDraft=copy;});}});}
 Text('点击样式预览，保存后才应用').fontColor($r('app.color.text_secondary')).fontSize(12);this.field('拍摄人员',this.styleDraft.user,v=>this.styleDraft.user=v);Text('字号比例').fontColor($r('app.color.text_primary'));Slider({value:this.styleDraft.fontScale,min:.5,max:2.2,step:.1}).selectedColor('#FFB300').trackColor('#505050').blockColor('#FFFFFF').onChange(v=>this.styleDraft.fontScale=v);Text('底板透明度').fontColor($r('app.color.text_primary'));Slider({value:this.styleDraft.opacity,min:0,max:1,step:.05}).selectedColor('#FFB300').trackColor('#505050').blockColor('#FFFFFF').onChange(v=>this.styleDraft.opacity=v);Select([{value:'左下'},{value:'右下'},{value:'左上'},{value:'右上'}]).selected(['BOTTOM_LEFT','BOTTOM_RIGHT','TOP_LEFT','TOP_RIGHT'].indexOf(this.styleDraft.position)).value(['左下','右下','左上','右上'][['BOTTOM_LEFT','BOTTOM_RIGHT','TOP_LEFT','TOP_RIGHT'].indexOf(this.styleDraft.position)]).onSelect(i=>this.styleDraft.position=['BOTTOM_LEFT','BOTTOM_RIGHT','TOP_LEFT','TOP_RIGHT'][i]);ForEach(this.styleDraft.fields,(f: Field,i: number)=>{Column(){Row(){Text(f.label).fontColor($r('app.color.text_primary')).layoutWeight(1);Toggle({type:ToggleType.Switch,isOn:f.enabled}).selectedColor('#FFB300').onChange(v=>this.styleDraft.fields[i].enabled=v);}
-TextInput({text:f.value,placeholder:'留空使用拍摄时信息'}).fontColor('#FFFFFF').placeholderColor('#B0BEC5').backgroundColor('#303030').caretColor('#FFB300').borderRadius(10).onChange(v=>this.styleDraft.fields[i].value=v);}});Button('添加自定义字段').onClick(()=>{this.styleDraft.fields=this.styleDraft.fields.concat(new Field('custom_'+Date.now(),'自定义字段'));this.styleDraft=JSON.parse(JSON.stringify(this.styleDraft)) as Watermark;});ForEach(this.styleDraft.fields.filter(f=>f.key.startsWith('custom_')),(f: Field)=>{this.field('自定义字段名称',f.label,v=>f.label=v);});Button('确认应用').width('100%').backgroundColor('#FFCA55').fontColor('#352500').onClick(()=>this.task(async()=>this.saveWatermark()));Button('取消').width('100%').onClick(()=>this.page=this.styleReturn);}.padding(14);}.scrollBar(BarState.Off).align(Alignment.Top).layoutWeight(1);}
+TextInput({text:f.value,placeholder:'留空使用拍摄时信息'}).fontColor('#FFFFFF').placeholderColor('#B0BEC5').backgroundColor('#303030').caretColor('#FFB300').borderRadius(10).onChange(v=>this.styleDraft.fields[i].value=v);}});Button('添加自定义字段').onClick(()=>{this.styleDraft.fields=this.styleDraft.fields.concat(new Field('custom_'+Date.now(),'自定义字段'));this.styleDraft=JSON.parse(JSON.stringify(this.styleDraft)) as Watermark;});ForEach(this.styleDraft.fields.filter(f=>f.key.startsWith('custom_')),(f: Field)=>{this.field('自定义字段名称',f.label,v=>f.label=v);});Button('确认应用').width('100%').backgroundColor('#FFCA55').fontColor('#352500').onClick(()=>this.task(async()=>this.saveWatermark()));Button('取消').width('100%').onClick(()=>this.task(async()=>this.navigate(this.styleReturn,'modal')));}.padding(14);}.scrollBar(BarState.Off).align(Alignment.Top).layoutWeight(1);}
   @Builder
-  permissionRootPage() {PermissionGuidePageView({permissions:this.permissionRows(),hasRequested:this.settings.permissionHandled,requesting:this.permissionRequesting,fontScale:this.fontScale,onBack:()=>this.task(async()=>this.navigate('projects')),onRequest:()=>this.task(async()=>{this.permissionRequesting=true;try{await this.permissions(true);}finally{this.permissionRequesting=false;}}),onContinue:()=>this.task(async()=>{this.settings.permissionHandled=true;await this.persist();this.page=this.settings.currentProject?'camera':'projects';}),onOpenSettings:()=>this.task(async()=>{await this.context.startAbility({bundleName:'com.huawei.hmos.settings',abilityName:'com.huawei.hmos.settings.MainAbility',uri:'application_info_entry',parameters:{bundleName:'com.sitecam.app'}});})});}
+  permissionRootPage() {PermissionGuidePageView({permissions:this.permissionRows(),hasRequested:this.settings.permissionHandled,requesting:this.permissionRequesting,fontScale:this.fontScale,onBack:()=>this.task(async()=>this.navigate('projects','backward')),onRequest:()=>this.task(async()=>{this.permissionRequesting=true;try{await this.permissions(true);}finally{this.permissionRequesting=false;}}),onContinue:()=>this.task(async()=>{this.settings.permissionHandled=true;await this.persist();await this.navigate(this.settings.currentProject?'camera':'projects','forward');}),onOpenSettings:()=>this.task(async()=>{await this.context.startAbility({bundleName:'com.huawei.hmos.settings',abilityName:'com.huawei.hmos.settings.MainAbility',uri:'application_info_entry',parameters:{bundleName:'com.sitecam.app'}});})});}
   @Builder
-  settingsRootPage() {SettingsPageView({quality:this.settings.photoQuality,albumCopy:this.settings.albumCopy,shutterSoundEnabled:this.settings.shutterSoundEnabled,icon:this.settings.icon||'D',apiVersion:deviceInfo.sdkApiVersion,diagnostics:(this.camera?.flashDiagnostics||'')+(this.message?'\n'+this.message:''),templateId:this.settings.templateId,onBack:()=>this.task(async()=>this.navigate('camera')),onHelp:()=>this.page='help',onWatermark:()=>this.openStyles('settings'),onQuality:(v:number)=>{this.settings.photoQuality=v;this.settings.editQuality=v;this.persist();},onAlbumCopy:(v:boolean)=>{this.settings.albumCopy=v;this.persist();},onShutterSound:(v:boolean)=>{this.settings.shutterSoundEnabled=v;this.persist();},onIcon:(v:string)=>this.task(async()=>{await bundleManager.setAlternateIcon(v==='D'?'':v);this.settings.icon=v;await this.persist();}),onCopyDiagnostics:()=>this.task(async()=>this.copyDiagnostics()),onOpenLink:(url:string)=>this.task(async()=>this.openExternal(url))});}
+  settingsRootPage() {SettingsPageView({quality:this.settings.photoQuality,albumCopy:this.settings.albumCopy,shutterSoundEnabled:this.settings.shutterSoundEnabled,icon:this.settings.icon||'D',apiVersion:deviceInfo.sdkApiVersion,diagnostics:(this.camera?.flashDiagnostics||'')+(this.message?'\n'+this.message:''),templateId:this.settings.templateId,onBack:()=>this.task(async()=>this.navigate('camera','backward')),onHelp:()=>this.task(async()=>this.navigate('help','forward')),onWatermark:()=>this.openStyles('settings'),onQuality:(v:number)=>{this.settings.photoQuality=v;this.settings.editQuality=v;this.persist();},onAlbumCopy:(v:boolean)=>{this.settings.albumCopy=v;this.persist();},onShutterSound:(v:boolean)=>{this.settings.shutterSoundEnabled=v;this.persist();},onIcon:(v:string)=>this.task(async()=>{await bundleManager.setAlternateIcon(v==='D'?'':v);this.settings.icon=v;await this.persist();}),onCopyDiagnostics:()=>this.task(async()=>this.copyDiagnostics()),onOpenLink:(url:string)=>this.task(async()=>this.openExternal(url))});}
   @Builder
-  helpRootPage() {HelpPageView({onBack:()=>this.page='settings',onReplayGuide:()=>{this.guideStep=0;this.page='guide';}});}
+  helpRootPage() {HelpPageView({onBack:()=>this.task(async()=>this.navigate('settings','backward')),onReplayGuide:()=>this.task(async()=>{this.guideStep=0;await this.navigate('guide','forward');})});}
   @Builder
-  onboardingRootPage() {OnboardingPageView({step:this.guideStep,onNext:()=>this.task(async()=>{if(this.guideStep<3){this.guideStep++;}else{this.settings.guideDone=true;await this.persist();this.page=this.settings.permissionHandled?(this.settings.currentProject?'camera':'projects'):'permissions';}}),onSkip:()=>this.task(async()=>{this.settings.guideDone=true;await this.persist();this.page=this.settings.permissionHandled?(this.settings.currentProject?'camera':'projects'):'permissions';})});}
+  onboardingRootPage() {OnboardingPageView({step:this.guideStep,onNext:()=>this.task(async()=>{if(this.guideStep<3){this.guideStep++;}else{this.settings.guideDone=true;await this.persist();await this.navigate(this.settings.permissionHandled?(this.settings.currentProject?'camera':'projects'):'permissions','forward');}}),onSkip:()=>this.task(async()=>{this.settings.guideDone=true;await this.persist();await this.navigate(this.settings.permissionHandled?(this.settings.currentProject?'camera':'projects'):'permissions','forward');})});}
   @Builder
-  settingsPage() {this.header('设置与帮助');Scroll(){Column({space:16}){Button('离线使用教程').width('100%').onClick(()=>this.page='help');Button('重新查看首次指引').width('100%').onClick(()=>{this.guideStep=0;this.page='guide';});Button('当前水印样式 · 自定义').width('100%').onClick(()=>this.openStyles('settings'));Text('照片与编辑保存质量').fontColor($r('app.color.text_primary'));Select(QUALITY_NAMES.map((value: string): SelectOption=>({value:value}))).selected(this.settings.photoQuality).value(QUALITY_NAMES[this.settings.photoQuality]).onSelect(i=>{this.settings.photoQuality=i;this.settings.editQuality=i;this.persist();});Row(){Text('拍摄后保存副本到系统相册').fontColor($r('app.color.text_primary')).layoutWeight(1);Toggle({type:ToggleType.Switch,isOn:this.settings.albumCopy}).selectedColor('#FFB300').onChange(v=>{this.settings.albumCopy=v;this.persist();});}
-Text('原件始终保留在工程相册。系统会请求保存授权，两处资料独立删除。').fontColor($r('app.color.text_secondary')).fontSize(13);Button('权限设置').width('100%').onClick(()=>this.page='permissions');Text('桌面图标 · '+(this.settings.icon||'D')).fontColor($r('app.color.text_accent'));if(deviceInfo.sdkApiVersion>=26){Row({space:6}){ForEach(['A','B','C','D'],(id: string)=>{Button(id).onClick(()=>this.task(async()=>{await bundleManager.setAlternateIcon(id==='D'?'':id);this.settings.icon=id;await this.persist();this.notify('桌面图标已切换');}));});}}else{Text('当前系统使用默认 D 图标').fontColor($r('app.color.text_secondary'));}
-Text('v0.3.0 · 鸿蒙原生版\n永久免费 · 开源 · 无广告\n作者 ninjaaqua').fontSize(13).fontColor($r('app.color.text_secondary'));}.padding(20);}.scrollBar(BarState.Off).align(Alignment.Top).layoutWeight(1);}
+  settingsPage() {this.header('设置与帮助');Scroll(){Column({space:16}){Button('离线使用教程').width('100%').onClick(()=>this.task(async()=>this.navigate('help','forward')));Button('重新查看首次指引').width('100%').onClick(()=>this.task(async()=>{this.guideStep=0;await this.navigate('guide','forward');}));Button('当前水印样式 · 自定义').width('100%').onClick(()=>this.openStyles('settings'));Text('照片与编辑保存质量').fontColor($r('app.color.text_primary'));Select(QUALITY_NAMES.map((value: string): SelectOption=>({value:value}))).selected(this.settings.photoQuality).value(QUALITY_NAMES[this.settings.photoQuality]).onSelect(i=>{this.settings.photoQuality=i;this.settings.editQuality=i;this.persist();});Row(){Text('拍摄后保存副本到系统相册').fontColor($r('app.color.text_primary')).layoutWeight(1);Toggle({type:ToggleType.Switch,isOn:this.settings.albumCopy}).selectedColor('#FFB300').onChange(v=>{this.settings.albumCopy=v;this.persist();});}
+Text('原件始终保留在工程相册。系统会请求保存授权，两处资料独立删除。').fontColor($r('app.color.text_secondary')).fontSize(13);Button('权限设置').width('100%').onClick(()=>this.task(async()=>this.navigate('permissions','forward')));Text('桌面图标 · '+(this.settings.icon||'D')).fontColor($r('app.color.text_accent'));if(deviceInfo.sdkApiVersion>=26){Row({space:6}){ForEach(['A','B','C','D'],(id: string)=>{Button(id).onClick(()=>this.task(async()=>{await bundleManager.setAlternateIcon(id==='D'?'':id);this.settings.icon=id;await this.persist();this.notify('桌面图标已切换');}));});}}else{Text('当前系统使用默认 D 图标').fontColor($r('app.color.text_secondary'));}
+Text('v0.3.2 · 鸿蒙原生版\n永久免费 · 开源 · 无广告\n作者 ninjaaqua').fontSize(13).fontColor($r('app.color.text_secondary'));}.padding(20);}.scrollBar(BarState.Off).align(Alignment.Top).layoutWeight(1);}
   @Builder
-  guidePage() {this.header('欢迎使用');Column({space:24}){Image($r('app.media.app_icon')).width(120).height(120);Text(['工程照片，分开保存','横竖拍摄，按现场选择','按日期找照片，随手记问题','完工导出，及时锁定'][this.guideStep]).fontSize(28).fontWeight(FontWeight.Bold).fontColor($r('app.color.text_accent'));Text(['先建立工程与线路，再拍照、录像。资料自动归入当前工程。','预览和照片使用同一水印布局，拍摄前可修改字段和方向。','在工程相册按日期和问题状态查找，并保留独立编辑成品。','导出 ZIP 或工程文件夹。锁定后禁止新增拍摄，仍可整理旧资料。'][this.guideStep]).fontSize(19).fontColor($r('app.color.text_primary'));Text(`${this.guideStep+1} / 4`).fontColor($r('app.color.text_secondary'));Button(this.guideStep===3?'开始使用':'下一步').onClick(()=>this.task(async()=>{if(this.guideStep<3){this.guideStep++;return;}this.settings.guideDone=true;await this.persist();this.page=this.settings.permissionHandled?(this.settings.currentProject?'camera':'projects'):'permissions';}));Button('暂时跳过').onClick(()=>this.task(async()=>{this.settings.guideDone=true;await this.persist();this.page=this.settings.permissionHandled?(this.settings.currentProject?'camera':'projects'):'permissions';}));}.padding(30).layoutWeight(1).justifyContent(FlexAlign.Center);}
+  guidePage() {this.header('欢迎使用');Column({space:24}){Image($r('app.media.app_icon')).width(120).height(120);Text(['工程照片，分开保存','横竖拍摄，按现场选择','按日期找照片，随手记问题','完工导出，及时锁定'][this.guideStep]).fontSize(28).fontWeight(FontWeight.Bold).fontColor($r('app.color.text_accent'));Text(['先建立工程与线路，再拍照、录像。资料自动归入当前工程。','预览和照片使用同一水印布局，拍摄前可修改字段和方向。','在工程相册按日期和问题状态查找，并保留独立编辑成品。','导出 ZIP 或工程文件夹。锁定后禁止新增拍摄，仍可整理旧资料。'][this.guideStep]).fontSize(19).fontColor($r('app.color.text_primary'));Text(`${this.guideStep+1} / 4`).fontColor($r('app.color.text_secondary'));Button(this.guideStep===3?'开始使用':'下一步').onClick(()=>this.task(async()=>{if(this.guideStep<3){this.guideStep++;return;}this.settings.guideDone=true;await this.persist();await this.navigate(this.settings.permissionHandled?(this.settings.currentProject?'camera':'projects'):'permissions','forward');}));Button('暂时跳过').onClick(()=>this.task(async()=>{this.settings.guideDone=true;await this.persist();await this.navigate(this.settings.permissionHandled?(this.settings.currentProject?'camera':'projects'):'permissions','forward');}));}.padding(30).layoutWeight(1).justifyContent(FlexAlign.Center);}
   @Builder
-  permissionsPage() {this.header('使用权限','projects');Column({space:20}){Text('相机：用于拍照录像\n定位：可选，用于地点水印\n麦克风：可选，拒绝后仍可录制无声视频').fontSize(20).fontColor($r('app.color.text_primary')).lineHeight(34);Text('定位或地址不可用时会明确标注，不影响保存工程资料。').fontColor($r('app.color.text_secondary'));Button('开启所需权限').onClick(()=>this.task(async()=>{await this.permissions(true);this.page=this.settings.currentProject?'camera':'projects';this.notify(this.photoPermission?'权限设置已完成':'未开启相机，可先管理工程资料');}));Button('稍后设置').onClick(()=>this.task(async()=>{this.settings.permissionHandled=true;await this.persist();this.page=this.settings.currentProject?'camera':'projects';}));Button('打开系统应用设置').onClick(()=>this.task(async()=>{await this.context.startAbility({bundleName:'com.huawei.hmos.settings',abilityName:'com.huawei.hmos.settings.MainAbility',uri:'application_info_entry',parameters:{bundleName:'com.sitecam.app'}});}));}.padding(24).layoutWeight(1).justifyContent(FlexAlign.Center);}
+  permissionsPage() {this.header('使用权限','projects');Column({space:20}){Text('相机：用于拍照录像\n定位：可选，用于地点水印\n麦克风：可选，拒绝后仍可录制无声视频').fontSize(20).fontColor($r('app.color.text_primary')).lineHeight(34);Text('定位或地址不可用时会明确标注，不影响保存工程资料。').fontColor($r('app.color.text_secondary'));Button('开启所需权限').onClick(()=>this.task(async()=>{await this.permissions(true);await this.navigate(this.settings.currentProject?'camera':'projects','forward');this.notify(this.photoPermission?'权限设置已完成':'未开启相机，可先管理工程资料');}));Button('稍后设置').onClick(()=>this.task(async()=>{this.settings.permissionHandled=true;await this.persist();await this.navigate(this.settings.currentProject?'camera':'projects','forward');}));Button('打开系统应用设置').onClick(()=>this.task(async()=>{await this.context.startAbility({bundleName:'com.huawei.hmos.settings',abilityName:'com.huawei.hmos.settings.MainAbility',uri:'application_info_entry',parameters:{bundleName:'com.sitecam.app'}});}));}.padding(24).layoutWeight(1).justifyContent(FlexAlign.Center);}
   @Builder
   exportPage() {this.header('工程资料导出','projects');Column({space:18}){Text(`已选 ${this.exportIds.length} 个工程`).fontSize(22).fontColor($r('app.color.text_accent'));Select([{value:'ZIP 压缩包'},{value:'总文件夹'}]).selected(this.exportFolder?1:0).value(this.exportFolder?'总文件夹':'ZIP 压缩包').onSelect(i=>this.exportFolder=i===1);Text('总文件夹通过系统授权保存到下载目录。').fontColor($r('app.color.text_secondary'));
-Text('照片导出质量').fontColor($r('app.color.text_primary'));Select([{value:'保持原文件'},...QUALITY_NAMES.map((value: string): SelectOption=>({value:value}))]).selected(this.exportQuality+1).value(this.exportQuality<0?'保持原文件':QUALITY_NAMES[this.exportQuality]).onSelect(i=>this.exportQuality=i-1);Text('包含工程信息、照片、视频、编辑成品、清单和报告。缺失或处理失败的资料会在报告中说明。').fontColor($r('app.color.text_secondary'));Button('选择位置并导出').width('100%').enabled(!this.busy).onClick(()=>this.task(async()=>this.exportNow()));if(this.busy)Button('取消导出').onClick(()=>{this.exporter!.cancelled=true;});}.padding(20).layoutWeight(1);}
-  build() {Stack(){Column(){if(!this.ready){this.header('工程水印相机');Text(this.message).fontColor($r('app.color.text_primary')).padding(24);}else{if(this.page==='projects'){this.projectsRootPage();}else if(this.page==='projectEdit'){this.projectEditPage();}else if(this.page==='camera'){this.cameraPage();}else if(this.page==='gallery'){this.galleryRootPage();}else if(this.page==='detail'){this.detailRootPage();}else if(this.page==='editor'){this.editorPage();}else if(this.page==='watermark'){this.watermarkPanelPage();}else if(this.page==='settings'){this.settingsRootPage();}else if(this.page==='guide'){this.onboardingRootPage();}else if(this.page==='permissions'){this.permissionRootPage();}else if(this.page==='export'){this.exportPage();}else if(this.page==='help'){this.helpRootPage();}else if(this.page==='category'){this.header('批量分类','projects');this.field('类别',this.batchProjectCategory,v=>this.batchProjectCategory=v);Button('应用分类').onClick(()=>this.task(async()=>{await this.projectBatch('category');this.page='projects';}));Blank();}else if(this.page==='move'){this.header('移动至工程','gallery');Scroll(){Column({space:10}){ForEach(this.projects,(p: Project)=>{Button(p.name).width('100%').onClick(()=>this.task(async()=>{await store.moveMedia(this.mediaSelection,p.id);this.mediaSelection=[];await this.refresh();this.page='gallery';}));});}.padding(16);}.scrollBar(BarState.Off).align(Alignment.Top).layoutWeight(1);}
-    if(this.busy&&this.video.running){Text(`视频处理中 ${Math.round(this.videoProgress*100)}%`).fontSize(13).fontColor(SITE_ACCENT).width('95%');Button('取消视频处理').onClick(()=>this.video.cancel());}
-    if(!this.environment.coverScreen&&this.message&&!['guide','permissions','camera'].includes(this.page)){Text(this.message).fontSize(12).fontColor($r('app.color.text_accent')).maxLines(3).padding(8).width('100%');}
-    }
-  }.width('100%').height('100%').backgroundColor($r('app.color.page_bg')).padding({top:this.environment.top,bottom:this.environment.bottom,left:this.environment.left,right:this.environment.right}).visibility(this.environment.coverScreen&&this.page!=='camera'?Visibility.Hidden:Visibility.Visible);
+Text('照片导出质量').fontColor($r('app.color.text_primary'));Select([{value:'保持原文件'},...QUALITY_NAMES.map((value: string): SelectOption=>({value:value}))]).selected(this.exportQuality+1).value(this.exportQuality<0?'保持原文件':QUALITY_NAMES[this.exportQuality]).onSelect(i=>this.exportQuality=i-1);Text('包含工程信息、照片、视频、编辑成品、清单和报告。缺失或处理失败的资料会在报告中说明。').fontColor($r('app.color.text_secondary'));if(this.busy&&this.message)Text(this.message).fontSize(13).fontColor($r('app.color.text_accent'));Button('选择位置并导出').width('100%').enabled(!this.busy).onClick(()=>this.task(async()=>this.exportNow()));if(this.busy)Button('取消导出').onClick(()=>{this.exporter!.cancelled=true;});}.padding(20).layoutWeight(1);}
+  build() {Stack(){
+    Stack(){
+      if(!this.ready){
+        Column(){
+          this.header('工程水印相机');
+          Text(this.message).fontColor($r('app.color.text_primary')).padding(24);
+        }.width('100%').height('100%');
+      }else{
+        if(this.page==='projects'){
+          Stack(){this.projectsRootPage();}.width('100%').height('100%').transition(this.getPageTransition('projects'));
+        }else if(this.page==='projectEdit'){
+          Stack(){this.projectEditPage();}.width('100%').height('100%').transition(this.getPageTransition('projectEdit'));
+        }else if(this.page==='camera'){
+          Stack(){this.cameraPage();}.width('100%').height('100%').transition(this.getPageTransition('camera'));
+        }else if(this.page==='gallery'){
+          Stack(){this.galleryRootPage();}.width('100%').height('100%').transition(this.getPageTransition('gallery'));
+        }else if(this.page==='detail'){
+          Stack(){this.detailRootPage();}.width('100%').height('100%').transition(this.getPageTransition('detail'));
+        }else if(this.page==='editor'){
+          Stack(){this.editorPage();}.width('100%').height('100%').transition(this.getPageTransition('editor'));
+        }else if(this.page==='watermark'){
+          Stack(){this.watermarkPanelPage();}.width('100%').height('100%').transition(this.getPageTransition('watermark'));
+        }else if(this.page==='settings'){
+          Stack(){this.settingsRootPage();}.width('100%').height('100%').transition(this.getPageTransition('settings'));
+        }else if(this.page==='guide'){
+          Stack(){this.onboardingRootPage();}.width('100%').height('100%').transition(this.getPageTransition('guide'));
+        }else if(this.page==='permissions'){
+          Stack(){this.permissionRootPage();}.width('100%').height('100%').transition(this.getPageTransition('permissions'));
+        }else if(this.page==='export'){
+          Stack(){this.exportPage();}.width('100%').height('100%').transition(this.getPageTransition('export'));
+        }else if(this.page==='help'){
+          Stack(){this.helpRootPage();}.width('100%').height('100%').transition(this.getPageTransition('help'));
+        }else if(this.page==='category'){
+          Stack(){Column(){this.header('批量分类','projects');this.field('类别',this.batchProjectCategory,v=>this.batchProjectCategory=v);Button('应用分类').onClick(()=>this.task(async()=>{await this.projectBatch('category');await this.navigate('projects','backward');}));Blank();}.width('100%').height('100%');}.width('100%').height('100%').transition(this.getPageTransition('category'));
+        }else if(this.page==='move'){
+          Stack(){Column(){this.header('移动至工程','gallery');Scroll(){Column({space:10}){ForEach(this.projects,(p: Project)=>{Button(p.name).width('100%').onClick(()=>this.task(async()=>{await store.moveMedia(this.mediaSelection,p.id);this.mediaSelection=[];await this.refresh();await this.navigate('gallery','backward');}));});}.padding(16);}.scrollBar(BarState.Off).align(Alignment.Top).layoutWeight(1);}.width('100%').height('100%');}.width('100%').height('100%').transition(this.getPageTransition('move'));
+        }
+      }
+      if(this.busy&&this.video.running){
+        Column({space:4}){
+          Text(`视频处理中 ${Math.round(this.videoProgress*100)}%`).fontSize(13).fontColor(SITE_ACCENT).width('95%');
+          Button('取消视频处理').onClick(()=>this.video.cancel());
+        }.position({x:0,y:'88%'}).width('100%').alignItems(HorizontalAlign.Center);
+      }
+    }.width('100%').height('100%').backgroundColor($r('app.color.page_bg')).padding({top:this.environment.top,bottom:this.environment.bottom,left:this.environment.left,right:this.environment.right}).visibility(this.environment.coverScreen&&this.page!=='camera'?Visibility.Hidden:Visibility.Visible);
     if(this.environment.coverScreen&&this.page!=='camera'){Column(){this.coverCompanionPage();}.width('100%').height('100%').padding({top:this.environment.top,bottom:this.environment.bottom,left:this.environment.left,right:this.environment.right});}
     if(this.projectUndoMessage){ProjectUndoBar({message:this.projectUndoMessage,barWidth:Math.min(420,Math.max(280,this.windowWidth-24)),onUndo:()=>this.undoProjectStatus(),onDismiss:()=>this.clearProjectUndo()}).position({x:Math.max(8,(this.windowWidth-Math.min(420,Math.max(280,this.windowWidth-24)))/2),y:Math.max(8,this.windowHeight-68)});}
   }.width('100%').height('100%');}

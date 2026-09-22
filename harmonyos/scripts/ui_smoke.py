@@ -85,6 +85,8 @@ tap('camera-orientation')
 assert any(n.get('text') == '拍摄方向' for n in nodes()), 'Orientation dialog missing'
 back()
 tap('camera-project')
+if any(n.get('text') == '全部工程包' for n in nodes()):
+    tap('全部工程包')
 tap('projects-create')
 assert any(n.get('text') == '新建工程包' for n in nodes()), 'Project dialog did not open'
 tap('取消')

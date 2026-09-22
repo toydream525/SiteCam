@@ -61,7 +61,11 @@ fun PermissionGuideScreen(
         context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")))
     }
 
-    Scaffold(modifier = modifier.fillMaxSize(), containerColor = DarkBackground) { padding ->
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = DarkBackground,
+        contentWindowInsets = WindowInsets.safeDrawing
+    ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text("开始前，一次设置好权限", fontSize = 25.sp, fontWeight = FontWeight.Bold, color = TextPrimaryDark)
             Text("系统会依次询问。定位和麦克风都可不允许，之后仍能拍照、整理和导出资料。", color = TextSecondaryDark)

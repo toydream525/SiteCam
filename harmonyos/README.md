@@ -6,6 +6,18 @@
 
 未签名 HAP 需要自行签名后安装。
 
+### 本地应用市场签名包（2026-09-20）
+
+已为 **SiteCam工程水印相机**（`com.sitecam.app`，v0.3.1 / 14）申请华为发布证书与普通发布 Profile，生成并核验本地签名 HAP 和 APP。公开下载链接仍是上述未签名资产；本次未替换公开下载、未提交应用市场审核，也未验证实机安装。
+
+- `dist/appgallery/SiteCam-0.3.1-HarmonyOS-AppGallery-Signed.app`：应用市场上传包。
+- `dist/appgallery/SiteCam-0.3.1-HarmonyOS-AppGallery-Signed.hap`：相同代码与资源的发布签名 HAP；不据此承诺任意设备可侧载安装。
+- `dist/appgallery/SIGNING-VERIFICATION.json`：签名及版本核验记录。
+
+本机可运行 `bash harmonyos/scripts/build-store.sh`（从仓库根目录）重新生成包。签名配置从 `~/.ohos/sitecam-release/signing-config.json` 读取，复用本机现有私钥，未写入仓库。该脚本默认使用独立构建目录 `~/Library/Caches/SiteCamHarmonyStoreBuild`，不覆盖原有调试签名配置；不会上传软件包。
+
+发布证书与 Profile 有效期至 2029-09-20，Profile 为 `release / app_gallery`，没有设备白名单。应用市场签名与审核上架、真实硬件验收是不同状态。
+
 系统相册入口为“另存到系统相册”：保存独立副本，取消授权不影响工程原件，删除互不联动。
 
 ## 构建与安装

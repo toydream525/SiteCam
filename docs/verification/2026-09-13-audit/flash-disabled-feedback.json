@@ -1,0 +1,19 @@
+{
+  "observation": "Rear photo session reports flash supported but UI Button remains disabled after camera open. A click caused no set request.",
+  "flash": {
+    "supported": true,
+    "offSupported": true,
+    "autoSupported": true,
+    "onSupported": true,
+    "torchSupported": true,
+    "mode": "off",
+    "requested": "off",
+    "diagnostics": "session=photo hasFlash=true off=true auto=true on=true torch=true readback=off"
+  },
+  "uiButton": {
+    "bounds": "[1125,14][1239,119]",
+    "enabled": false,
+    "clickable": false
+  },
+  "label": "关闭"
+}

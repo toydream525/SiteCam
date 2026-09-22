@@ -1,0 +1,194 @@
+{
+  "date": "2026-09-13",
+  "device": {
+    "model": "Xiaomi 14 / 23127PN0CC",
+    "androidVersion": "16",
+    "api": 36
+  },
+  "source": "Read-only camera service metadata, current device UI, installed formal APK asset, workspace source, and public Camera2 enumeration inside the installed debug app. No completed instrumented camera capture.",
+  "installedFormalApp": {
+    "package": "com.sitecam.app",
+    "versionName": "0.3.0",
+    "versionCode": 13,
+    "lastUpdateTime": "2026-09-12 23:12:48"
+  },
+  "normalCameraMappings": [
+    "0",
+    "1",
+    "7"
+  ],
+  "halStaticCameras": [
+    {
+      "id": "0",
+      "zoomRatioRange": [
+        0.60000002,
+        10.0
+      ],
+      "focalLengthsMm": [
+        6.55000019
+      ],
+      "facing": "BACK",
+      "physicalIds": [
+        "3",
+        "2"
+      ]
+    },
+    {
+      "id": "1",
+      "zoomRatioRange": [
+        1.0,
+        10.0
+      ],
+      "focalLengthsMm": [
+        2.82999992
+      ],
+      "facing": "FRONT",
+      "physicalIds": null
+    },
+    {
+      "id": "2",
+      "zoomRatioRange": [
+        1.0,
+        10.0
+      ],
+      "focalLengthsMm": [
+        6.55000019
+      ],
+      "facing": "BACK",
+      "physicalIds": null
+    },
+    {
+      "id": "3",
+      "zoomRatioRange": [
+        1.0,
+        10.0
+      ],
+      "focalLengthsMm": [
+        2.16000009
+      ],
+      "facing": "BACK",
+      "physicalIds": null
+    },
+    {
+      "id": "4",
+      "zoomRatioRange": [
+        1.0,
+        10.0
+      ],
+      "focalLengthsMm": [
+        9.0
+      ],
+      "facing": "BACK",
+      "physicalIds": null
+    },
+    {
+      "id": "5",
+      "zoomRatioRange": [
+        0.60000002,
+        10.0
+      ],
+      "focalLengthsMm": [
+        6.55000019
+      ],
+      "facing": "BACK",
+      "physicalIds": [
+        "3",
+        "2",
+        "4"
+      ]
+    },
+    {
+      "id": "6",
+      "zoomRatioRange": [
+        0.60000002,
+        10.0
+      ],
+      "focalLengthsMm": [
+        6.55000019
+      ],
+      "facing": "BACK",
+      "physicalIds": [
+        "3",
+        "2",
+        "4"
+      ]
+    },
+    {
+      "id": "7",
+      "zoomRatioRange": [
+        1.0,
+        10.0
+      ],
+      "focalLengthsMm": [
+        2.82999992
+      ],
+      "facing": "FRONT",
+      "physicalIds": null
+    },
+    {
+      "id": "8",
+      "zoomRatioRange": [
+        0.60000002,
+        10.0
+      ],
+      "focalLengthsMm": [
+        6.55000019
+      ],
+      "facing": "BACK",
+      "physicalIds": [
+        "3",
+        "2",
+        "4"
+      ]
+    }
+  ],
+  "formalAppBoundCameraId": "0",
+  "formalAppLatestFrameAtBaseline": {
+    "zoomRatio": 1.0,
+    "focalLengthMm": 6.55000019,
+    "activePhysicalId": "2"
+  },
+  "visiblePhotoZoomLabels": [
+    "0.6×",
+    "1×",
+    "2×",
+    "3×",
+    "5×"
+  ],
+  "installedGuideAsset": {
+    "path": "assets/docs/USER_GUIDE.md",
+    "versionLine": "本版：`0.2.8` · Android 使用指南"
+  },
+  "limits": [
+    "HAL static camera IDs are not proof that every ID is accessible from the app.",
+    "Current rear group 0 lists only physical cameras 3 and 2; other rear groups with 4 are not present in the normal camera mappings.",
+    "Zoom interaction attempts did not establish a changed device frame; actual 0.6× and high-zoom captures remain unverified.",
+    "No conclusion that photo/video lens switching or post-capture UI orientation passed.",
+    "Public camera enumeration was obtained from com.sitecam.app.debug; formal-package access and actual photo/video behavior still require separate verification."
+  ],
+  "debugAppPublicCameras": [
+    {
+      "id": "0",
+      "facing": 1,
+      "focalLengthsMm": [
+        6.55
+      ],
+      "physicalIds": [
+        "2",
+        "3"
+      ],
+      "zoomRatioRange": "[0.6, 10.0]",
+      "sensorOrientation": 90
+    },
+    {
+      "id": "1",
+      "facing": 0,
+      "focalLengthsMm": [
+        2.83
+      ],
+      "physicalIds": [],
+      "zoomRatioRange": "[1.0, 10.0]",
+      "sensorOrientation": 270
+    }
+  ]
+}

@@ -35,6 +35,7 @@ import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.Observer
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -137,6 +138,9 @@ class CameraManager(private val context: Context) {
                 // it were the new session's native ratio.
                 setZoomRatio(previousZoom)
             }
+        } catch (cancelled: CancellationException) {
+            // A resized/disposed preview cancels its LaunchedEffect normally.
+            throw cancelled
         } catch (error: Exception) {
             _isCameraReady.value = false
             reportCameraError("相机启动失败，请检查相机权限或重试")

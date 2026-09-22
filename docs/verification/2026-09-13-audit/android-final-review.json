@@ -1,0 +1,412 @@
+{
+  "scope": "Android local unit tests and debug build after final H7 increment; no device validation",
+  "command": ":app:testDebugUnitTest :app:assembleDebug",
+  "build": "passed",
+  "suites": 40,
+  "tests": 133,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "suite_results": [
+    {
+      "name": "com.sitecam.app.feature.camera.WatermarkEditEntryTest",
+      "tests": "1",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:40.217Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.001"
+    },
+    {
+      "name": "com.sitecam.app.core.camera.CaptureOperationCoordinatorTest",
+      "tests": "4",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:07.090Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.045"
+    },
+    {
+      "name": "com.sitecam.app.core.camera.CameraCapabilityTest",
+      "tests": "10",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:06.524Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.564"
+    },
+    {
+      "name": "com.sitecam.app.feature.annotation.EditRecipeTest",
+      "tests": "2",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:36.770Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "2.544"
+    },
+    {
+      "name": "com.sitecam.app.core.watermark.WatermarkSnapshotCodecTest",
+      "tests": "8",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:36.739Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.026"
+    },
+    {
+      "name": "com.sitecam.app.core.location.LocationFreshnessTest",
+      "tests": "1",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:13.336Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.0"
+    },
+    {
+      "name": "com.sitecam.app.feature.camera.components.CameraTopBarLensTest",
+      "tests": "2",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:40.219Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.004"
+    },
+    {
+      "name": "com.sitecam.app.feature.icon.AppIconVectorTest",
+      "tests": "1",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:40.900Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.019"
+    },
+    {
+      "name": "com.sitecam.app.core.media.MediaFileReservationTest",
+      "tests": "1",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:13.383Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.005"
+    },
+    {
+      "name": "com.sitecam.app.core.media.PhotoQualityProfileTest",
+      "tests": "1",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:13.391Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.0"
+    },
+    {
+      "name": "com.sitecam.app.core.database.ProjectDataTransactionsTest",
+      "tests": "2",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:07.196Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "3.676"
+    },
+    {
+      "name": "com.sitecam.app.feature.annotation.ImageContentRectTest",
+      "tests": "2",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:39.315Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.002"
+    },
+    {
+      "name": "com.sitecam.app.core.watermark.WatermarkFieldPresentationTest",
+      "tests": "4",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:35.923Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.644"
+    },
+    {
+      "name": "com.sitecam.app.core.watermark.WatermarkFieldResolverTest",
+      "tests": "2",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:36.568Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.002"
+    },
+    {
+      "name": "com.sitecam.app.core.database.WatermarkTemplateStateTest",
+      "tests": "8",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:10.874Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.43"
+    },
+    {
+      "name": "com.sitecam.app.core.watermark.WatermarkLayoutEngineTest",
+      "tests": "9",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:36.575Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.158"
+    },
+    {
+      "name": "com.sitecam.app.core.media.MediaDeletionCoordinatorTest",
+      "tests": "2",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:13.380Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.001"
+    },
+    {
+      "name": "com.sitecam.app.core.media.PhotoQualitySaveTest",
+      "tests": "1",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:13.392Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.204"
+    },
+    {
+      "name": "com.sitecam.app.feature.projects.ProjectBrowserTest",
+      "tests": "6",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:42.004Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.024"
+    },
+    {
+      "name": "com.sitecam.app.core.export.ProjectExportTest",
+      "tests": "3",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:13.335Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.0"
+    },
+    {
+      "name": "com.sitecam.app.feature.gallery.CaptureDateRangeTest",
+      "tests": "3",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:40.224Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.011"
+    },
+    {
+      "name": "com.sitecam.app.feature.icon.AppIconChoiceTest",
+      "tests": "1",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:40.236Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.001"
+    },
+    {
+      "name": "com.sitecam.app.core.media.NamingEngineTest",
+      "tests": "3",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:13.389Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.001"
+    },
+    {
+      "name": "com.sitecam.app.feature.permissions.PermissionAccessTest",
+      "tests": "2",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:40.921Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "1.063"
+    },
+    {
+      "name": "com.sitecam.app.feature.icon.AppIconPickerPackageManagerTest",
+      "tests": "4",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:40.243Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.655"
+    },
+    {
+      "name": "com.sitecam.app.core.preferences.CaptureOrientationPreferencesTest",
+      "tests": "2",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:13.600Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.252"
+    },
+    {
+      "name": "com.sitecam.app.feature.permissions.PermissionGuidePersistenceTest",
+      "tests": "1",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:41.986Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.016"
+    },
+    {
+      "name": "com.sitecam.app.core.media.VideoOrientationTest",
+      "tests": "4",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:13.597Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.002"
+    },
+    {
+      "name": "com.sitecam.app.feature.camera.AddressRefreshCoordinatorTest",
+      "tests": "7",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:40.163Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.022"
+    },
+    {
+      "name": "com.sitecam.app.core.camera.ScreenAdaptationTest",
+      "tests": "3",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:07.136Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.001"
+    },
+    {
+      "name": "com.sitecam.app.core.media.MediaAvailabilitySyncTest",
+      "tests": "2",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:13.338Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.041"
+    },
+    {
+      "name": "com.sitecam.app.feature.annotation.PhotoAnnotationViewModelIntegrationTest",
+      "tests": "1",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:39.318Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.841"
+    },
+    {
+      "name": "com.sitecam.app.core.watermark.UnifiedWatermarkRenderingTest",
+      "tests": "5",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:13.859Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "22.054"
+    },
+    {
+      "name": "com.sitecam.app.feature.permissions.PermissionGuidePolicyTest",
+      "tests": "7",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:42.003Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.0"
+    },
+    {
+      "name": "com.sitecam.app.core.export.ProjectExportEngineIntegrationTest",
+      "tests": "2",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:11.308Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "2.025"
+    },
+    {
+      "name": "com.sitecam.app.feature.camera.AddressRefreshPlacementTest",
+      "tests": "4",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:40.187Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.029"
+    },
+    {
+      "name": "com.sitecam.app.core.camera.CameraRotationTest",
+      "tests": "6",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:07.088Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.002"
+    },
+    {
+      "name": "com.sitecam.app.feature.annotation.TextNoteGeometryTest",
+      "tests": "2",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:40.160Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.002"
+    },
+    {
+      "name": "com.sitecam.app.core.media.MediaSaveTargetTest",
+      "tests": "2",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:13.388Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.001"
+    },
+    {
+      "name": "com.sitecam.app.core.camera.WindowOrientationTest",
+      "tests": "2",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-09-13T06:58:07.138Z",
+      "hostname": "ninjas-MacBook-Air.local",
+      "time": "0.0"
+    }
+  ]
+}

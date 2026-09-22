@@ -18,7 +18,10 @@ def run(*parts):
     return subprocess.run([str(hdc), '-t', args.target, *parts], check=True, capture_output=True, text=True).stdout
 
 subprocess.run([str(root / 'scripts/build.sh'), 'debug', 'ohosTest'], check=True)
-print(run('install', str(root / 'dist/debug/entry-ohosTest-unsigned.hap')))
+installation = run('install', str(root / 'dist/debug/entry-ohosTest-unsigned.hap'))
+print(installation)
+if 'install bundle successfully' not in installation:
+    raise SystemExit('Test HAP installation failed; install the matching main HAP first. No runtime results accepted.')
 # The suite uses namespaced databases and test-module files; it does not seed the application.
 run('shell', 'aa', 'force-stop', 'com.sitecam.app')
 remote = '/data/app/el2/100/base/com.sitecam.app/haps/entry_test/files/verification.json'
