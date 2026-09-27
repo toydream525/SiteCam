@@ -2,6 +2,7 @@ package com.sitecam.app.feature.camera
 
 import com.sitecam.app.core.location.LocationFreshness
 import com.sitecam.app.core.location.SiteLocation
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -20,11 +21,28 @@ sealed interface AddressRefreshResult {
     data class Failure(val reason: AddressRefreshFailure) : AddressRefreshResult
 }
 
-internal fun sameAddressLocation(first: SiteLocation?, second: SiteLocation): Boolean =
+internal fun sameLocationCoordinates(first: SiteLocation?, second: SiteLocation): Boolean =
     first != null &&
-        first.timestamp == second.timestamp &&
         first.latitude == second.latitude &&
         first.longitude == second.longitude
+
+internal fun resolveWatermarkAddress(
+    manualAddress: String?,
+    automaticAddress: String?,
+    locationIsFresh: Boolean
+): String = manualAddress?.takeIf { it.isNotBlank() }
+    ?: if (locationIsFresh) automaticAddress.orEmpty() else ""
+
+internal suspend fun lookupAutomaticAddress(
+    reverseGeocode: suspend () -> String,
+    timeoutMs: Long = 8_000L
+): String = try {
+    withTimeoutOrNull(timeoutMs) { reverseGeocode() }.orEmpty()
+} catch (cancelled: CancellationException) {
+    throw cancelled
+} catch (_: Exception) {
+    ""
+}
 
 /**
  * The small source boundary makes the retry order explicit and testable:
@@ -94,7 +112,7 @@ suspend fun performAddressRefresh(
     if (!source.hasLocationPermission()) {
         return AddressRefreshResult.Failure(AddressRefreshFailure.PERMISSION)
     }
-    if (!sameAddressLocation(source.currentLocation.value, location) ||
+    if (!sameLocationCoordinates(source.currentLocation.value, location) ||
         !LocationFreshness.isFresh(source.currentLocation.value, nowMs())
     ) {
         return AddressRefreshResult.Failure(AddressRefreshFailure.LOCATION)

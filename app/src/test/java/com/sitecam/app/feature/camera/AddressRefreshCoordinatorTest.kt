@@ -16,6 +16,32 @@ class AddressRefreshCoordinatorTest {
     private val now = 1_800_000_000_000L
 
     @Test
+    fun manualProjectAddressWinsAndDoesNotRequireFreshLocation() {
+        assertEquals(
+            "工程手填地点",
+            resolveWatermarkAddress("工程手填地点", "自动查询地点", locationIsFresh = false)
+        )
+        assertEquals("", resolveWatermarkAddress("", "旧自动地点", locationIsFresh = false))
+        assertEquals(
+            "自动查询地点",
+            resolveWatermarkAddress("  ", "自动查询地点", locationIsFresh = true)
+        )
+    }
+
+    @Test
+    fun automaticAddressLookupTimesOutWithoutBlockingItsCaller() = runTest {
+        val result = lookupAutomaticAddress(
+            reverseGeocode = {
+                delay(100L)
+                "迟到的地址"
+            },
+            timeoutMs = 1L
+        )
+
+        assertEquals("", result)
+    }
+
+    @Test
     fun freshFixIsGeocodedBeforeAnyNewLocationRequest() = runTest {
         val fix = SiteLocation(31.2, 121.5, timestamp = now - 1_000L)
         val source = FakeAddressRefreshSource(fix)
@@ -145,6 +171,33 @@ class AddressRefreshCoordinatorTest {
 
         assertEquals(
             AddressRefreshResult.Failure(AddressRefreshFailure.LOCATION),
+            pending.await()
+        )
+    }
+
+    @Test
+    fun timestampRefreshAtSameCoordinatesDoesNotDiscardManualAddressResult() = runTest {
+        val original = SiteLocation(31.2, 121.5, timestamp = now - 1_000L)
+        val refreshed = original.copy(timestamp = now - 500L)
+        val source = FakeAddressRefreshSource(original)
+        val geocoderGate = CompletableDeferred<Unit>()
+        val pending = async {
+            performAddressRefresh(
+                source = source,
+                reverseGeocode = {
+                    geocoderGate.await()
+                    "当前位置地址"
+                },
+                nowMs = { now },
+                addressTimeoutMs = 1_000L
+            )
+        }
+        runCurrent()
+        source.locations.value = refreshed
+        geocoderGate.complete(Unit)
+
+        assertEquals(
+            AddressRefreshResult.Success(original, "当前位置地址"),
             pending.await()
         )
     }

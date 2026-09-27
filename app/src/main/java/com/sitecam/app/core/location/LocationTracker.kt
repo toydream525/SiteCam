@@ -124,6 +124,11 @@ class LocationTracker(private val context: Context) {
                         startSystemLocationUpdates(generation)
                     }
                 }
+                // Keep the platform GNSS provider active alongside fused
+                // updates. Fused registration can succeed while delivering
+                // no fix on a disconnected device, so registration alone is
+                // not a usable offline fallback.
+                startSystemLocationUpdates(generation, satelliteOnly = hasFine)
                 return
             } catch (_: Exception) {
                 // Fallback to System LocationManager
@@ -135,7 +140,7 @@ class LocationTracker(private val context: Context) {
     }
 
     @SuppressLint("MissingPermission")
-    private fun startSystemLocationUpdates(generation: Long) {
+    private fun startSystemLocationUpdates(generation: Long, satelliteOnly: Boolean = false) {
         if (!isUpdating || generation != updateGeneration || systemLocationListener != null) return
         try {
             val listener = object : LocationListener {
@@ -153,7 +158,13 @@ class LocationTracker(private val context: Context) {
                 context, android.Manifest.permission.ACCESS_FINE_LOCATION
             ) == PackageManager.PERMISSION_GRANTED
             val providers = systemLocationManager?.getProviders(true)
-                ?.filterNot { !hasFine && it == LocationManager.GPS_PROVIDER }
+                ?.filter { provider ->
+                    when {
+                        satelliteOnly -> provider == LocationManager.GPS_PROVIDER
+                        !hasFine -> provider != LocationManager.GPS_PROVIDER
+                        else -> true
+                    }
+                }
                 .orEmpty()
             if (providers.isEmpty()) {
                 systemLocationListener = null
@@ -250,6 +261,10 @@ class LocationTracker(private val context: Context) {
             systemLocationListener = null
         }
         readLastKnownLocation(generation)
+        // Request GNSS directly while the one-shot fused request is pending.
+        // This lets an offline satellite fix satisfy callers waiting for a
+        // fresh location even if fused never returns a result.
+        startSystemLocationUpdates(generation, satelliteOnly = hasFine)
 
         val client = fusedClient
         if (client != null) {

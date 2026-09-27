@@ -36,6 +36,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.firstOrNull
@@ -83,6 +85,15 @@ data class CameraUiState(
     val shutterSoundEnabled: Boolean = true
 )
 
+private data class LocatedAddress(
+    val latitude: Double,
+    val longitude: Double,
+    val text: String
+) {
+    fun matches(location: SiteLocation?): Boolean = location != null &&
+        latitude == location.latitude && longitude == location.longitude
+}
+
 class CameraViewModel(
     private val appContainer: AppContainer
 ) : ViewModel() {
@@ -100,7 +111,7 @@ class CameraViewModel(
     val isProjectSwitching: StateFlow<Boolean> = _isProjectSwitching.asStateFlow()
     private val _activeTemplate = MutableStateFlow<WatermarkTemplateEntity?>(null)
     private val _watermarkFields = MutableStateFlow<List<WatermarkFieldEntity>>(emptyList())
-    private val _currentAddress = MutableStateFlow("")
+    private val _automaticAddress = MutableStateFlow<LocatedAddress?>(null)
     private val _addressRefreshState = MutableStateFlow("IDLE")
     private var locationAddressGeneration = 0L
     private var manualAddressGeneration = 0L
@@ -145,6 +156,11 @@ class CameraViewModel(
     private fun freshLocation(state: CameraUiState, now: Long = System.currentTimeMillis()): CaptureLocation {
         val location = state.currentLocation
         val fresh = LocationFreshness.isFresh(location, now)
+        val address = resolveWatermarkAddress(
+            manualAddress = state.currentProject?.address,
+            automaticAddress = state.currentAddress,
+            locationIsFresh = fresh
+        )
         return if (fresh && location != null) {
             CaptureLocation(
                 latitude = location.latitude,
@@ -152,11 +168,11 @@ class CameraViewModel(
                 altitude = location.altitude,
                 accuracy = location.accuracy,
                 timestamp = location.timestamp,
-                address = state.currentAddress,
+                address = address,
                 status = "FRESH"
             )
         } else {
-            CaptureLocation(null, null, null, null, null, "", "UNAVAILABLE")
+            CaptureLocation(null, null, null, null, null, address, "UNAVAILABLE")
         }
     }
 
@@ -167,7 +183,7 @@ class CameraViewModel(
             _activeTemplate,
             _watermarkFields,
             appContainer.locationTracker.currentLocation,
-            _currentAddress,
+            _automaticAddress,
             _addressRefreshState,
             cameraManager.cameraCapability,
             cameraManager.currentZoomRatio,
@@ -189,7 +205,7 @@ class CameraViewModel(
         val template = array[1] as? WatermarkTemplateEntity
         val fields = (array[2] as? List<WatermarkFieldEntity>) ?: emptyList()
         val location = array[3] as? SiteLocation
-        val address = (array[4] as? String) ?: ""
+        val locatedAddress = array[4] as? LocatedAddress
         val addressRefreshState = (array[5] as? String) ?: "IDLE"
         val capability = (array[6] as? CameraCapability) ?: CameraCapability()
         val zoomRatio = (array[7] as? Float) ?: 1.0f
@@ -211,6 +227,16 @@ class CameraViewModel(
 
         val resolvedFields = resolveWatermarkFields(fields)
         val locationStatus = if (location != null && LocationFreshness.isFresh(location, clockTick)) "FRESH" else "UNAVAILABLE"
+        val locationIsFresh = locationStatus == "FRESH"
+        val automaticAddress = locatedAddress
+            ?.takeIf { it.matches(location) && locationIsFresh }
+            ?.text
+            .orEmpty()
+        val watermarkAddress = resolveWatermarkAddress(
+            manualAddress = project?.address,
+            automaticAddress = automaticAddress,
+            locationIsFresh = locationIsFresh
+        )
 
         val watermarkData = WatermarkData(
             projectName = project?.name ?: "请选择工程包",
@@ -220,7 +246,7 @@ class CameraViewModel(
             longitude = location?.longitude,
             altitude = location?.altitude,
             locationStatus = locationStatus,
-            addressText = address,
+            addressText = watermarkAddress,
             userName = resolvedFields.userName,
             enabledSystemFields = resolvedFields.enabledSystemFields,
             systemValueOverrides = resolvedFields.systemValueOverrides,
@@ -240,7 +266,7 @@ class CameraViewModel(
             watermarkFields = fields,
             watermarkData = watermarkData,
             currentLocation = location,
-            currentAddress = address,
+            currentAddress = automaticAddress,
             addressRefreshState = addressRefreshState,
             cameraCapability = capability,
             currentZoomRatio = zoomRatio,
@@ -341,7 +367,19 @@ class CameraViewModel(
 
     private fun observeLocationAndAddress() {
         viewModelScope.launch {
-            appContainer.locationTracker.currentLocation.collectLatest { loc ->
+            appContainer.locationTracker.currentLocation
+                .distinctUntilChanged { previous, current ->
+                    if (previous == null || current == null) {
+                        previous == null && current == null
+                    } else {
+                        sameLocationCoordinates(previous, current)
+                    }
+                }
+                // Let an in-flight lookup finish, then process the latest
+                // coordinates. A moving GPS fix should not repeatedly cancel
+                // a slow system geocoder request; old-coordinate results are
+                // rejected below before they can be displayed or captured.
+                .collect { loc ->
                 if (loc != null) {
                     val generation = ++locationAddressGeneration
                     // Do not even start an automatic lookup while the retry
@@ -349,13 +387,17 @@ class CameraViewModel(
                     // only the generation at launch still allows an already
                     // running automatic lookup to reset REFRESHING when it
                     // completes.
-                    if (manualAddressActive) return@collectLatest
+                    if (manualAddressActive) return@collect
                     // A manual refresh owns the current request generation.
                     // Capture it before the potentially slow geocoder call so
                     // an automatic result that started earlier cannot overwrite
                     // the manual result after it finishes.
                     val manualGenerationAtStart = manualAddressGeneration
-                    val address = appContainer.reverseGeocoder.getAddressText(loc.latitude, loc.longitude)
+                    val address = lookupAutomaticAddress(
+                        reverseGeocode = {
+                            appContainer.reverseGeocoder.getAddressText(loc.latitude, loc.longitude)
+                        }
+                    )
                     val current = appContainer.locationTracker.currentLocation.value
                     if (canCommitAutomaticAddress(
                             manualGenerationAtStart = manualGenerationAtStart,
@@ -363,18 +405,17 @@ class CameraViewModel(
                             manualAddressActive = manualAddressActive,
                             locationGenerationAtStart = generation,
                             currentLocationGeneration = locationAddressGeneration,
-                            sameLocation = current?.timestamp == loc.timestamp &&
-                                current.latitude == loc.latitude && current.longitude == loc.longitude
+                            sameLocation = sameLocationCoordinates(current, loc)
                         )
                     ) {
-                        _currentAddress.value = address
+                        _automaticAddress.value = LocatedAddress(loc.latitude, loc.longitude, address)
                         _addressRefreshState.value = if (address.isBlank()) "FAILED_ADDRESS" else "IDLE"
                     }
                 } else {
                     // Never retain an address after permission is revoked or
                     // tracking is stopped; it could otherwise be burned into
                     // a later, unrelated capture.
-                    _currentAddress.value = ""
+                    _automaticAddress.value = null
                     if (_addressRefreshState.value != "REFRESHING") _addressRefreshState.value = "IDLE"
                 }
             }
@@ -417,12 +458,16 @@ class CameraViewModel(
                             !appContainer.locationTracker.hasLocationPermission() -> {
                                 _addressRefreshState.value = "FAILED_PERMISSION"
                             }
-                            !sameAddressLocation(current, result.location) ||
+                            !sameLocationCoordinates(current, result.location) ||
                                 !LocationFreshness.isFresh(current, System.currentTimeMillis()) -> {
                                 _addressRefreshState.value = "FAILED_LOCATION"
                             }
                             else -> {
-                                _currentAddress.value = result.address
+                                _automaticAddress.value = LocatedAddress(
+                                    result.location.latitude,
+                                    result.location.longitude,
+                                    result.address
+                                )
                                 _addressRefreshState.value = "IDLE"
                             }
                         }

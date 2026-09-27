@@ -1,3 +1,5 @@
+import { OFFLINE_BUILD } from './BuildVariant';
+
 export class Project {
   id: number = 0;
   name: string = '';
@@ -67,6 +69,12 @@ function defaultWatermarkFields(): Field[] {
   elevation.enabled=false;
   return [new Field('project','工程名称'),new Field('category','工程类型'),new Field('time','拍摄时间'),new Field('address','现场位置'),elevation,new Field('gps','GPS定位'),new Field('user','拍摄人员')];
 }
+export function usableAltitude(altitude: number, altitudeAccuracy: number | undefined): number | null {
+  if (!Number.isFinite(altitude)) return null;
+  const vertical = Number.isFinite(altitudeAccuracy) && (altitudeAccuracy as number) > 0;
+  if (altitude === 0 && !vertical) return null;
+  return altitude;
+}
 export class Watermark {
   style: string = 'CLASSIC';
   fontScale: number = 1;
@@ -122,6 +130,8 @@ export class Settings {
   recentProjectIds: number[] = [];
   browserSort: string = 'LAST_CAPTURE';
   browserAscending: boolean = false;
+  /** Offline-variant-only gate for displaying manually entered project addresses. */
+  offlineAddressVisible: boolean = false;
 }
 export class Fix {
   latitude: number = 0;
@@ -130,6 +140,8 @@ export class Fix {
   accuracy: number = 0;
   timestamp: number = 0;
   address: string = '';
+  /** HarmonyOS LocationSourceType value; -1 means the source was not reported. */
+  sourceType: number = -1;
 }
 export class Snapshot {
   presentationVersion: number = 2; // Missing in parsed v0.2.8 snapshots: retain legacy rendering.
@@ -173,8 +185,18 @@ export function captureSnapshot(p: Project, settings: Settings, fix: Fix|null): 
   const s=new Snapshot(); s.project=p.name;s.projectId=p.id;s.route=p.route;s.category=p.category || p.categoryName;
   s.captureTimestamp=s.timestamp;
   s.watermark=JSON.parse(JSON.stringify(settings.watermark)) as Watermark;
-  if(fix) { s.fix=JSON.parse(JSON.stringify(fix)) as Fix; const age=s.timestamp-fix.timestamp; s.locationStatus=age>=-30000&&age<=300000?'FRESH':'STALE'; }
-  s.address=p.address || (fix?.address || '定位不可用'); return s;
+  const age=fix?s.timestamp-fix.timestamp:Number.POSITIVE_INFINITY;
+  const captureFresh=!!fix&&age>=-30000&&age<=30000;
+  const usable=!!fix&&(!OFFLINE_BUILD||(fix.sourceType===1&&captureFresh));
+  if(usable&&fix) { s.fix=JSON.parse(JSON.stringify(fix)) as Fix; s.locationStatus=captureFresh?'FRESH':'STALE'; }
+  if(OFFLINE_BUILD){
+    s.address=p.address||'';
+    for(const field of s.watermark.fields)if(field.key==='address'){field.enabled=settings.offlineAddressVisible;if(field.label==='现场位置')field.label='具体地址';}
+  }else{
+    if(fix&&!usable){s.fix=JSON.parse(JSON.stringify(fix)) as Fix;s.locationStatus='STALE';}
+    s.address=p.address || (captureFresh ? (fix?.address || '定位不可用') : '定位不可用');
+  }
+  return s;
 }
 
 export function resetWatermarkFields(source: Watermark): Watermark {

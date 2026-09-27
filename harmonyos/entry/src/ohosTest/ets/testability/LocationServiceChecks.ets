@@ -183,7 +183,7 @@ export class LocationServiceChecks {
     requireResult(hardware.refreshState === 'failed' && hardware.failureReason === 'location-timeout', '硬件超时状态未如实上报');
     requireResult(hardware.fix !== null && hardware.fix.altitude === 10, '硬件超时后有效定位被清空');
 
-    // 竞态三：逆地理期间连续到达两次广播，必须提交最新解而不是误判失败
+    // 竞态三：两次重试期间连续到达两次广播，未解析到最新解的地址不能绑定到它。
     const burstBase = Date.now();
     let burstStep = 0;
     const burst: LocationService = new LocationService({
@@ -204,9 +204,10 @@ export class LocationServiceChecks {
       }
     });
     burst.listening = true;
-    requireResult(await burst.refreshAddress(), '连续广播下刷新被误判失败');
-    requireResult(burst.failureReason === '', '连续广播下刷新留下了失败原因');
+    requireResult(!(await burst.refreshAddress()), '未解析最新定位地址仍报告刷新成功');
+    requireResult(burst.failureReason === 'address-unavailable', '耗尽地址解析重试后未标记地址不可用');
     requireResult(burst.fix !== null && burst.fix.timestamp === burstBase + 2000, '连续广播下未提交最新定位解');
     requireResult(burst.fix !== null && burst.fix.altitude === 7, '连续广播下最新海拔未提交');
+    requireResult(burst.fix !== null && burst.fix.address === '', '较早定位的地址被绑定到了最新定位解');
   }
 }

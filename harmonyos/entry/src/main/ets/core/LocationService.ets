@@ -249,6 +249,7 @@ export class LocationService {
     fix.altitude = usableAltitude(value.altitude, value.altitudeAccuracy);
     fix.accuracy = Number.isFinite(value.accuracy) ? value.accuracy : 0;
     fix.timestamp = value.timeStamp;
+    fix.sourceType = value.sourceType === undefined ? -1 : value.sourceType;
     return fix;
   }
 
@@ -349,12 +350,6 @@ export class LocationService {
     try {
       candidate = await this.currentFix();
       if (!this.canCommit(token, lifecycle, permission)) return this.finishFailure(token, this.staleReason());
-      if (candidate.altitude === null && this.fix && Number.isFinite(this.fix.altitude)) {
-        candidate.altitude = this.fix.altitude;
-      }
-      if (!candidate.address && this.fix && this.fix.address) {
-        candidate.address = this.fix.address;
-      }
       // A newer continuous-location fix may have arrived while the hardware
       // query was in flight; never regress to an older reading.
       if (!this.fix || candidate.timestamp > this.fix.timestamp) {
@@ -373,21 +368,13 @@ export class LocationService {
     // A continuous callback may deliver a newer fix while reverse geocoding.
     // Retry that newer fix once so its address cannot be overwritten by an old result.
     let activeCandidate: Fix = candidate;
-    let lastAddress: string = '';
     for (let attempt = 0; attempt < 2; attempt++) {
       if (!isFreshFix(activeCandidate)) return this.finishFailure(token, 'location-timeout');
       const address = await this.reverseAddress(activeCandidate);
-      lastAddress = address;
       if (!this.canCommit(token, lifecycle, permission)) return this.finishFailure(token, this.staleReason());
       if (this.fix !== activeCandidate) {
         const newer: Fix | null = this.fix;
         if (newer && isFreshFix(newer) && newer.timestamp >= activeCandidate.timestamp) {
-          if (newer.altitude === null && activeCandidate.altitude !== null) {
-            newer.altitude = activeCandidate.altitude;
-          }
-          if (!newer.address && activeCandidate.address) {
-            newer.address = activeCandidate.address;
-          }
           activeCandidate = newer;
           continue;
         }
@@ -399,15 +386,14 @@ export class LocationService {
       return this.finishSuccess(token);
     }
     // Both retries were spent on broadcasts that kept arriving. Commit the
-    // freshest fix we hold together with the address that was actually
-    // resolved, instead of reporting a valid refresh as a failure.
+    // freshest fix, but leave its address untouched because the last resolved
+    // address belongs to an earlier coordinate.
     if (!this.canCommit(token, lifecycle, permission)) return this.finishFailure(token, this.staleReason());
     const newest: Fix = this.fix !== null && isFreshFix(this.fix) && this.fix.timestamp >= activeCandidate.timestamp ? this.fix : activeCandidate;
     if (isFreshFix(newest)) {
-      if (lastAddress) newest.address = lastAddress;
       this.fix = newest;
       this.notifyChange();
-      return this.finishSuccess(token);
+      return this.finishFailure(token, 'address-unavailable');
     }
     return this.finishFailure(token, 'address-unavailable');
   }
@@ -459,12 +445,6 @@ export class LocationService {
     const fix = this.asFix(value);
     if (!fix || !isFreshFix(fix)) return;
     if (this.fix && fix.timestamp <= this.fix.timestamp) return;
-    if (fix.altitude === null && this.fix && Number.isFinite(this.fix.altitude)) {
-      fix.altitude = this.fix.altitude;
-    }
-    if (!fix.address && this.fix && this.fix.address) {
-      fix.address = this.fix.address;
-    }
     this.fix = fix;
     this.notifyChange();
     if (this.refreshState === 'refreshing') return;

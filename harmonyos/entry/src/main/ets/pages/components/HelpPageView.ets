@@ -1,7 +1,9 @@
+import { OFFLINE_BUILD } from '../../core/BuildVariant';
+import { OFFLINE_PRIVACY_LINES } from '../../core/OfflinePrivacy';
 interface GuideSection {title:string;lines:string[];}
 const BG='#121212';const CARD='#282828';const TEXT='#F5F5F5';const MUTED='#B0BEC5';const YELLOW='#FFB300';
 const GUIDE:GuideSection[]=[
- {title:"使用指南",lines:["SiteCam（工程水印相机）面向施工记录、现场巡检和工程留档。工程资料默认留在设备本地，无需注册账号。下面用虚构的“滨江路雨污分流改造”工程说明常用操作。","本版：v0.3.4 · HarmonyOS 原生版","适用于 HarmonyOS 5 及以上；相机、定位和视频能力以设备支持情况为准"]},
+ {title:"使用指南",lines:["SiteCam（工程水印相机）面向施工记录、现场巡检和工程留档。工程资料默认留在设备本地，无需注册账号。下面用虚构的“滨江路雨污分流改造”工程说明常用操作。","本版：v0.3.5 · HarmonyOS 原生版","适用于 HarmonyOS 5 及以上；相机、定位和视频能力以设备支持情况为准"]},
  {title:"安装与权限",lines:["取得适用于本机的鸿蒙安装包后，按系统提示完成安装；具体分发状态以当前核实渠道为准。Android APK 不适用于本原生包。","完成或跳过首次功能指引后进入权限指引，点“开启所需权限”，集中申请当前尚未授权的相机、定位和麦克风权限。","定位和录音是可选的，可以暂时跳过；相机未授权时不能拍摄。已经授予的权限不会重复申请。","以后缺少权限时，从相机页出现的提示按需补开；定位拒绝后仍可拍照、录像和导出，录音拒绝后仍可录制无声视频。"]},
  {title:"首次功能指引",lines:["新装或首次使用会看到 4 页指引：先选工程、选择横竖方向、按日期找资料和导出锁定。","点“跳过”或最后一页的“开始使用”后，以后启动和正常升级都不会自动显示。","中途退出且没有跳过，下一次打开会继续显示；指引状态会在设备本地保存。","指引完成或跳过后进入权限指引，点“开启所需权限”，集中申请尚未授权的相机、定位和麦克风；定位和录音可暂时跳过，完成授权或点击暂时跳过后，之后不再自动弹出，已有全授予会直接跳过。","以后缺少权限时，从相机页的提示按需补开；进入“设置 → 使用技巧与教程 → 重新查看首次功能指引”可以随时重看，且不会清空已完成状态。"]},
  {title:"工程与线路",lines:["在相机页点左上角工程名称打开工程快捷切换，选择要拍摄或查看的工程；需要整理工程时再进入工程包页。","每个工程建一个工程包，线路名称可按需要填写。例如工程填写“滨江路雨污分流改造”，线路填写“北段雨水管”。","工程卡片上可以编辑名称、类别、地点和备注，也可以归档；在归档列表中可以恢复。","长按或进入批量操作，可批量分类、归档、锁定、解锁、删除或导出工程。删除前先导出需要留档的资料。","锁定只禁止该工程新拍照和录像，仍可切换到该工程查看、编辑、移动、删除和导出；需要继续拍摄时先解锁。搜索工程或线路名称即可定位资料。"]},
@@ -15,22 +17,49 @@ const GUIDE:GuideSection[]=[
  {title:"隐私与常见处理",lines:["SiteCam 无广告、无账号和自动上传；工程、照片、视频、地点水印和问题记录默认只在本机使用。","地点没有显示时，检查系统定位开关和应用权限；地址不可用时点击“刷新地址”，服务会先尝试新鲜定位的地址解析；室内或刚到现场时等待定位稳定即可。","录像没有声音时，在设置中打开“拍照快门声音”不会影响录像；请重新开启麦克风权限后再开始下一段录像，已经拍好的无声视频不会自动补录声音。","字段太多时，到“设置 → 自定义水印字段与样式”减少字段或调整字号，再拍摄新的记录。","提交反馈前遮住工程名称、地址、地点、时间、人员和车辆信息，不要公开真实工程资料或签名文件。"]},
  {title:"获取帮助",lines:["在设置中打开“使用技巧与教程”，没有网络也能阅读本指南。","反馈问题时写明设备型号、HarmonyOS 系统版本、所在页面、操作步骤和预期结果。","需要复现问题时使用虚构工程和脱敏截图，保留导出的报告以便核对。"]},
  {title:"更换桌面图标",lines:["打开“设置 → 桌面图标”，先查看当前选中的图标样式。","新装默认使用 D「工程现场」；也可选择 A「蓝图镜头」、B「工程印记」或 C「现场坐标」，选择会立即生效，返回桌面查看。","切换只影响桌面入口，工程资料、拍摄记录和应用内页面不受影响。","重启或正常升级后会保留你的选择；如果桌面暂未刷新，稍等片刻或重新打开桌面。","作者：ninjaaqua"]},
- {title:"鸿蒙原生版与多设备",lines:["当前版本：v0.3.4 HarmonyOS 原生版，适用于 HarmonyOS 5 及以上；平板、折叠屏和分屏按窗口空间调整。","普通手机使用单栏，窗口达到 600 vp 显示更多列，840 vp 起使用列表和详情双栏；展开、旋转后保留当前资料及多选。","大屏照片编辑在右侧显示工具，相机侧边水印面板可滚动。","实际相机、定位、H.264 视频和悬停能力以设备支持情况为准；视频处理失败会保留原片供重试。","应用说明和分发渠道以当前核实信息为准。"]}
+ {title:"鸿蒙原生版与多设备",lines:["当前版本：v0.3.5 HarmonyOS 原生版，适用于 HarmonyOS 5 及以上；平板、折叠屏和分屏按窗口空间调整。","普通手机使用单栏，窗口达到 600 vp 显示更多列，840 vp 起使用列表和详情双栏；展开、旋转后保留当前资料及多选。","大屏照片编辑在右侧显示工具，相机侧边水印面板可滚动。","实际相机、定位、H.264 视频和悬停能力以设备支持情况为准；视频处理失败会保留原片供重试。","应用说明和分发渠道以当前核实信息为准。"]}
+];
+const OFFLINE_GUIDE:GuideSection[]=[
+ {title:'纯离线版说明',lines:[
+  '本应用为纯离线版，不连接网络，仅通过系统定位获取 GPS 坐标；具体地址无法自动识别，请手动填写。',
+  'GPS 信息用于显示经纬度；工程地址、街道和门牌等具体信息请自行填写。具体地址水印默认关闭，可在“设置 → 自定义水印字段与样式 → 具体地址”按需开启。',
+  '应用不申请联网权限、不调用在线地址解析，也不自动上传资料。坐标与照片在本机处理。系统定位服务可能采用系统自身的辅助定位方式，应用只接受系统明确标记为 GNSS 的坐标。',
+  '卫星坐标需要精确位置权限，来源不明或网络定位不会显示为 GPS。只接受时间不超过 30 秒的新鲜读数；未取得读数时可以继续拍照、录像和填写工程地址。'
+ ]},
+ {title:'工程与手填地址',lines:[
+  '新建或编辑工程包时，在“工程地点”填写工程地址、街道或门牌。地址保存在本机工程资料中。',
+  '具体地址水印默认关闭。在“设置 → 自定义水印字段与样式 → 具体地址”按需开启后，工程手填地址才会用于新拍摄记录；GPS 经纬度由独立的定位字段控制。',
+  '从原联网版本升级时，旧工程资料保留；旧水印地址字段不会自动开启离线版的具体地址显示偏好。'
+ ]},
+ {title:'卫星定位与拍摄',lines:[
+  '相机页的“获取卫星坐标”会请求一次当前定位。应用只采用 sourceType 明确为 GNSS 的新鲜坐标，缺少来源、网络来源、室内定位或过期结果都会被丢弃。',
+  '获取定位不会锁住相机。室内或卫星信号弱时仍可拍照；经纬度与海拔没有当前有效读数时不会用旧值或 0 值伪装成当前定位。',
+  '应用通过 HarmonyOS 系统定位接口读取 GNSS 结果。系统可能使用自己的辅助定位能力；本应用不调用在线地址服务、高程服务或测绘服务。'
+ ]},
+ {title:'本机隐私政策',lines:OFFLINE_PRIVACY_LINES},
+ {title:'其他使用说明',lines:[
+  '本指南和隐私说明随应用安装在本机，没有网络也可以查看。',
+  '拍摄前确认当前工程；无卫星定位时可手填工程地址并继续记录现场。'
+ ]}
 ];
 @Component export struct HelpPageView {
  @Prop sections:GuideSection[]=GUIDE;
+ @Prop offlineMode:boolean=OFFLINE_BUILD;
+ @State displaySections:GuideSection[]=GUIDE;
  @State selectedIndex:number=-1;
  @State windowWidth:number=0;
  private directoryScroller:Scroller=new Scroller();
  private bodyScroller:Scroller=new Scroller();
  onBack:()=>void=()=>{};
  onReplayGuide:()=>void=()=>{};
- private selectSection(index:number):void {if(index<0||index>=this.sections.length)return;this.selectedIndex=index;setTimeout(()=>{try{this.bodyScroller.scrollEdge(Edge.Top);}catch(e){}},0);}
+ aboutToAppear():void {this.displaySections=this.offlineMode?OFFLINE_GUIDE:this.sections;}
+ private selectSection(index:number):void {if(index<0||index>=this.displaySections.length)return;this.selectedIndex=index;setTimeout(()=>{try{this.bodyScroller.scrollEdge(Edge.Top);}catch(e){}},0);}
  private showDirectory():void {this.selectedIndex=-1;}
- @Builder directoryList(){Column({space:6}){ForEach(this.sections,(sec:GuideSection,index:number)=>{Button(sec.title).width('100%').height(44).fontSize(14).fontColor(this.selectedIndex===index?'#231A00':TEXT).backgroundColor(this.selectedIndex===index?YELLOW:CARD).borderRadius(8).onClick(()=>this.selectSection(index));},(sec:GuideSection)=>sec.title);}.width('100%').alignItems(HorizontalAlign.Start);}
- @Builder chapterBody(){if(this.selectedIndex>=0&&this.selectedIndex<this.sections.length){Column({space:8}){Text(this.sections[this.selectedIndex].title).fontSize(20).fontWeight(FontWeight.Bold).fontColor(YELLOW);ForEach(this.sections[this.selectedIndex].lines,(line:string,index:number)=>Text('• '+line).fontSize(15).lineHeight(25).fontColor(TEXT).width('100%'),(line:string,index:number)=>line+'_'+index);}.padding(18).backgroundColor(CARD).borderRadius(12).width('100%').alignItems(HorizontalAlign.Start);}else{Column({space:8}){Text('选择左侧章节开始阅读').fontSize(18).fontWeight(FontWeight.Bold).fontColor(YELLOW);Text('章节目录会一直保留，切换章节后正文自动回到开头。').fontSize(15).lineHeight(25).fontColor(TEXT);}.padding(18).backgroundColor(CARD).borderRadius(12).width('100%').alignItems(HorizontalAlign.Start);}}
- @Builder phoneDirectory(){Column({space:12}){Text('工程现场使用指南 · v0.3.4').fontSize(20).fontWeight(FontWeight.Bold).fontColor(TEXT);Text('章节目录').fontSize(17).fontWeight(FontWeight.Bold).fontColor(YELLOW);Scroll(this.directoryScroller){this.directoryList();}.width('100%').layoutWeight(1).scrollable(ScrollDirection.Vertical).align(Alignment.Top).scrollBar(BarState.Off);}.width('100%').layoutWeight(1).alignItems(HorizontalAlign.Start).padding(16);}
- @Builder phoneChapter(){Column({space:8}){Row({space:8}){Button('返回章节目录').height(44).fontSize(14).fontColor('#231A00').backgroundColor(YELLOW).borderRadius(8).onClick(()=>this.showDirectory());Text(this.selectedIndex>=0&&this.selectedIndex<this.sections.length?this.sections[this.selectedIndex].title:'教程').fontSize(17).fontWeight(FontWeight.Bold).fontColor(TEXT).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis}).layoutWeight(1);}.width('100%').padding({left:16,right:16});Scroll(this.bodyScroller){this.chapterBody();}.width('100%').layoutWeight(1).scrollable(ScrollDirection.Vertical).align(Alignment.Top).scrollBar(BarState.Off);}.width('100%').layoutWeight(1).alignItems(HorizontalAlign.Start);}
- @Builder wideContent(){Row({space:12}){Column({space:8}){Text('章节目录').fontSize(17).fontWeight(FontWeight.Bold).fontColor(YELLOW);Scroll(this.directoryScroller){this.directoryList();}.width('100%').layoutWeight(1).scrollable(ScrollDirection.Vertical).align(Alignment.Top).scrollBar(BarState.Off);}.width(236).height('100%').padding(12).backgroundColor(CARD).borderRadius(12);Column({space:8}){Row({space:8}){Button('返回章节目录').height(40).fontSize(13).fontColor(this.selectedIndex>=0?'#231A00':MUTED).backgroundColor(this.selectedIndex>=0?YELLOW:CARD).borderRadius(8).enabled(this.selectedIndex>=0).onClick(()=>this.showDirectory());Text(this.selectedIndex>=0&&this.selectedIndex<this.sections.length?this.sections[this.selectedIndex].title:'正文').fontSize(18).fontWeight(FontWeight.Bold).fontColor(TEXT).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis}).layoutWeight(1);}.width('100%');Scroll(this.bodyScroller){this.chapterBody();}.width('100%').layoutWeight(1).scrollable(ScrollDirection.Vertical).align(Alignment.Top).scrollBar(BarState.Off);}.layoutWeight(1).height('100%').alignItems(HorizontalAlign.Start);}.width('100%').layoutWeight(1).padding(12);}
+ @Builder privacyLine(line:string){if(line.startsWith('§')){Text(line.slice(1)).fontSize(16).fontWeight(FontWeight.Bold).lineHeight(24).fontColor(YELLOW).width('100%').padding({top:8});}else{Text(line).fontSize(14).lineHeight(22).fontColor(TEXT).width('100%');}}
+ @Builder directoryList(){Column({space:6}){ForEach(this.displaySections,(sec:GuideSection,index:number)=>{Button(sec.title).width('100%').height(44).fontSize(14).fontColor(this.selectedIndex===index?'#231A00':TEXT).backgroundColor(this.selectedIndex===index?YELLOW:CARD).borderRadius(8).onClick(()=>this.selectSection(index));},(sec:GuideSection)=>sec.title);}.width('100%').alignItems(HorizontalAlign.Start);}
+ @Builder chapterBody(){if(this.selectedIndex>=0&&this.selectedIndex<this.displaySections.length){Column({space:8}){Text(this.displaySections[this.selectedIndex].title).fontSize(20).fontWeight(FontWeight.Bold).fontColor(YELLOW);ForEach(this.displaySections[this.selectedIndex].lines,(line:string,index:number)=>{if(this.offlineMode&&this.displaySections[this.selectedIndex].title==='本机隐私政策'){this.privacyLine(line);}else{Text('• '+line).fontSize(15).lineHeight(25).fontColor(TEXT).width('100%');}},(line:string,index:number)=>line+'_'+index);}.padding(18).backgroundColor(CARD).borderRadius(12).width('100%').alignItems(HorizontalAlign.Start);}else{Column({space:8}){Text('选择左侧章节开始阅读').fontSize(18).fontWeight(FontWeight.Bold).fontColor(YELLOW);Text('章节目录会一直保留，切换章节后正文自动回到开头。').fontSize(15).lineHeight(25).fontColor(TEXT);}.padding(18).backgroundColor(CARD).borderRadius(12).width('100%').alignItems(HorizontalAlign.Start);}}
+ @Builder phoneDirectory(){Column({space:12}){Text(this.offlineMode?'工程现场使用指南 · v0.3.5 纯离线版':'工程现场使用指南 · v0.3.5').fontSize(20).fontWeight(FontWeight.Bold).fontColor(TEXT);Text('章节目录').fontSize(17).fontWeight(FontWeight.Bold).fontColor(YELLOW);Scroll(this.directoryScroller){this.directoryList();}.width('100%').layoutWeight(1).scrollable(ScrollDirection.Vertical).align(Alignment.Top).scrollBar(BarState.Off);}.width('100%').layoutWeight(1).alignItems(HorizontalAlign.Start).padding(16);}
+ @Builder phoneChapter(){Column({space:8}){Row({space:8}){Button('返回章节目录').height(44).fontSize(14).fontColor('#231A00').backgroundColor(YELLOW).borderRadius(8).onClick(()=>this.showDirectory());Text(this.selectedIndex>=0&&this.selectedIndex<this.displaySections.length?this.displaySections[this.selectedIndex].title:'教程').fontSize(17).fontWeight(FontWeight.Bold).fontColor(TEXT).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis}).layoutWeight(1);}.width('100%').padding({left:16,right:16});Scroll(this.bodyScroller){this.chapterBody();}.width('100%').layoutWeight(1).scrollable(ScrollDirection.Vertical).align(Alignment.Top).scrollBar(BarState.Off);}.width('100%').layoutWeight(1).alignItems(HorizontalAlign.Start);}
+ @Builder wideContent(){Row({space:12}){Column({space:8}){Text('章节目录').fontSize(17).fontWeight(FontWeight.Bold).fontColor(YELLOW);Scroll(this.directoryScroller){this.directoryList();}.width('100%').layoutWeight(1).scrollable(ScrollDirection.Vertical).align(Alignment.Top).scrollBar(BarState.Off);}.width(236).height('100%').padding(12).backgroundColor(CARD).borderRadius(12);Column({space:8}){Row({space:8}){Button('返回章节目录').height(40).fontSize(13).fontColor(this.selectedIndex>=0?'#231A00':MUTED).backgroundColor(this.selectedIndex>=0?YELLOW:CARD).borderRadius(8).enabled(this.selectedIndex>=0).onClick(()=>this.showDirectory());Text(this.selectedIndex>=0&&this.selectedIndex<this.displaySections.length?this.displaySections[this.selectedIndex].title:'正文').fontSize(18).fontWeight(FontWeight.Bold).fontColor(TEXT).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis}).layoutWeight(1);}.width('100%');Scroll(this.bodyScroller){this.chapterBody();}.width('100%').layoutWeight(1).scrollable(ScrollDirection.Vertical).align(Alignment.Top).scrollBar(BarState.Off);}.layoutWeight(1).height('100%').alignItems(HorizontalAlign.Start);}.width('100%').layoutWeight(1).padding(12);}
  build(){Column(){Row(){Button(){Image($r('app.media.ic_arrow_back')).width(24).height(24);}.width(48).height(48).backgroundColor(Color.Transparent).accessibilityText('返回设置').onClick(()=>this.onBack());Text('使用技巧与教程').fontSize(18).fontWeight(FontWeight.Bold).fontColor(TEXT);Blank();}.height(64).width('100%').alignItems(VerticalAlign.Center);if(this.windowWidth>=840)this.wideContent();else if(this.selectedIndex<0)this.phoneDirectory();else this.phoneChapter();Button('重新查看首次功能指引').width('calc(100% - 32vp)').height(48).fontColor('#231A00').backgroundColor(YELLOW).onClick(()=>this.onReplayGuide());}.width('100%').height('100%').alignItems(HorizontalAlign.Start).backgroundColor(BG).onAreaChange((oldValue,newValue)=>{this.windowWidth=Number(newValue.width);});}
 }

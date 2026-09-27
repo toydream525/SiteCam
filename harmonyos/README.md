@@ -1,6 +1,6 @@
 # SiteCam 鸿蒙原生版 beta
 
-独立 ArkTS / ArkUI Stage 工程，当前公开版本 **v0.3.4（17）**。本版修复水印样式选择弹层遮罩，改进系统定位关闭后的引导，并放宽真实粗略定位可用于刷新水印的精度条件，同时继续校验定位新鲜度。折叠屏、阔直屏和平板适配（beta）继续优化，普通直屏布局与鸿蒙系统相册独立副本设计保持不变。
+当前公开版本 **v0.3.5（18）**，提供联网原版与纯离线版。完善断网拍摄、卫星坐标与海拔记录，具体地址可手动填写。纯离线版不连接网络，具体地址水印默认关闭。
 
 > **公开下载的 Release HAP 未签名，需自行签名后安装。AppGallery 版本尚未上架，审核结果与上架时间以华为审核为准。** AppGallery 签名包不作为本次公开下载资产；不同设备的镜头、闪光灯和视频能力仍需按设备确认。
 
@@ -23,9 +23,12 @@
 
 ## 构建与安装
 
-v0.3.4 公开下载资产：
+v0.3.5 公开下载资产：
 
-- [SiteCam-0.3.4-HarmonyOS-Release-Unsigned.hap](https://github.com/toydream525/SiteCam/releases/download/v0.3.4/SiteCam-0.3.4-HarmonyOS-Release-Unsigned.hap)（需自行签名后安装）
+- [鸿蒙纯离线版未签名 HAP](https://github.com/toydream525/SiteCam/releases/download/v0.3.5/SiteCam-0.3.5-HarmonyOS-Offline-Release-Unsigned.hap)
+- [鸿蒙原版未签名 HAP](https://github.com/toydream525/SiteCam/releases/download/v0.3.5/SiteCam-0.3.5-HarmonyOS-Original-Release-Unsigned.hap)
+
+两个版本均需自行签名，使用同一包名，不能同时安装。历史版本与历史下载资产保留。
 
 本次公开资产不包含 AppGallery 签名包；该版本当前尚未上架，审核结果与上架时间以华为审核为准。
 

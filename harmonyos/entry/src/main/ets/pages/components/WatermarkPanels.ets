@@ -1,4 +1,5 @@
 import { Snapshot, Field, Style, STYLES } from '../../core/Models';
+import { OFFLINE_BUILD } from '../../core/BuildVariant';
 import { WatermarkView } from '../../components/WatermarkView';
 import { SITE_ACCENT, SITE_BG, SITE_CARD, SITE_CARD_RAISED, SITE_MUTED, SITE_TEXT } from './UiPrimitives';
 
@@ -11,6 +12,7 @@ const DESC: Map<string,string> = new Map<string,string>([
 function snapshotFor(source: Snapshot,style: string): Snapshot { const out=JSON.parse(JSON.stringify(source)) as Snapshot;out.watermark.style=style;return out; }
 function styleName(id: string): string { const found=STYLES.find((v: Style)=>v.id===id);return found?found.name:'经典工程水印'; }
 function fieldDisplayLabel(field: Field): string {
+  if (OFFLINE_BUILD && field.key === 'address' && field.label === '现场位置') return '具体地址';
   return field.label || field.key;
 }
 
