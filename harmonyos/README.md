@@ -1,12 +1,12 @@
 # SiteCam 鸿蒙原生版 beta
 
-独立 ArkTS / ArkUI Stage 工程，当前公开版本 **v0.3.3（16）**。包含双端地址刷新、默认关闭海拔和工程切换锁定，优化安卓及鸿蒙的各类折叠屏、阔直屏和平板适配（beta），并更新鸿蒙侧界面、快门音开关、常用倍率、公开镜头识别、教程、项目操作单行图标、全选闪烁和闪光按钮状态。普通直屏与阔直屏布局继续保留，鸿蒙系统相册仍采用独立副本设计。
+独立 ArkTS / ArkUI Stage 工程，当前公开版本 **v0.3.4（17）**。本版修复水印样式选择弹层遮罩，改进系统定位关闭后的引导，并放宽真实粗略定位可用于刷新水印的精度条件，同时继续校验定位新鲜度。折叠屏、阔直屏和平板适配（beta）继续优化，普通直屏布局与鸿蒙系统相册独立副本设计保持不变。
 
-> **发布状态：公开下载的 HAP 未签名，需要自行签名；上架用的 AppGallery 签名包已随 0.3.3 一并生成并通过官方签名校验，但不能侧载安装。** 本地 debug/profile 产物不作为通用下载包；不同设备的镜头、闪光灯和视频能力仍需按设备确认。
+> **公开下载的 Release HAP 未签名，需自行签名后安装。AppGallery 版本尚未上架，审核结果与上架时间以华为审核为准。** AppGallery 签名包不作为本次公开下载资产；不同设备的镜头、闪光灯和视频能力仍需按设备确认。
 
 未签名 HAP 需要自行签名后安装。
 
-### 本地应用市场签名包（2026-09-22，v0.3.3 / 16）
+### 历史 AppGallery 签名制品（v0.3.3 / 16）
 
 已为 **SiteCam工程水印相机**（`com.sitecam.app`）用华为发布证书与普通发布 Profile 生成签名 HAP 与 APP，并通过 `hap-sign-tool verify-app` 校验官方签名链与 profile CMS。
 
@@ -23,12 +23,11 @@
 
 ## 构建与安装
 
-v0.3.3 公开下载资产：
+v0.3.4 公开下载资产：
 
-- [SiteCam-0.3.3-HarmonyOS-Release-Unsigned.hap](https://github.com/toydream525/SiteCam/releases/download/v0.3.3/SiteCam-0.3.3-HarmonyOS-Release-Unsigned.hap)（自行签名后安装）
-- [SiteCam-0.3.3-HarmonyOS-AppGallery-Signed.hap](https://github.com/toydream525/SiteCam/releases/download/v0.3.3/SiteCam-0.3.3-HarmonyOS-AppGallery-Signed.hap)（上架用，发布证书签名，不可侧载）
+- [SiteCam-0.3.4-HarmonyOS-Release-Unsigned.hap](https://github.com/toydream525/SiteCam/releases/download/v0.3.4/SiteCam-0.3.4-HarmonyOS-Release-Unsigned.hap)（需自行签名后安装）
 
-应用市场审核通过并上架后，可直接在商店下载。
+本次公开资产不包含 AppGallery 签名包；该版本当前尚未上架，审核结果与上架时间以华为审核为准。
 
 2026-09-12 核对华为官方稳定版：DevEco Studio 26.0.0.821、SDK 26.0.0.105 Release 与本机一致；配套 Hvigor 6.26.4、OHPM 26.0.0.630，使用 IDE 内置 Node。无需升级或重装。最低兼容配置为 API 12，编译及目标 API 为 26，当前 Native ABI 为 arm64-v8a。
 

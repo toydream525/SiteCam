@@ -1,5 +1,28 @@
 # 更新日志
 
+## v0.3.4 — 2026-09-27（双端版本号 17）
+
+### 双端
+
+- 系统定位关闭时提供打开系统定位设置的入口，并区分定位权限、系统开关与定位获取失败。
+- 版本号连续点击五次可打开本地作者与反馈面板，提供项目 Star、Issue、复制链接和官网入口；普通设置页保留官网入口。
+
+### 鸿蒙原生版
+
+- 水印样式选择弹层完整遮住底层字段和开关，避免控件透出。
+- 定位刷新放宽对真实粗略位置的精度限制并延长等待时间，同时继续校验定位时间；没有新的有效定位时仍会明确失败。
+
+### 安卓版
+
+- 地址刷新使用平衡精度支持大致位置；系统定位关闭时可直接打开系统定位设置，返回后重试。
+- 设置与帮助页隐藏常驻 GitHub 入口，版本号五连点可离线查看本地作者与反馈选项。
+
+### v0.3.4 下载资产
+
+- Android：[Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.3.4/SiteCam-0.3.4-Android-Release.apk) · [Debug APK](https://github.com/toydream525/SiteCam/releases/download/v0.3.4/SiteCam-0.3.4-Android-Debug.apk)
+- HarmonyOS：[Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.3.4/SiteCam-0.3.4-HarmonyOS-Release-Unsigned.hap)（需自行签名后安装）
+- HarmonyOS AppGallery 签名包不包含在公开下载资产中。
+
 ## v0.3.3 — 2026-09-22（双端版本号 16）
 
 ### 鸿蒙原生版

@@ -1,5 +1,8 @@
 package com.sitecam.app.feature.settings
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.os.SystemClock
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
@@ -63,6 +66,10 @@ import com.sitecam.app.ui.theme.EngineeringYellow
 import com.sitecam.app.ui.theme.TextPrimaryDark
 import com.sitecam.app.ui.theme.TextSecondaryDark
 
+private const val SITECAM_WEBSITE_URL = "https://yuriaqua.com/sitecam/"
+private const val SITECAM_GITHUB_URL = "https://github.com/toydream525/SiteCam"
+private const val SITECAM_ISSUES_URL = "https://github.com/toydream525/SiteCam/issues"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -82,6 +89,37 @@ fun SettingsScreen(
     val iconPicker = remember(context) { AppIconPicker(context.applicationContext) }
     var selectedIcon by remember(iconPicker) { mutableStateOf(iconPicker.selectedChoice()) }
     var iconError by remember { mutableStateOf<String?>(null) }
+    var showGitHubEasterEgg by remember { mutableStateOf(false) }
+    var versionTapCount by remember { mutableStateOf(0) }
+    var lastVersionTapAt by remember { mutableStateOf(0L) }
+
+    fun openExternalUrl(url: String) {
+        try {
+            uriHandler.openUri(url)
+        } catch (_: Exception) {
+            Toast.makeText(context, "无法打开链接，请稍后重试", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun copyProjectLink() {
+        try {
+            val clipboard = context.getSystemService(ClipboardManager::class.java)
+            clipboard?.setPrimaryClip(ClipData.newPlainText("SiteCam 项目链接", SITECAM_GITHUB_URL))
+            Toast.makeText(context, "项目链接已复制", Toast.LENGTH_SHORT).show()
+        } catch (_: Exception) {
+            Toast.makeText(context, "复制失败，请稍后重试", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    if (showGitHubEasterEgg) {
+        SiteCamEasterEggDialog(
+            onDismiss = { showGitHubEasterEgg = false },
+            onOpenStar = { openExternalUrl(SITECAM_GITHUB_URL) },
+            onOpenIssue = { openExternalUrl(SITECAM_ISSUES_URL) },
+            onCopyProjectLink = ::copyProjectLink,
+            onOpenWebsite = { openExternalUrl(SITECAM_WEBSITE_URL) }
+        )
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -435,22 +473,24 @@ fun SettingsScreen(
                     Text(
                         text = "版本：v${BuildConfig.VERSION_NAME} (Android 原生离线版)",
                         color = TextSecondaryDark,
-                        fontSize = 13.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "作者：ninjaaqua",
-                        color = TextSecondaryDark,
-                        fontSize = 13.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "GitHub：@toydream525",
-                        color = EngineeringYellow,
                         fontSize = 13.sp,
-                        modifier = Modifier.clickable {
-                            uriHandler.openUri("https://github.com/toydream525")
-                        }
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                val now = SystemClock.elapsedRealtime()
+                                versionTapCount = if (now - lastVersionTapAt <= 1_500L) {
+                                    versionTapCount + 1
+                                } else {
+                                    1
+                                }
+                                lastVersionTapAt = now
+                                if (versionTapCount >= 5) {
+                                    versionTapCount = 0
+                                    lastVersionTapAt = 0L
+                                    showGitHubEasterEgg = true
+                                }
+                            }
+                            .padding(vertical = 3.dp)
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
@@ -460,7 +500,7 @@ fun SettingsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 48.dp)
-                            .clickable { uriHandler.openUri("https://yuriaqua.com/sitecam/") }
+                            .clickable { openExternalUrl(SITECAM_WEBSITE_URL) }
                             .padding(vertical = 4.dp)
                     )
                     Spacer(modifier = Modifier.height(4.dp))

@@ -103,6 +103,24 @@ export class LocationServiceChecks {
     requireResult(requests === 2, '再次刷新地址未发起新定位请求');
     requireResult(service.fix !== null && service.fix.altitude === 88.5, '刷新地址未更新最新海拔高度');
 
+    let disabledRequests = 0;
+    const disabledService = new LocationService({
+      hasLocationPermission: (): boolean => true,
+      isLocationEnabled: (): boolean => false,
+      getCurrentLocation: async (): Promise<geoLocationManager.Location> => {
+        disabledRequests++;
+        return located(30, 120, 10, Date.now());
+      },
+      reverseAddress: async (_fix: Fix): Promise<string> => '不得使用的定位地址'
+    });
+    disabledService.fix = new Fix();
+    disabledService.fix.latitude = 30;
+    disabledService.fix.longitude = 120;
+    disabledService.fix.timestamp = Date.now();
+    requireResult(!(await disabledService.refreshAddress()), '系统定位关闭时仍报告定位成功');
+    requireResult(disabledService.failureReason === 'location-disabled', '系统定位关闭未单独分类');
+    requireResult(disabledRequests === 0 && disabledService.fix === null, '系统定位关闭时使用了缓存定位');
+
     let reverseStarted: (() => void) | null = null;
     const reverseStartedPromise = new Promise<void>((resolve) => { reverseStarted = resolve; });
     let finishReverse: (value: string) => void = (_value: string): void => {};

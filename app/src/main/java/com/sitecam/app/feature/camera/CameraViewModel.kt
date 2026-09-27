@@ -382,6 +382,8 @@ class CameraViewModel(
     }
 
     /** Retry reverse geocoding from the latest fix, bypassing the normal cache. */
+    fun isSystemLocationEnabled(): Boolean = appContainer.locationTracker.isSystemLocationEnabled()
+
     fun refreshAddress() {
         if (_addressRefreshState.value == "REFRESHING" || manualAddressActive) return
         val generation = ++manualAddressGeneration
@@ -394,6 +396,8 @@ class CameraViewModel(
                         override val currentLocation = appContainer.locationTracker.currentLocation
                         override fun hasLocationPermission(): Boolean =
                             appContainer.locationTracker.hasLocationPermission()
+                        override fun isSystemLocationEnabled(): Boolean =
+                            appContainer.locationTracker.isSystemLocationEnabled()
                         override fun clearLocation() = appContainer.locationTracker.clearLocation()
                         override fun requestFreshLocation() = appContainer.locationTracker.refreshLocation()
                     },
@@ -426,6 +430,7 @@ class CameraViewModel(
                     is AddressRefreshResult.Failure -> {
                         _addressRefreshState.value = when (result.reason) {
                             AddressRefreshFailure.PERMISSION -> "FAILED_PERMISSION"
+                            AddressRefreshFailure.LOCATION_DISABLED -> "FAILED_LOCATION_DISABLED"
                             AddressRefreshFailure.LOCATION -> "FAILED_LOCATION"
                             AddressRefreshFailure.ADDRESS -> "FAILED_ADDRESS"
                         }

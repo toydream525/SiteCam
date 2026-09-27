@@ -10,6 +10,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 /** Failure reasons that can be shown without conflating location and address services. */
 enum class AddressRefreshFailure {
     PERMISSION,
+    LOCATION_DISABLED,
     LOCATION,
     ADDRESS
 }
@@ -33,6 +34,8 @@ interface AddressRefreshSource {
     val currentLocation: StateFlow<SiteLocation?>
 
     fun hasLocationPermission(): Boolean
+
+    fun isSystemLocationEnabled(): Boolean
 
     fun clearLocation()
 
@@ -59,6 +62,9 @@ suspend fun performAddressRefresh(
         LocationFreshness.isFresh(it, nowMs())
     }
     val location = existing ?: run {
+        if (!source.isSystemLocationEnabled()) {
+            return AddressRefreshResult.Failure(AddressRefreshFailure.LOCATION_DISABLED)
+        }
         source.clearLocation()
         source.requestFreshLocation()
         withTimeoutOrNull(locationTimeoutMs) {
@@ -72,6 +78,9 @@ suspend fun performAddressRefresh(
         return AddressRefreshResult.Failure(AddressRefreshFailure.PERMISSION)
     }
     if (location == null || !LocationFreshness.isFresh(location, nowMs())) {
+        if (!source.isSystemLocationEnabled()) {
+            return AddressRefreshResult.Failure(AddressRefreshFailure.LOCATION_DISABLED)
+        }
         return AddressRefreshResult.Failure(AddressRefreshFailure.LOCATION)
     }
 

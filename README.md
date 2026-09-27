@@ -12,7 +12,7 @@
 
 **免费 · 开源 · 无广告**
 
-[⬇️ 下载安卓版 Release（推荐）](https://github.com/toydream525/SiteCam/releases/download/v0.3.3/SiteCam-0.3.3-Android-Release.apk)　
+[⬇️ 下载安卓版 Release（推荐）](https://github.com/toydream525/SiteCam/releases/download/v0.3.4/SiteCam-0.3.4-Android-Release.apk)　
 [🌸 鸿蒙原生版 beta](harmonyos/README.md)　
 [🌐 官网](https://yuriaqua.com/sitecam/)　
 [📖 使用说明](docs/USER_GUIDE.md)　
@@ -20,9 +20,9 @@
 
 </div>
 
-当前公开版本为 **v0.3.3（双端版本号 16）**。默认下载 Android Release，推荐日常自用安装。
+当前公开版本为 **v0.3.4（双端版本号 17）**。默认下载 Android Release，推荐日常自用安装。
 
-> **鸿蒙原生版已提供 AppGallery 签名包（上架用）与未签名 HAP（自行签名后安装）。华为应用市场审核通过并上架后，可直接在商店下载。**
+> **鸿蒙原生版提供 Release 未签名 HAP，需自行签名后安装。AppGallery 版本尚未上架，审核结果与上架时间以华为审核为准。**
 
 ---
 
@@ -61,11 +61,11 @@
 
 | 你的设备 | 当前状态 | 下载 |
 | --- | --- | --- |
-| 🤖 安卓手机 | **v0.3.3，可安装使用**，支持 Android 8.0 及以上 | [Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.3.3/SiteCam-0.3.3-Android-Release.apk) |
-| 🌸 鸿蒙手机 / 平板 | **v0.3.3 原生版**，提供未签名 HAP 与 AppGallery 签名包 | [Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.3.3/SiteCam-0.3.3-HarmonyOS-Release-Unsigned.hap) · [说明](harmonyos/README.md) |
+| 🤖 安卓手机 | **v0.3.4，可安装使用**，支持 Android 8.0 及以上 | [Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.3.4/SiteCam-0.3.4-Android-Release.apk) |
+| 🌸 鸿蒙手机 / 平板 | **v0.3.4 原生版**，Release HAP 需自行签名后安装 | [Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.3.4/SiteCam-0.3.4-HarmonyOS-Release-Unsigned.hap) · [说明](harmonyos/README.md) |
 | 🍎 iPhone / iPad | 开发中，暂无安装包 | — |
 
-**鸿蒙版说明：** 公开下载的 Release HAP 未签名，需自行签名后安装；上架用的 AppGallery 签名包使用发布证书，不能用 `hdc install` 侧载。界面和交互覆盖手机、折叠展开与大屏场景；不同设备的镜头、闪光灯和视频能力仍需按设备确认，不把未签名包当作正式签名版。
+**鸿蒙版说明：** 本次公开下载的 Release HAP 未签名，需自行签名后安装；AppGallery 签名包不属于本次公开下载资产。界面和交互覆盖手机、折叠展开与大屏场景；不同设备的镜头、闪光灯和视频能力仍需按设备确认，不把未签名包当作正式签名版。
 
 
 
@@ -78,7 +78,7 @@
 
 ## 🆕 最近更新
 
-**v0.3.3：修复权限引导在首次授权时无开关的问题，修复相机预览底色色差与系统大字号文本截断；优化多形态屏幕预览自适应。**
+**v0.3.4：修复水印样式选择弹层遮罩和定位开关关闭后的引导；优化现场定位刷新，并将 GitHub 反馈入口收进本地彩蛋面板。**
 
 支持拍照加水印、按工程整理照片与视频、标注问题和导出资料。
 

@@ -167,6 +167,42 @@ class AddressRefreshCoordinatorTest {
     }
 
     @Test
+    fun disabledSystemLocationHasDistinctFailureAndDoesNotStartRequest() = runTest {
+        val source = FakeAddressRefreshSource(
+            initial = null,
+            systemLocationEnabled = false
+        )
+
+        val result = performAddressRefresh(
+            source = source,
+            reverseGeocode = { "unreachable" },
+            nowMs = { now }
+        )
+
+        assertEquals(
+            AddressRefreshResult.Failure(AddressRefreshFailure.LOCATION_DISABLED),
+            result
+        )
+        assertEquals(0, source.requestCount)
+        assertEquals(0, source.clearCount)
+    }
+
+    @Test
+    fun freshFixCanRefreshAddressWhileSystemLocationIsDisabled() = runTest {
+        val fix = SiteLocation(31.2, 121.5, timestamp = now - 1_000L)
+        val source = FakeAddressRefreshSource(fix, systemLocationEnabled = false)
+
+        val result = performAddressRefresh(
+            source = source,
+            reverseGeocode = { "上海市" },
+            nowMs = { now }
+        )
+
+        assertEquals(AddressRefreshResult.Success(fix, "上海市"), result)
+        assertEquals(0, source.requestCount)
+    }
+
+    @Test
     fun automaticLookupCannotCommitDuringManualRetry() {
         assertTrue(
             !canCommitAutomaticAddress(
@@ -202,7 +238,8 @@ class AddressRefreshCoordinatorTest {
 
     private class FakeAddressRefreshSource(
         initial: SiteLocation?,
-        var permission: Boolean = true
+        var permission: Boolean = true,
+        var systemLocationEnabled: Boolean = true
     ) : AddressRefreshSource {
         val locations = MutableStateFlow<SiteLocation?>(initial)
         var clearCount = 0
@@ -210,6 +247,7 @@ class AddressRefreshCoordinatorTest {
 
         override val currentLocation = locations
         override fun hasLocationPermission(): Boolean = permission
+        override fun isSystemLocationEnabled(): Boolean = systemLocationEnabled
         override fun clearLocation() {
             clearCount += 1
             locations.value = null

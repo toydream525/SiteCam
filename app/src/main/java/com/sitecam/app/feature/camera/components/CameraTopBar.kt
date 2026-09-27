@@ -318,6 +318,7 @@ internal fun lensDetail(lens: CameraLensCapability, captureMode: CaptureMode): S
 private fun addressRefreshDescription(state: String): String = when (state) {
     "REFRESHING" -> "地址刷新中"
     "FAILED_PERMISSION" -> "定位未开启，重试地址"
+    "FAILED_LOCATION_DISABLED" -> "系统定位已关闭，打开设置"
     "FAILED_LOCATION" -> "定位不可用，重试地址"
     "FAILED_ADDRESS" -> "地址服务失败，重试"
     else -> "刷新地址"

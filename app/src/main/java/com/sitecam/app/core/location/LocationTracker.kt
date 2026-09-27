@@ -8,6 +8,7 @@ import android.location.LocationManager
 import android.os.Bundle
 import android.os.Looper
 import androidx.core.content.ContextCompat
+import androidx.core.location.LocationManagerCompat
 import android.content.pm.PackageManager
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
@@ -64,6 +65,9 @@ class LocationTracker(private val context: Context) {
                 android.Manifest.permission.ACCESS_COARSE_LOCATION
             ) == PackageManager.PERMISSION_GRANTED
 
+    fun isSystemLocationEnabled(): Boolean =
+        systemLocationManager?.let { LocationManagerCompat.isLocationEnabled(it) } == true
+
     @SuppressLint("MissingPermission")
     fun startLocationUpdates() {
         val hasFine = ContextCompat.checkSelfPermission(
@@ -81,6 +85,11 @@ class LocationTracker(private val context: Context) {
         if (isUpdating) return
         isUpdating = true
         val generation = ++updateGeneration
+        val requestPriority = if (hasFine) {
+            Priority.PRIORITY_HIGH_ACCURACY
+        } else {
+            Priority.PRIORITY_BALANCED_POWER_ACCURACY
+        }
 
         // 1. Read last known location immediately
         readLastKnownLocation(generation)
@@ -88,7 +97,7 @@ class LocationTracker(private val context: Context) {
         // 2. Try FusedLocationProviderClient first
         if (fusedClient != null) {
             try {
-                val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000L)
+                val request = LocationRequest.Builder(requestPriority, 5000L)
                     .setMinUpdateDistanceMeters(2.0f)
                     .setMinUpdateIntervalMillis(2000L)
                     .build()
@@ -140,7 +149,12 @@ class LocationTracker(private val context: Context) {
             }
             systemLocationListener = listener
 
-            val providers = systemLocationManager?.getProviders(true) ?: emptyList()
+            val hasFine = ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+            val providers = systemLocationManager?.getProviders(true)
+                ?.filterNot { !hasFine && it == LocationManager.GPS_PROVIDER }
+                .orEmpty()
             if (providers.isEmpty()) {
                 systemLocationListener = null
                 return
@@ -225,6 +239,11 @@ class LocationTracker(private val context: Context) {
 
         val generation = ++updateGeneration
         isUpdating = true
+        val requestPriority = if (hasFine) {
+            Priority.PRIORITY_HIGH_ACCURACY
+        } else {
+            Priority.PRIORITY_BALANCED_POWER_ACCURACY
+        }
         stopFusedUpdates()
         systemLocationListener?.let {
             runCatching { systemLocationManager?.removeUpdates(it) }
@@ -236,7 +255,7 @@ class LocationTracker(private val context: Context) {
         if (client != null) {
             runCatching {
                 client.getCurrentLocation(
-                    Priority.PRIORITY_HIGH_ACCURACY,
+                    requestPriority,
                     CancellationTokenSource().token
                 ).addOnSuccessListener { location ->
                     if (location != null && generation == updateGeneration) updateLocation(location)

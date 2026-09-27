@@ -72,6 +72,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -129,6 +130,7 @@ fun CameraScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val lifecycleState by lifecycleOwner.lifecycle.currentStateAsState()
     val uiState by viewModel.uiState.collectAsState()
+    val currentAddressRefreshState by rememberUpdatedState(uiState.addressRefreshState)
     val permissionPreferences = remember(context) { OnboardingPreferences(context) }
     val permissionPreferenceState by permissionPreferences.state.collectAsState(initial = null)
     val permissionScope = rememberCoroutineScope()
@@ -284,6 +286,20 @@ fun CameraScreen(
         context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")))
     }
 
+    fun handleAddressRefreshTap() {
+        if (uiState.addressRefreshState == "FAILED_LOCATION_DISABLED" &&
+            !viewModel.isSystemLocationEnabled()
+        ) {
+            try {
+                context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+            } catch (_: Exception) {
+                Toast.makeText(context, "请在系统设置的“位置信息”中开启定位后重试", Toast.LENGTH_LONG).show()
+            }
+        } else {
+            viewModel.refreshAddress()
+        }
+    }
+
     /**
      * Returns true when a permission classified as "needs settings" must first be retried through
      * the system dialog. The persisted "requested" mark is written by the launcher result callbacks
@@ -380,6 +396,11 @@ fun CameraScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 refreshPermissions()
+                if (currentAddressRefreshState == "FAILED_LOCATION_DISABLED" &&
+                    viewModel.isSystemLocationEnabled()
+                ) {
+                    viewModel.refreshAddress()
+                }
                 (context as? ComponentActivity)?.window?.decorView?.postDelayed(
                     { viewModel.cameraManager.restoreFlashMode() },
                     180L
@@ -762,7 +783,7 @@ fun CameraScreen(
                         data = uiState.watermarkData
                     ).cardRect,
                     enabled = !isCaptureBusy && uiState.addressRefreshState != "REFRESHING",
-                    onClick = viewModel::refreshAddress,
+                    onClick = ::handleAddressRefreshTap,
                     onNoSafePlacement = { noSafePlacement ->
                         if (addressRefreshNeedsFallback != noSafePlacement) {
                             addressRefreshNeedsFallback = noSafePlacement
@@ -855,7 +876,7 @@ fun CameraScreen(
                 uiState.addressRefreshState
             } else null,
             onAddressRefreshClick = if (addressNeedsRefresh && addressRefreshNeedsFallback && !screenEnvironment.profile.smallCover) {
-                viewModel::refreshAddress
+                ::handleAddressRefreshTap
             } else null,
             modifier = Modifier.offset(geometry.toolbarX.dp, 0.dp)
                 .width(geometry.toolbarWidth.dp).height(geometry.toolbarHeight.dp)
@@ -937,7 +958,7 @@ fun CameraScreen(
                     uiState.addressRefreshState
                 } else null,
                 onAddressRefreshFallbackClick = if (addressNeedsRefresh && addressRefreshNeedsFallback && screenEnvironment.profile.smallCover) {
-                    viewModel::refreshAddress
+                    ::handleAddressRefreshTap
                 } else null,
             )
         } else {
@@ -980,7 +1001,7 @@ fun CameraScreen(
                         text = { Text("刷新地址") },
                         onClick = {
                             showAddressMoreMenu = false
-                            viewModel.refreshAddress()
+                            handleAddressRefreshTap()
                         }
                     )
                 }
@@ -1084,6 +1105,7 @@ private fun AddressRefreshPill(
     val label = when (state) {
         "REFRESHING" -> "地址刷新中…"
         "FAILED_PERMISSION" -> "定位未开启 · 重试"
+        "FAILED_LOCATION_DISABLED" -> "打开系统定位设置"
         "FAILED_LOCATION" -> "定位不可用 · 重试"
         "FAILED_ADDRESS" -> "地址服务失败 · 重试"
         "FAILED" -> "地址不可用 · 重试"

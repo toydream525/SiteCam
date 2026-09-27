@@ -15,10 +15,12 @@ export interface LocationServiceDependencies {
 
 const LOCATION_MAX_AGE_MS: number = 5 * 60 * 1000;
 const LOCATION_FUTURE_TOLERANCE_MS: number = 30 * 1000;
-const CURRENT_LOCATION_TIMEOUT_MS: number = 10 * 1000;
+const CURRENT_LOCATION_TIMEOUT_MS: number = 20 * 1000;
 const ADDRESS_LOOKUP_TIMEOUT_MS: number = 8 * 1000;
-/** An explicit refresh must reject a coarse/cached solution instead of reporting it as new. */
-const CURRENT_LOCATION_MAX_ACCURACY_M: number = 50;
+/** The fresh-timestamp checks reject old cache results while allowing a real coarse fix. */
+// 0 leaves the platform free to return a real coarse fix when the user grants
+// approximate location; freshness is still enforced by the timestamp checks.
+const CURRENT_LOCATION_MAX_ACCURACY_M: number = 0;
 /** The continuous listener may reuse a 5-minute-old fix; an explicit refresh may not. */
 const REFRESH_FIX_MAX_AGE_MS: number = 30 * 1000;
 /** Skip the geocoder for a fix that barely moved while an address is already displayed. */
@@ -170,6 +172,10 @@ export class LocationService {
     }
   }
 
+  isSystemLocationEnabled(): boolean {
+    return this.locationEnabled();
+  }
+
   /** Check the current app token without starting another location request. */
   private verifyLocationAccess(): void {
     if (!this.locationEnabled()) throw new RefreshFailure('location-disabled');
@@ -197,8 +203,8 @@ export class LocationService {
     this.permissionEpoch++;
     this.lastPlatformFailure = reason;
     const hadFix = this.fix !== null;
+    const stateChanged = this.refreshState !== 'failed' || this.failureReason !== reason;
     this.fix = null;
-    if (hadFix) this.notifyChange();
     if (this.refreshState === 'refreshing') {
       this.refreshToken++;
       this.refreshState = 'failed';
@@ -208,6 +214,10 @@ export class LocationService {
       this.refreshResolver = null;
       resolve?.(false);
       this.refreshPromise = null;
+    } else {
+      this.refreshState = 'failed';
+      this.failureReason = reason;
+      if (hadFix || stateChanged) this.notifyChange();
     }
   }
 
@@ -219,7 +229,16 @@ export class LocationService {
   };
 
   private locationEnabledChanged = (enabled: boolean): void => {
-    if (!enabled) this.invalidateLocation('location-disabled');
+    if (!enabled) {
+      this.invalidateLocation('location-disabled');
+      return;
+    }
+    if (this.refreshState === 'failed' && this.failureReason === 'location-disabled') {
+      this.refreshState = 'idle';
+      this.failureReason = '';
+      this.lastPlatformFailure = '';
+      this.notifyChange();
+    }
   };
 
   private asFix(value: geoLocationManager.Location): Fix | null {
@@ -490,6 +509,7 @@ export class LocationService {
       geoLocationManager.on('locationEnabledChange', this.locationEnabledChanged);
       enabledListening = true;
       this.listening = true;
+      try { this.locationEnabledChanged(this.locationEnabled()); } catch (e) {}
     } catch (e) {
       if (locationListening) {
         try { geoLocationManager.off('locationChange', this.receive); } catch (ignored) {}
