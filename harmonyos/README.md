@@ -1,6 +1,6 @@
 # SiteCam 鸿蒙原生版 beta
 
-当前公开版本 **v0.3.5（18）**，提供联网原版与纯离线版。完善断网拍摄、卫星坐标与海拔记录，具体地址可手动填写。纯离线版不连接网络，具体地址水印默认关闭。
+当前公开版本 **v0.3.5（18）**，可通过系统定位获取坐标和自动地点地址；工程资料保存在本机。系统地址服务可能使用网络，地址不可用时可手动填写。
 
 > **公开下载的 Release HAP 未签名，需自行签名后安装。AppGallery 版本尚未上架，审核结果与上架时间以华为审核为准。** AppGallery 签名包不作为本次公开下载资产；不同设备的镜头、闪光灯和视频能力仍需按设备确认。
 
@@ -25,10 +25,9 @@
 
 v0.3.5 公开下载资产：
 
-- [鸿蒙纯离线版未签名 HAP](https://github.com/toydream525/SiteCam/releases/download/v0.3.5/SiteCam-0.3.5-HarmonyOS-Offline-Release-Unsigned.hap)
-- [鸿蒙原版未签名 HAP](https://github.com/toydream525/SiteCam/releases/download/v0.3.5/SiteCam-0.3.5-HarmonyOS-Original-Release-Unsigned.hap)
+- [鸿蒙版未签名 HAP](https://github.com/toydream525/SiteCam/releases/download/v0.3.5/SiteCam-0.3.5-HarmonyOS-Original-Release-Unsigned.hap)
 
-两个版本均需自行签名，使用同一包名，不能同时安装。历史版本与历史下载资产保留。
+该公开版 HAP 未签名，需自行签名后安装。历史版本保留。
 
 本次公开资产不包含 AppGallery 签名包；该版本当前尚未上架，审核结果与上架时间以华为审核为准。
 
@@ -75,7 +74,7 @@ HDC=/Applications/DevEco-Studio.app/Contents/sdk/default/openharmony/toolchains/
 
 脚本构建测试模块并在指定模拟器运行。它会停止该模拟器上的 SiteCam 进程，请勿在有未保存工作的设备上运行。测试数据库与主应用分离。最新报告为 `verification/api26-results.json`（44 项中 43 项通过）；视频编解码器缺失时会如实返回非零退出码。
 
-测试页另有“验证相册副本”和“验证文件夹导出”，用于系统交互，需在模拟器操作授权。测试报告和完整限制见 [VERIFICATION.md](VERIFICATION.md)。离线用户说明在 `entry/src/main/resources/rawfile/USER_GUIDE.md`。
+测试页另有“验证相册副本”和“验证文件夹导出”，用于系统交互，需在模拟器操作授权。测试报告和完整限制见 [VERIFICATION.md](VERIFICATION.md)。用户指南在 `entry/src/main/resources/rawfile/USER_GUIDE.md`。
 
 ## 官方参考
 
