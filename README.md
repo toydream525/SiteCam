@@ -12,17 +12,15 @@
 
 **免费 · 开源 · 无广告**
 
-[⬇️ 下载安卓版 Release（推荐）](https://github.com/toydream525/SiteCam/releases/download/v0.3.4/SiteCam-0.3.4-Android-Release.apk)　
-[🌸 鸿蒙原生版 beta](harmonyos/README.md)　
+[⬇️ 下载安卓版 Release（推荐）](https://github.com/toydream525/SiteCam/releases/download/v0.3.5/SiteCam-0.3.5-Android-Release.apk)　
+[🌸 下载鸿蒙原生版](https://github.com/toydream525/SiteCam/releases/download/v0.3.5/SiteCam-0.3.5-HarmonyOS-Original-Release-Unsigned.hap)　
 [🌐 官网](https://yuriaqua.com/sitecam/)　
 [📖 使用说明](docs/USER_GUIDE.md)　
 [💬 反馈问题](https://github.com/toydream525/SiteCam/issues)
 
 </div>
 
-当前公开版本为 **v0.3.4（双端版本号 17）**。默认下载 Android Release，推荐日常自用安装。
-
-> **鸿蒙原生版提供 Release 未签名 HAP，需自行签名后安装。AppGallery 版本尚未上架，审核结果与上架时间以华为审核为准。**
+当前公开版本为 **v0.3.5**。默认下载 Android Release，推荐日常自用安装。
 
 ---
 
@@ -41,7 +39,7 @@
 | --- | --- |
 | 📷 拍施工照片 | 自动加上工程名称、时间、地点等水印，支持拍照和录像 |
 | 🗂️ 整理不同项目 | 按工程保存，支持搜索、分类、归档；编辑和导出入口直接可见 |
-| 📍 补充现场信息 | 地址不可用时可手动刷新；海拔水印默认关闭，有效读数才会显示 |
+| 📍 补充现场信息 | 地址不可用时可手动填写；海拔水印默认关闭，有效读数才会显示 |
 | 🔒 安全切换工程 | 可查看、锁定或归档工程；锁定和归档工程不能拍摄，拍摄期间不切换工程 |
 | 📱 多形态设备 | 优化安卓及鸿蒙的各类折叠屏、阔直屏和平板适配（beta），保留普通直屏与阔直屏布局 |
 | 📅 找之前的照片 | 按日期、工程和问题状态筛选，还能批量移动和分享 |
@@ -61,11 +59,11 @@
 
 | 你的设备 | 当前状态 | 下载 |
 | --- | --- | --- |
-| 🤖 安卓手机 | **v0.3.4，可安装使用**，支持 Android 8.0 及以上 | [Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.3.4/SiteCam-0.3.4-Android-Release.apk) |
-| 🌸 鸿蒙手机 / 平板 | **v0.3.4 原生版**，Release HAP 需自行签名后安装 | [Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.3.4/SiteCam-0.3.4-HarmonyOS-Release-Unsigned.hap) · [说明](harmonyos/README.md) |
+| 🤖 安卓手机 | **v0.3.5，可安装使用**，支持 Android 8.0 及以上 | [Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.3.5/SiteCam-0.3.5-Android-Release.apk) |
+| 🌸 鸿蒙手机 / 平板 | **v0.3.5 原生版**，Release HAP 需自行签名后安装 | [Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.3.5/SiteCam-0.3.5-HarmonyOS-Original-Release-Unsigned.hap) · [签名与安装说明](harmonyos/README.md) |
 | 🍎 iPhone / iPad | 开发中，暂无安装包 | — |
 
-**鸿蒙版说明：** 本次公开下载的 Release HAP 未签名，需自行签名后安装；AppGallery 签名包不属于本次公开下载资产。界面和交互覆盖手机、折叠展开与大屏场景；不同设备的镜头、闪光灯和视频能力仍需按设备确认，不把未签名包当作正式签名版。
+**鸿蒙版说明：** 鸿蒙版不申请应用联网权限；具体地址由系统服务提供，系统服务可能使用网络。完全断网时可能无法自动获取具体地址，可手动填写。Release HAP 未签名，需自行签名后安装。AppGallery 版本尚未上架，审核结果与上架时间以华为审核为准。
 
 
 
@@ -78,7 +76,7 @@
 
 ## 🆕 最近更新
 
-**v0.3.4：修复水印样式选择弹层遮罩和定位开关关闭后的引导；优化现场定位刷新，并将 GitHub 反馈入口收进本地彩蛋面板。**
+**v0.3.5：鸿蒙版统一支持自动地址、经纬度及可用海拔记录；地址不可用时可手动填写，并继续拍摄、整理和导出。**
 
 支持拍照加水印、按工程整理照片与视频、标注问题和导出资料。
 
