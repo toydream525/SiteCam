@@ -21,7 +21,8 @@ data class SettingsUiState(
     val namingPattern: String = "{project}_{date}_{time}",
     val photoQualityProfile: com.sitecam.app.core.media.PhotoQualityProfile = com.sitecam.app.core.media.PhotoQualityProfile.STANDARD,
     val saveToSystemGallery: Boolean = false,
-    val shutterSoundEnabled: Boolean = true
+    val shutterSoundEnabled: Boolean = true,
+    val cameraControlStyle: String = "NORMAL"
 )
 
 class SettingsViewModel(
@@ -46,8 +47,9 @@ class SettingsViewModel(
 
     val uiState: StateFlow<SettingsUiState> = combine(
         baseUiState,
-        appContainer.settingsDataStore.shutterSoundEnabled
-    ) { state, shutterSound -> state.copy(shutterSoundEnabled = shutterSound) }.stateIn(
+        appContainer.settingsDataStore.shutterSoundEnabled,
+        appContainer.settingsDataStore.cameraControlStyle
+    ) { state, shutterSound, controlStyle -> state.copy(shutterSoundEnabled = shutterSound, cameraControlStyle = controlStyle) }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000L),
         initialValue = SettingsUiState()
@@ -67,6 +69,9 @@ class SettingsViewModel(
     }
     fun setShutterSoundEnabled(enabled: Boolean) {
         viewModelScope.launch { appContainer.settingsDataStore.setShutterSoundEnabled(enabled) }
+    }
+    fun setCameraControlStyle(style: String) {
+        viewModelScope.launch { appContainer.settingsDataStore.setCameraControlStyle(style) }
     }
 
     fun copyDiagnostics(context: Context): String {

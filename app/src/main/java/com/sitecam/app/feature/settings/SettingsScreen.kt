@@ -254,6 +254,35 @@ fun SettingsScreen(
                 colors = CardDefaults.cardColors(containerColor = DarkCard)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
+                    Text("相机控件外观", color = TextPrimaryDark, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    listOf("NORMAL" to "普通", "BLUR" to "毛玻璃", "LIQUID" to "液态玻璃").forEach { (value, label) ->
+                        val selected = uiState.cameraControlStyle == value
+                        val supported = value == "NORMAL"
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable(enabled = supported) {
+                                viewModel.setCameraControlStyle(value)
+                            }.padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = selected,
+                                onClick = { if (supported) viewModel.setCameraControlStyle(value) },
+                                enabled = supported,
+                                colors = RadioButtonDefaults.colors(selectedColor = EngineeringYellow)
+                            )
+                            Text(label + if (supported) "" else " · 暂不支持", color = if (supported) TextPrimaryDark else TextSecondaryDark, fontSize = 14.sp)
+                        }
+                    }
+                }
+            }
+
+            // JPEG Quality Selection
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = DarkCard)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         text = "照片保存质量",
                         color = TextPrimaryDark,

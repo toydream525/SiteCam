@@ -1,8 +1,8 @@
 # SiteCam 鸿蒙原生版 beta
 
-当前公开版本 **v0.3.5（18）**，可通过系统定位获取坐标和自动地点地址；工程资料保存在本机。系统地址服务可能使用网络，地址不可用时可手动填写。
+当前公开版本 **v0.3.6（19）**，可通过系统定位获取坐标和自动地点地址；工程资料保存在本机。系统地址服务可能使用网络，地址不可用时可手动填写。
 
-> **公开下载的 Release HAP 未签名，需自行签名后安装。AppGallery 版本尚未上架，审核结果与上架时间以华为审核为准。** AppGallery 签名包不作为本次公开下载资产；不同设备的镜头、闪光灯和视频能力仍需按设备确认。
+> **公开下载的 Release HAP 未签名，需自行签名后安装。鸿蒙版已上架华为应用市场，可搜索“SiteCam工程水印相机”下载；商店新版本以审核进度为准。** AppGallery 签名包不作为本次公开下载资产；不同设备的镜头、闪光灯和视频能力仍需按设备确认。
 
 未签名 HAP 需要自行签名后安装。
 
@@ -23,13 +23,13 @@
 
 ## 构建与安装
 
-v0.3.5 公开下载资产：
+v0.3.6 公开下载资产：
 
-- [鸿蒙版未签名 HAP](https://github.com/toydream525/SiteCam/releases/download/v0.3.5/SiteCam-0.3.5-HarmonyOS-Original-Release-Unsigned.hap)
+- [鸿蒙版未签名 HAP](https://github.com/toydream525/SiteCam/releases/download/v0.3.6/SiteCam-0.3.6-HarmonyOS-Release-Unsigned.hap)
 
 该公开版 HAP 未签名，需自行签名后安装。历史版本保留。
 
-本次公开资产不包含 AppGallery 签名包；该版本当前尚未上架，审核结果与上架时间以华为审核为准。
+本次公开资产不包含 AppGallery 签名包；应用市场更新以华为审核进度为准。
 
 2026-09-12 核对华为官方稳定版：DevEco Studio 26.0.0.821、SDK 26.0.0.105 Release 与本机一致；配套 Hvigor 6.26.4、OHPM 26.0.0.630，使用 IDE 内置 Node。无需升级或重装。最低兼容配置为 API 12，编译及目标 API 为 26，当前 Native ABI 为 arm64-v8a。
 
@@ -45,7 +45,7 @@ cd harmonyos
 - `dist/release/entry-default-unsigned.hap`：发布构建模式的未签名应用。
 - `dist/debug/entry-ohosTest-unsigned.hap`：专用测试模块，不是正常应用入口。
 
-这些 HAP 未使用个人证书签名，已由本机开发模拟器接受安装。鸿蒙真机安装需用户在 DevEco 完成开发者登录、设备授权与签名配置；不能直接将未签名包当作真机发行包。没有应用市场发布。
+这些 HAP 未使用个人证书签名，已由本机开发模拟器接受安装。鸿蒙真机安装需用户在 DevEco 完成开发者登录、设备授权与签名配置；不能直接将未签名包当作真机发行包。华为应用市场版本通过商店安装。
 
 ```sh
 HDC=/Applications/DevEco-Studio.app/Contents/sdk/default/openharmony/toolchains/hdc

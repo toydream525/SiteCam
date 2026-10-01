@@ -36,11 +36,14 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.StayCurrentPortrait
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
@@ -116,7 +119,11 @@ fun CameraTopBar(
                     EngineeringYellow,
                     addressRefreshDescription(addressRefreshState),
                     !isBusy && addressRefreshState != "REFRESHING",
-                    onAddressRefreshClick
+                    onAddressRefreshClick,
+                    boxSize = 48.dp,
+                    iconSize = 24.dp,
+                    darkBackground = false,
+                    loading = addressRefreshState == "REFRESHING"
                 )
             }
             ToolIcon(
@@ -183,7 +190,10 @@ fun CameraTopBar(
                         EngineeringYellow,
                         addressRefreshDescription(addressRefreshState),
                         !isBusy && addressRefreshState != "REFRESHING",
-                        onAddressRefreshClick
+                        onAddressRefreshClick,
+                        boxSize = 48.dp,
+                        iconSize = 24.dp,
+                        loading = addressRefreshState == "REFRESHING"
                     )
                 }
                 ToolIcon(
@@ -368,12 +378,16 @@ private fun ToolIcon(
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
     boxSize: androidx.compose.ui.unit.Dp = 46.dp,
-    iconSize: androidx.compose.ui.unit.Dp = 25.dp
+    iconSize: androidx.compose.ui.unit.Dp = 24.dp,
+    loading: Boolean = false,
+    darkBackground: Boolean = true
 ) {
     Box(
         modifier = Modifier
             .size(boxSize)
             .clip(CircleShape)
+            .background(if (darkBackground) DarkCard.copy(alpha = 0.72f) else Color.Transparent)
+            .semantics { contentDescription = description }
             .then(
                 if (onLongClick != null) {
                     Modifier.combinedClickable(
@@ -387,7 +401,8 @@ private fun ToolIcon(
             ),
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, description, tint = tint, modifier = Modifier.size(iconSize))
+        if (loading) CircularProgressIndicator(modifier = Modifier.size(iconSize), color = tint, strokeWidth = 2.dp)
+        else Icon(icon, description, tint = tint, modifier = Modifier.size(iconSize))
     }
 }
 

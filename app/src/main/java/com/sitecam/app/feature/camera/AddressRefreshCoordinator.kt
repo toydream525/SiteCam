@@ -26,6 +26,18 @@ internal fun sameLocationCoordinates(first: SiteLocation?, second: SiteLocation)
         first.latitude == second.latitude &&
         first.longitude == second.longitude
 
+internal fun nearbyLocation(first: SiteLocation?, second: SiteLocation, nowMs: Long): Boolean {
+    if (first == null || !LocationFreshness.isFresh(first, nowMs) || !LocationFreshness.isFresh(second, nowMs)) return false
+    val lat1 = Math.toRadians(first.latitude)
+    val lat2 = Math.toRadians(second.latitude)
+    val dLat = lat2 - lat1
+    val dLon = Math.toRadians(second.longitude - first.longitude)
+    val a = kotlin.math.sin(dLat / 2) * kotlin.math.sin(dLat / 2) +
+        kotlin.math.cos(lat1) * kotlin.math.cos(lat2) * kotlin.math.sin(dLon / 2) * kotlin.math.sin(dLon / 2)
+    val distance = 6_371_000.0 * 2 * kotlin.math.asin(kotlin.math.sqrt(a.coerceIn(0.0, 1.0)))
+    return distance < 20.0
+}
+
 internal fun resolveWatermarkAddress(
     manualAddress: String?,
     automaticAddress: String?,
@@ -112,9 +124,7 @@ suspend fun performAddressRefresh(
     if (!source.hasLocationPermission()) {
         return AddressRefreshResult.Failure(AddressRefreshFailure.PERMISSION)
     }
-    if (!sameLocationCoordinates(source.currentLocation.value, location) ||
-        !LocationFreshness.isFresh(source.currentLocation.value, nowMs())
-    ) {
+    if (!nearbyLocation(source.currentLocation.value, location, nowMs())) {
         return AddressRefreshResult.Failure(AddressRefreshFailure.LOCATION)
     }
     return if (address.isBlank()) {

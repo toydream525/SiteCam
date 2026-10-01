@@ -80,6 +80,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.SubcomposeLayout
@@ -287,6 +289,12 @@ fun CameraScreen(
     }
 
     fun handleAddressRefreshTap() {
+        refreshPermissions()
+        if (uiState.addressRefreshState == "FAILED_PERMISSION" || !hasLocationPermission) {
+            if (!hasLocationPermission) showOptionalPermissions = true
+            else viewModel.refreshAddress()
+            return
+        }
         if (uiState.addressRefreshState == "FAILED_LOCATION_DISABLED" &&
             !viewModel.isSystemLocationEnabled()
         ) {
@@ -463,7 +471,7 @@ fun CameraScreen(
             title = { Text("补充可选权限") },
             text = {
                 androidx.compose.foundation.layout.Column {
-                    Text("不授权也能继续使用：照片不含定位，视频不含声音。")
+                    Text("位置权限用于水印地址；如之前选择“仅本次允许”，下次可重新授权。不开启仍可拍摄。")
                     if (!hasLocationPermission) androidx.compose.material3.TextButton(onClick = {
                         showOptionalPermissions = false; requestOptionalPermission(forLocation = true)
                     }) { Text(optionalPermissionActionLabel("位置", locationNeedsSettings, locationBlockedRetryAvailable)) }
@@ -1111,49 +1119,37 @@ private fun AddressRefreshPill(
         "FAILED" -> "地址不可用 · 重试"
         else -> "刷新地址"
     }
-    val minChipWidth = with(density) { 132.dp.toPx() }
-    val minChipHeight = with(density) { 40.dp.toPx() }
     val gapPx = with(density) { 8.dp.toPx() }
 
-    // Measure the real row, including wrapping at the current font scale,
-    // before selecting a corner.  A fixed 176x40 assumption made large text
-    // both truncate and reserve the wrong protected area.
+    // The icon-only retry has a fixed touch target, so the same safe-corner
+    // selection remains stable as labels and accessibility text change.
     SubcomposeLayout(modifier = Modifier.fillMaxSize()) { constraints ->
         val maxChipWidth = (constraints.maxWidth - (marginPx * 2f).toInt()).coerceAtLeast(1)
         val maxChipHeight = (constraints.maxHeight - (marginPx * 2f).toInt()).coerceAtLeast(1)
-        val minWidth = minChipWidth.toInt().coerceAtMost(maxChipWidth)
-        val minHeight = minChipHeight.toInt().coerceAtMost(maxChipHeight)
         val measured = subcompose("address-refresh-pill") {
-            Row(
+            Box(
                 modifier = Modifier
-                    .widthIn(
-                        min = with(density) { minWidth.toDp() },
-                        max = with(density) { maxChipWidth.toDp() }
-                    )
-                    .heightIn(
-                        min = with(density) { minHeight.toDp() },
-                        max = with(density) { maxChipHeight.toDp() }
-                    )
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+                    .size(48.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
                     .background(Letterbox.copy(alpha = if (enabled) .82f else .64f))
                     .clickable(enabled = enabled, onClick = onClick)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
+                    .semantics { contentDescription = label },
+                contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.Refresh,
-                    contentDescription = label,
-                    tint = EngineeringYellow,
-                    modifier = Modifier.size(18.dp)
-                )
-                Text(
-                    text = label,
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    softWrap = true,
-                    modifier = Modifier.padding(start = 6.dp)
-                )
+                if (state == "REFRESHING") {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = EngineeringYellow,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = null,
+                        tint = EngineeringYellow,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
         }.single().measure(
             Constraints(

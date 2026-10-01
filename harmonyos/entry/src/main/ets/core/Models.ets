@@ -122,6 +122,7 @@ export class Settings {
   flashMode: string = 'AUTO';
   /** Play a short shutter sound when the camera accepts a photo request. */
   shutterSoundEnabled: boolean = true;
+  cameraControlStyle: string = 'NORMAL';
   quickIssueMode: boolean = false;
   jpegQuality: number = 95;
   exportTreeUri: string = '';

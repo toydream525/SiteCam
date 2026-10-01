@@ -37,7 +37,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.firstOrNull
@@ -88,10 +87,14 @@ data class CameraUiState(
 private data class LocatedAddress(
     val latitude: Double,
     val longitude: Double,
-    val text: String
+    val timestamp: Long,
+    val text: String,
+    val resolvedAt: Long
 ) {
-    fun matches(location: SiteLocation?): Boolean = location != null &&
-        latitude == location.latitude && longitude == location.longitude
+    fun matches(location: SiteLocation?, nowMs: Long = System.currentTimeMillis()): Boolean {
+        val anchor = SiteLocation(latitude, longitude, timestamp = timestamp)
+        return nearbyLocation(anchor, location ?: return false, nowMs)
+    }
 }
 
 class CameraViewModel(
@@ -114,6 +117,8 @@ class CameraViewModel(
     private val _automaticAddress = MutableStateFlow<LocatedAddress?>(null)
     private val _addressRefreshState = MutableStateFlow("IDLE")
     private var locationAddressGeneration = 0L
+    private var lastAutomaticAddressAttempt: SiteLocation? = null
+    private var lastAutomaticAddressAttemptAt: Long = 0L
     private var manualAddressGeneration = 0L
     /** Keeps automatic geocoding from finishing a request during a manual retry. */
     private var manualAddressActive = false
@@ -368,13 +373,6 @@ class CameraViewModel(
     private fun observeLocationAndAddress() {
         viewModelScope.launch {
             appContainer.locationTracker.currentLocation
-                .distinctUntilChanged { previous, current ->
-                    if (previous == null || current == null) {
-                        previous == null && current == null
-                    } else {
-                        sameLocationCoordinates(previous, current)
-                    }
-                }
                 // Let an in-flight lookup finish, then process the latest
                 // coordinates. A moving GPS fix should not repeatedly cancel
                 // a slow system geocoder request; old-coordinate results are
@@ -393,6 +391,16 @@ class CameraViewModel(
                     // an automatic result that started earlier cannot overwrite
                     // the manual result after it finishes.
                     val manualGenerationAtStart = manualAddressGeneration
+                    val retainedAddress = _automaticAddress.value
+                    val now = System.currentTimeMillis()
+                    if (retainedAddress != null && retainedAddress.text.isNotBlank() && retainedAddress.matches(loc, now) && now - retainedAddress.resolvedAt < 60_000L) {
+                        _addressRefreshState.value = "IDLE"
+                        return@collect
+                    }
+                    val lastAttempt = lastAutomaticAddressAttempt
+                    if (lastAttempt != null && now - lastAutomaticAddressAttemptAt < 60_000L && nearbyLocation(lastAttempt, loc, now)) return@collect
+                    lastAutomaticAddressAttempt = loc
+                    lastAutomaticAddressAttemptAt = now
                     val address = lookupAutomaticAddress(
                         reverseGeocode = {
                             appContainer.reverseGeocoder.getAddressText(loc.latitude, loc.longitude)
@@ -405,10 +413,14 @@ class CameraViewModel(
                             manualAddressActive = manualAddressActive,
                             locationGenerationAtStart = generation,
                             currentLocationGeneration = locationAddressGeneration,
-                            sameLocation = sameLocationCoordinates(current, loc)
+                            sameLocation = nearbyLocation(current, loc, System.currentTimeMillis())
                         )
                     ) {
-                        _automaticAddress.value = LocatedAddress(loc.latitude, loc.longitude, address)
+                        if (address.isNotBlank()) {
+                            _automaticAddress.value = LocatedAddress(loc.latitude, loc.longitude, loc.timestamp, address, System.currentTimeMillis())
+                        } else if (_automaticAddress.value?.matches(loc) != true) {
+                            _automaticAddress.value = null
+                        }
                         _addressRefreshState.value = if (address.isBlank()) "FAILED_ADDRESS" else "IDLE"
                     }
                 } else {
@@ -416,6 +428,8 @@ class CameraViewModel(
                     // tracking is stopped; it could otherwise be burned into
                     // a later, unrelated capture.
                     _automaticAddress.value = null
+                    lastAutomaticAddressAttempt = null
+                    lastAutomaticAddressAttemptAt = 0L
                     if (_addressRefreshState.value != "REFRESHING") _addressRefreshState.value = "IDLE"
                 }
             }
@@ -458,15 +472,16 @@ class CameraViewModel(
                             !appContainer.locationTracker.hasLocationPermission() -> {
                                 _addressRefreshState.value = "FAILED_PERMISSION"
                             }
-                            !sameLocationCoordinates(current, result.location) ||
-                                !LocationFreshness.isFresh(current, System.currentTimeMillis()) -> {
+                            !nearbyLocation(current, result.location, System.currentTimeMillis()) -> {
                                 _addressRefreshState.value = "FAILED_LOCATION"
                             }
                             else -> {
                                 _automaticAddress.value = LocatedAddress(
                                     result.location.latitude,
                                     result.location.longitude,
-                                    result.address
+                                    result.location.timestamp,
+                                    result.address,
+                                    System.currentTimeMillis()
                                 )
                                 _addressRefreshState.value = "IDLE"
                             }

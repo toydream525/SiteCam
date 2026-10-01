@@ -32,6 +32,21 @@ interface LocationPlatformError {
   message?: string;
 }
 
+interface AddressAnchor {
+  latitude: number;
+  longitude: number;
+  timestamp: number;
+  address: string;
+  resolvedAt: number;
+}
+
+interface ContinuousGeocode {
+  origin: Fix;
+  lifecycle: number;
+  token: number;
+  permission: number;
+}
+
 class RefreshFailure extends Error {
   reason: LocationFailureReason;
   constructor(reason: LocationFailureReason) {
@@ -124,6 +139,8 @@ export class LocationService {
   /** Throttle state for the continuous listener's reverse geocoding. */
   private lastGeocodeFix: Fix | null = null;
   private lastGeocodeAt: number = 0;
+  private addressAnchor: AddressAnchor | null = null;
+  private continuousGeocode: ContinuousGeocode | null = null;
   private readonly dependencies: LocationServiceDependencies;
 
   constructor(dependencies: LocationServiceDependencies = {}) {
@@ -176,6 +193,12 @@ export class LocationService {
     return this.locationEnabled();
   }
 
+  permissionStateChanged(granted: boolean): void {
+    if (!granted && (this.fix !== null || this.addressAnchor !== null || this.continuousGeocode !== null || this.refreshState === 'refreshing')) {
+      this.invalidateLocation('permission-denied');
+    }
+  }
+
   /** Check the current app token without starting another location request. */
   private verifyLocationAccess(): void {
     if (!this.locationEnabled()) throw new RefreshFailure('location-disabled');
@@ -205,6 +228,10 @@ export class LocationService {
     const hadFix = this.fix !== null;
     const stateChanged = this.refreshState !== 'failed' || this.failureReason !== reason;
     this.fix = null;
+    this.addressAnchor = null;
+    this.continuousGeocode = null;
+    this.lastGeocodeFix = null;
+    this.lastGeocodeAt = 0;
     if (this.refreshState === 'refreshing') {
       this.refreshToken++;
       this.refreshState = 'failed';
@@ -332,7 +359,13 @@ export class LocationService {
     if (token !== this.refreshToken) return false;
     this.refreshState = 'failed';
     this.failureReason = reason;
-    if (reason === 'permission-denied' || reason === 'location-disabled') this.fix = null;
+    if (reason === 'permission-denied' || reason === 'location-disabled') {
+      this.fix = null;
+      this.addressAnchor = null;
+      this.continuousGeocode = null;
+      this.lastGeocodeFix = null;
+      this.lastGeocodeAt = 0;
+    }
     this.notifyChange();
     return false;
   }
@@ -353,6 +386,10 @@ export class LocationService {
       // A newer continuous-location fix may have arrived while the hardware
       // query was in flight; never regress to an older reading.
       if (!this.fix || candidate.timestamp > this.fix.timestamp) {
+        const anchor = this.addressAnchor;
+        if (anchor && isFreshFix(this.fixFromAnchor(anchor)) && movedMeters(this.fixFromAnchor(anchor), candidate) < GEOCODE_MIN_MOVE_M) {
+          candidate.address = anchor.address;
+        }
         this.fix = candidate;
       } else {
         candidate = this.fix;
@@ -370,9 +407,10 @@ export class LocationService {
     let activeCandidate: Fix = candidate;
     for (let attempt = 0; attempt < 2; attempt++) {
       if (!isFreshFix(activeCandidate)) return this.finishFailure(token, 'location-timeout');
+      const addressOrigin = activeCandidate;
       const address = await this.reverseAddress(activeCandidate);
       if (!this.canCommit(token, lifecycle, permission)) return this.finishFailure(token, this.staleReason());
-      if (this.fix !== activeCandidate) {
+      if (this.fix !== activeCandidate && (!this.fix || movedMeters(activeCandidate, this.fix) >= GEOCODE_MIN_MOVE_M)) {
         const newer: Fix | null = this.fix;
         if (newer && isFreshFix(newer) && newer.timestamp >= activeCandidate.timestamp) {
           activeCandidate = newer;
@@ -380,8 +418,10 @@ export class LocationService {
         }
         return this.finishFailure(token, 'location-timeout');
       }
+      if (this.fix && this.fix !== activeCandidate && movedMeters(activeCandidate, this.fix) < GEOCODE_MIN_MOVE_M) activeCandidate = this.fix;
       if (!isFreshFix(activeCandidate)) return this.finishFailure(token, 'location-timeout');
       activeCandidate.address = address;
+      this.addressAnchor = { latitude: addressOrigin.latitude, longitude: addressOrigin.longitude, timestamp: addressOrigin.timestamp, address, resolvedAt: Date.now() };
       this.notifyChange();
       return this.finishSuccess(token);
     }
@@ -442,12 +482,29 @@ export class LocationService {
    */
   receiveLocation(value: geoLocationManager.Location): void {
     if (!this.listening) return;
+    try {
+      this.verifyLocationAccess();
+    } catch (e) {
+      this.invalidateLocation(this.reasonFromFailure(e as Object, 'permission-denied'));
+      return;
+    }
     const fix = this.asFix(value);
     if (!fix || !isFreshFix(fix)) return;
     if (this.fix && fix.timestamp <= this.fix.timestamp) return;
+    const anchor = this.addressAnchor;
+    if (anchor && isFreshFix(this.fixFromAnchor(anchor)) && movedMeters(this.fixFromAnchor(anchor), fix) < GEOCODE_MIN_MOVE_M) {
+      fix.address = anchor.address;
+      this.fix = fix;
+      this.notifyChange();
+      if (Date.now() - anchor.resolvedAt <= GEOCODE_MIN_INTERVAL_MS) return;
+    } else {
+      this.addressAnchor = null;
+      fix.address = '';
+    }
     this.fix = fix;
     this.notifyChange();
     if (this.refreshState === 'refreshing') return;
+    if (this.continuousGeocode) return;
     // A stationary site would otherwise hit the geocoder on every broadcast.
     // Re-resolve as soon as the fix actually moves or the interval elapses.
     if (this.geocodeSkipApplies(fix)) return;
@@ -456,22 +513,98 @@ export class LocationService {
     const permission = this.permissionEpoch;
     this.lastGeocodeFix = fix;
     this.lastGeocodeAt = Date.now();
+    const request: ContinuousGeocode = { origin: fix, lifecycle, token, permission };
+    this.continuousGeocode = request;
     this.reverseAddress(fix).then((address: string) => {
-      if (this.listening && this.lifecycleEpoch === lifecycle && this.refreshToken === token && this.permissionEpoch === permission && this.refreshState !== 'refreshing' && this.fix === fix && isFreshFix(fix)) {
-        fix.address = address;
+      if (this.continuousGeocode === request) this.continuousGeocode = null;
+      const current = this.fix;
+      if (this.listening && this.lifecycleEpoch === lifecycle && this.refreshToken === token && this.permissionEpoch === permission && this.refreshState !== 'refreshing' && current && isFreshFix(current) && isFreshFix(fix) && movedMeters(fix, current) < GEOCODE_MIN_MOVE_M) {
+        current.address = address;
+        this.addressAnchor = { latitude: fix.latitude, longitude: fix.longitude, timestamp: fix.timestamp, address, resolvedAt: Date.now() };
         this.notifyChange();
+      } else if (this.listening && this.lifecycleEpoch === lifecycle && this.refreshToken === token && this.permissionEpoch === permission && current && isFreshFix(current) && this.refreshState !== 'refreshing') {
+        this.resolveContinuous(current);
       }
-    }).catch(() => {});
+    }).catch((error: Object) => {
+      const currentRequest = this.continuousGeocode === request;
+      if (currentRequest) this.continuousGeocode = null;
+      const reason = this.reasonFromFailure(error, 'address-unavailable');
+      if (currentRequest && this.listening && this.lifecycleEpoch === lifecycle && this.refreshToken === token && this.permissionEpoch === permission && this.refreshState !== 'refreshing' && (reason === 'permission-denied' || reason === 'location-disabled')) this.invalidateLocation(reason);
+    });
+  }
+
+  private fixFromAnchor(anchor: AddressAnchor): Fix {
+    const fix = new Fix();
+    fix.latitude = anchor.latitude;
+    fix.longitude = anchor.longitude;
+    fix.timestamp = anchor.timestamp;
+    return fix;
+  }
+
+  hasUsableAddress(now: number = Date.now()): boolean {
+    if (!this.fix || !this.addressAnchor || !this.addressAnchor.address.trim()) return false;
+    const origin = this.fixFromAnchor(this.addressAnchor);
+    return isFreshFix(origin, now) && isFreshFix(this.fix, now) &&
+      movedMeters(origin, this.fix) < GEOCODE_MIN_MOVE_M && this.fix.address === this.addressAnchor.address;
+  }
+
+  /** Snapshot input with address provenance checked at the moment it is read. */
+  snapshotFixForWatermark(): Fix | null {
+    if (!this.fix) return null;
+    const safe = JSON.parse(JSON.stringify(this.fix)) as Fix;
+    if (!this.hasUsableAddress()) safe.address = '';
+    return safe;
+  }
+
+  private resolveContinuous(fix: Fix): void {
+    if (this.continuousGeocode || this.refreshState === 'refreshing') return;
+    if (this.geocodeSkipApplies(fix)) return;
+    const lifecycle = this.lifecycleEpoch;
+    const token = this.refreshToken;
+    const permission = this.permissionEpoch;
+    this.lastGeocodeFix = fix;
+    this.lastGeocodeAt = Date.now();
+    const request: ContinuousGeocode = { origin: fix, lifecycle, token, permission };
+    this.continuousGeocode = request;
+    this.reverseAddress(fix).then((address: string) => {
+      if (this.continuousGeocode === request) this.continuousGeocode = null;
+      const current = this.fix;
+      if (this.listening && this.lifecycleEpoch === lifecycle && this.refreshToken === token && this.permissionEpoch === permission && this.refreshState !== 'refreshing' && current && isFreshFix(current) && isFreshFix(fix) && movedMeters(fix, current) < GEOCODE_MIN_MOVE_M) {
+        current.address = address;
+        this.addressAnchor = { latitude: fix.latitude, longitude: fix.longitude, timestamp: fix.timestamp, address, resolvedAt: Date.now() };
+        this.notifyChange();
+      } else if (this.listening && this.lifecycleEpoch === lifecycle && this.refreshToken === token && this.permissionEpoch === permission && current && isFreshFix(current) && this.refreshState !== 'refreshing') {
+        this.resolveContinuous(current);
+      }
+    }).catch((error: Object) => {
+      const currentRequest = this.continuousGeocode === request;
+      if (currentRequest) this.continuousGeocode = null;
+      const reason = this.reasonFromFailure(error, 'address-unavailable');
+      if (currentRequest && this.listening && this.lifecycleEpoch === lifecycle && this.refreshToken === token && this.permissionEpoch === permission && this.refreshState !== 'refreshing' && (reason === 'permission-denied' || reason === 'location-disabled')) this.invalidateLocation(reason);
+    });
   }
 
   private geocodeSkipApplies(fix: Fix): boolean {
-    if (!fix.address || this.lastGeocodeFix === null) return false;
+    if (this.lastGeocodeFix === null) return false;
     if (Date.now() - this.lastGeocodeAt > GEOCODE_MIN_INTERVAL_MS) return false;
     return movedMeters(this.lastGeocodeFix, fix) < GEOCODE_MIN_MOVE_M;
   }
 
   start(): void {
     if (this.listening) return;
+    try {
+      this.verifyLocationAccess();
+      if (this.fix && !isFreshFix(this.fix)) {
+        this.fix = null;
+        this.addressAnchor = null;
+      } else if (this.fix && this.addressAnchor && !isFreshFix(this.fixFromAnchor(this.addressAnchor))) {
+        this.addressAnchor = null;
+        this.fix.address = '';
+      }
+    } catch (e) {
+      this.invalidateLocation(this.reasonFromFailure(e as Object, 'permission-denied'));
+      return;
+    }
     let locationListening = false;
     let errorListening = false;
     let enabledListening = false;
@@ -504,15 +637,26 @@ export class LocationService {
     }
   }
 
-  stop(): void {
+  stop(preserveFix: boolean = false): void {
     this.lifecycleEpoch++;
-    const hadFix = this.fix !== null;
-    this.fix = null;
-    if (hadFix) this.notifyChange();
+    this.refreshToken++;
+    this.continuousGeocode = null;
+    const preserve = preserveFix && this.fix !== null && isFreshFix(this.fix);
+    const staleAddress = preserve && this.addressAnchor !== null && !isFreshFix(this.fixFromAnchor(this.addressAnchor));
+    const hadFix = !preserve && this.fix !== null;
+    if (!preserve) {
+      this.fix = null;
+      this.addressAnchor = null;
+      this.lastGeocodeFix = null;
+      this.lastGeocodeAt = 0;
+    } else if (staleAddress) {
+      this.addressAnchor = null;
+      if (this.fix) this.fix.address = '';
+    }
+    if (hadFix || staleAddress) this.notifyChange();
     if (this.refreshState === 'refreshing') {
-      this.refreshToken++;
-      this.refreshState = 'failed';
-      this.failureReason = 'location-disabled';
+      this.refreshState = 'idle';
+      this.failureReason = '';
       this.notifyChange();
       const resolve = this.refreshResolver;
       this.refreshResolver = null;

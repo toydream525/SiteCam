@@ -176,9 +176,9 @@ class AddressRefreshCoordinatorTest {
     }
 
     @Test
-    fun timestampRefreshAtSameCoordinatesDoesNotDiscardManualAddressResult() = runTest {
+    fun nearbyFixDuringManualReverseLookupKeepsTheAddressResult() = runTest {
         val original = SiteLocation(31.2, 121.5, timestamp = now - 1_000L)
-        val refreshed = original.copy(timestamp = now - 500L)
+        val refreshed = original.copy(latitude = 31.20005, timestamp = now - 500L)
         val source = FakeAddressRefreshSource(original)
         val geocoderGate = CompletableDeferred<Unit>()
         val pending = async {
@@ -200,6 +200,18 @@ class AddressRefreshCoordinatorTest {
             AddressRefreshResult.Success(original, "当前位置地址"),
             pending.await()
         )
+    }
+
+    @Test
+    fun addressAnchorUsesOriginalPointAndExpires() {
+        val origin = SiteLocation(31.2, 121.5, timestamp = now - 1_000L)
+        val nearby = origin.copy(latitude = 31.20005, timestamp = now - 500L)
+        val cumulativeMove = origin.copy(latitude = 31.20022, timestamp = now - 300L)
+        val expiredOrigin = origin.copy(timestamp = now - LocationFreshness.MAX_AGE_MS - 1L)
+
+        assertTrue(nearbyLocation(origin, nearby, now))
+        assertTrue(!nearbyLocation(origin, cumulativeMove, now))
+        assertTrue(!nearbyLocation(expiredOrigin, nearby, now))
     }
 
     @Test

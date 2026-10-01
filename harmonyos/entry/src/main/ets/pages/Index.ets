@@ -287,22 +287,24 @@ struct Index {
   private current(): Project {return this.projects.find(p=>p.id===this.settings.currentProject)||new Project();}
   private async persist(): Promise<void> {store.settings=this.settings;await store.saveSettings();}
   private async persistSettingsSnapshot(next: Settings): Promise<void> {const previous=store.settings;store.settings=next;try{await store.saveSettings();}catch(e){store.settings=previous;throw e as Error;}}
-  private syncLocationUi(): void {this.locationRefreshState=this.location.refreshState;this.locationFailureReason=this.location.failureReason;if(this.page==='camera'&&!this.captureInFlight&&!this.recording&&!this.videoStarting)this.snapshot=captureSnapshot(this.current(),this.settings,this.location.fix);}
+  private syncLocationUi(): void {this.locationRefreshState=this.location.refreshState;this.locationFailureReason=this.location.failureReason;if(this.page==='camera'&&!this.captureInFlight&&!this.recording&&!this.videoStarting)this.snapshot=captureSnapshot(this.current(),this.settings,this.location.snapshotFixForWatermark());}
   private locationChanged(): void {this.syncLocationUi();}
-  private locationAddressAvailable(): boolean {if(OFFLINE_BUILD)return this.location.fix!==null;const address=this.location.fix?.address||'';return !!address.trim();}
-  private shouldShowAddressRefresh(): boolean {if(this.locationRefreshState==='refreshing')return true;if(!this.locationPermission)return !this.locationAddressAvailable();return !this.locationAddressAvailable()||this.locationRefreshState==='failed';}
-  private addressRefreshLabel(): string {if(this.locationRefreshState==='refreshing')return OFFLINE_BUILD?'获取卫星中…':'刷新中…';if(!this.locationPermission)return OFFLINE_BUILD?'需要精确定位权限':'请开定位';if(this.locationFailureReason==='location-disabled')return '打开系统定位';if(OFFLINE_BUILD)return this.locationFailureReason?'重试卫星定位':'获取卫星坐标';return this.locationFailureReason?'重试地址':'刷新地址';}
+  private locationAddressAvailable(): boolean {if(OFFLINE_BUILD)return this.location.fix!==null;return this.location.hasUsableAddress();}
+  private toolbarBlurEnabled(): boolean {return this.settings.cameraControlStyle==='BLUR'&&deviceInfo.sdkApiVersion>=9;}
+  private toolbarControlBackground(): string {return this.toolbarBlurEnabled()?'#99202020':SITE_CARD_RAISED;}
+  private toolbarBlurStyle(): BlurStyle {return this.toolbarBlurEnabled()?BlurStyle.BACKGROUND_THIN:BlurStyle.NONE;}
+  private shouldShowAddressRefresh(): boolean {if(!this.locationPermission)return false;if(this.locationRefreshState==='refreshing')return true;return !this.locationAddressAvailable()||this.locationRefreshState==='failed';}
   private addressRefreshFailureMessage(): string {if(this.locationFailureReason==='permission-denied')return OFFLINE_BUILD?'卫星定位需要精确位置权限':'请先开启定位权限';if(this.locationFailureReason==='location-disabled')return '请打开系统定位后重试';if(this.locationFailureReason==='location-timeout')return OFFLINE_BUILD?'未获取到新鲜卫星定位，可移至室外重试；仍可拍照或手填工程地点':'暂未获取到有效位置，请重试';return OFFLINE_BUILD?'卫星定位暂不可用，可继续拍摄或填写工程地点':'地址暂不可用，请重试';}
   /** A missing permission is resolved where the user actually hit the wall. */
-  private async resolveLocationPermission(): Promise<void> {if(this.environment.coverScreen){await this.permissions(true);this.syncLocationUi();return;}await this.navigate('permissions','forward');}
+  private async resolveLocationPermission(): Promise<void> {await this.requestOnlyLocationPermission();}
+  private async requestOnlyLocationPermission(): Promise<void> {await this.permissions(false);if(this.locationPermission)return;const manager=abilityAccessCtrl.createAtManager();const token=this.context.applicationInfo.accessTokenId;const requested: Permissions[]=OFFLINE_BUILD?['ohos.permission.LOCATION']:['ohos.permission.APPROXIMATELY_LOCATION','ohos.permission.LOCATION'];const missing: Permissions[]=[];for(const permission of requested)if(await manager.checkAccessToken(token,permission)!==abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED)missing.push(permission);if(missing.length)await manager.requestPermissionsFromUser(this.context,missing);this.settings.permissionHandled=true;this.settings.systemPermissionsRequested=true;await this.persist();await this.permissions(false);this.syncLocationUi();if(!this.locationPermission)this.notify('位置权限已关闭，请重新授权。');}
   private locationSwitchFailure(): boolean {const reason: string=this.location.failureReason;return reason==='location-disabled';}
-  private async requestAddressRefresh(): Promise<void> {if(!this.locationPermission){await this.resolveLocationPermission();return;}if(this.locationRefreshState==='refreshing')return;const lifecycle=this.lifecycleToken;let systemLocationStatusRead=false;try{const systemLocationEnabled=this.location.isSystemLocationEnabled();systemLocationStatusRead=true;if(!systemLocationEnabled){this.locationChanged();this.showLocationSettingsPrompt();return;}const success=await this.location.refreshAddress();this.syncLocationUi();if(!this.foreground||this.page!=='camera'||this.lifecycleToken!==lifecycle)return;if(success){if(!this.captureInFlight&&!this.recording&&!this.videoStarting)this.snapshot=captureSnapshot(this.current(),this.settings,this.location.fix);this.notify(OFFLINE_BUILD?'卫星坐标已更新':'地址与海拔已更新');}else if(this.locationSwitchFailure())this.showLocationSettingsPrompt();else this.notify(this.addressRefreshFailureMessage());}catch(e){this.syncLocationUi();if(this.foreground&&this.page==='camera'&&this.lifecycleToken===lifecycle){if(systemLocationStatusRead&&this.locationSwitchFailure())this.showLocationSettingsPrompt();else this.notify('定位服务暂不可用，请重试');}}}
-  private addressRefreshFontSize(): number {return Math.max(13,Math.min(22,14*this.fontScale));}
-  private addressRefreshMeasureKey(): string {return this.fontScale.toString()+'|'+this.addressRefreshLabel();}
-  private addressRefreshEstimatedWidth(): number {return Math.max(112,this.addressRefreshFontSize()*4+32);}
-  private addressRefreshEstimatedHeight(): number {return Math.max(48,this.addressRefreshFontSize()*2+20);}
-  private refreshButtonWidth(): number {const key=this.addressRefreshMeasureKey();return this.refreshButtonMeasuredKey===key&&this.refreshButtonMeasuredWidth>0?this.refreshButtonMeasuredWidth:this.addressRefreshEstimatedWidth();}
-  private refreshButtonHeight(): number {const key=this.addressRefreshMeasureKey();return this.refreshButtonMeasuredKey===key&&this.refreshButtonMeasuredHeight>0?this.refreshButtonMeasuredHeight:this.addressRefreshEstimatedHeight();}
+  private async requestAddressRefresh(): Promise<void> {await this.permissions(false);if(!this.locationPermission){await this.requestOnlyLocationPermission();return;}if(this.locationRefreshState==='refreshing')return;const lifecycle=this.lifecycleToken;let systemLocationStatusRead=false;try{const systemLocationEnabled=this.location.isSystemLocationEnabled();systemLocationStatusRead=true;if(!systemLocationEnabled){this.locationChanged();this.showLocationSettingsPrompt();return;}const success=await this.location.refreshAddress();await this.permissions(false);this.syncLocationUi();if(!this.foreground||this.page!=='camera'||this.lifecycleToken!==lifecycle)return;if(success){if(!this.captureInFlight&&!this.recording&&!this.videoStarting)this.snapshot=captureSnapshot(this.current(),this.settings,this.location.snapshotFixForWatermark());this.notify(OFFLINE_BUILD?'卫星坐标已更新':'地址与海拔已更新');}else if(!this.locationPermission||this.location.failureReason==='permission-denied')this.notify('位置权限已关闭，请重新授权。');else if(this.locationSwitchFailure())this.showLocationSettingsPrompt();else this.notify(this.addressRefreshFailureMessage());}catch(e){await this.permissions(false);this.syncLocationUi();if(this.foreground&&this.page==='camera'&&this.lifecycleToken===lifecycle){if(!this.locationPermission||this.location.failureReason==='permission-denied')this.notify('位置权限已关闭，请重新授权。');else if(systemLocationStatusRead&&this.locationSwitchFailure())this.showLocationSettingsPrompt();else this.notify('定位服务暂不可用，请重试');}}}
+  private addressRefreshMeasureKey(): string {return this.fontScale.toString()+'|'+this.locationRefreshState+'|'+this.locationPermission;}
+  private addressRefreshEstimatedWidth(): number {return 48;}
+  private addressRefreshEstimatedHeight(): number {return 48;}
+  private refreshButtonWidth(): number {return 48;}
+  private refreshButtonHeight(): number {return 48;}
   private refreshButtonPosition(): RefreshButtonGeometry {const result=new RefreshButtonGeometry();const g=this.cameraGeometry();const width=this.refreshButtonWidth();const height=this.refreshButtonHeight();const watermarkWidth=this.watermarkBound(2);const watermarkHeight=this.watermarkBound(3);let watermarkRect:AddressRefreshRect|null=null;if(watermarkWidth>0&&watermarkHeight>0){watermarkRect={x:this.watermarkBound(0),y:this.watermarkBound(1),width:watermarkWidth,height:watermarkHeight};}const placement=chooseAddressRefreshPlacement({previewWidth:g.previewWidth,previewHeight:g.previewHeight,buttonWidth:width,buttonHeight:height,watermarkRect:watermarkRect,safeSpacing:8});if(placement===null)return result;result.x=g.previewX+placement.x;result.y=g.previewY+placement.y;result.width=placement.width;result.height=placement.height;result.visible=true;return result;}
   private coverProjectPosition(): RefreshButtonGeometry {const result=new RefreshButtonGeometry();if(!this.environment.coverScreen)return result;const g=this.cameraGeometry();const width=Math.max(96,Math.min(180,g.previewWidth-16));const height=Math.max(44,Math.min(56,g.previewHeight-16));const watermarkWidth=this.watermarkBound(2);const watermarkHeight=this.watermarkBound(3);let watermarkRect:AddressRefreshRect|null=null;if(watermarkWidth>0&&watermarkHeight>0){watermarkRect={x:this.watermarkBound(0),y:this.watermarkBound(1),width:watermarkWidth,height:watermarkHeight};}const placement=chooseAddressRefreshPlacement({previewWidth:g.previewWidth,previewHeight:g.previewHeight,buttonWidth:width,buttonHeight:height,watermarkRect:watermarkRect,safeSpacing:8});if(placement===null)return result;result.x=g.previewX+placement.x;result.y=g.previewY+placement.y;result.width=placement.width;result.height=placement.height;result.visible=true;return result;}
   private coverProjectEntryVisible(): boolean {return this.coverProjectPosition().visible;}
@@ -310,6 +312,7 @@ struct Index {
   private coverProjectEntryY(): number {return this.coverProjectPosition().y;}
   private coverProjectEntryWidth(): number {return this.coverProjectPosition().width;}
   private coverProjectEntryHeight(): number {return this.coverProjectPosition().height;}
+  private coverLocationPermissionPosition(): RefreshButtonGeometry {const result=new RefreshButtonGeometry();const g=this.cameraGeometry();const project=this.coverProjectPosition();const width=Math.min(96,Math.max(72,g.previewWidth-16));const height=42;const rightSide=project.visible&&project.x+project.width/2<g.previewX+g.previewWidth/2;result.x=rightSide?g.previewX+g.previewWidth-width-8:g.previewX+8;const below=project.y+project.height+6;result.y=project.visible&&below+height<=g.previewY+g.previewHeight?below:g.previewY+8;result.width=width;result.height=height;result.visible=true;return result;}
   private addressRefreshPlacementAvailable(): boolean {if(this.environment.coverScreen&&this.coverProjectEntryVisible())return false;return this.refreshButtonPosition().visible;}
   private addressRefreshFallbackVisible(): boolean {return this.shouldShowAddressRefresh()&&!this.addressRefreshPlacementAvailable();}
   private refreshButtonX(): number {return this.refreshButtonPosition().x;}
@@ -323,7 +326,7 @@ struct Index {
   @Builder
   private coverProjectEntry() {if(this.environment.coverScreen&&this.coverProjectEntryVisible()){Button(){Text('当前工程\n'+(this.current().name||'请选择工程')).fontSize(Math.max(13,Math.min(20,14*this.fontScale))).maxLines(3).textAlign(TextAlign.Center).textOverflow({overflow:TextOverflow.Ellipsis}).lineHeight(Math.max(16,14*this.fontScale+3));}.width(this.coverProjectEntryWidth()).height(this.coverProjectEntryHeight()).padding(8).fontColor(SITE_TEXT).backgroundColor(SITE_CARD_RAISED).position({x:this.coverProjectEntryX(),y:this.coverProjectEntryY()}).id('camera-project-cover').accessibilityText('当前工程：'+(this.current().name||'请选择工程')).onClick(()=>this.openProjectSwitchPanel());}}
   @Builder
-  private addressRefreshButton() {if(this.shouldShowAddressRefresh()&&this.addressRefreshPlacementAvailable()){Button(){Text(this.addressRefreshLabel()).fontSize(this.addressRefreshFontSize()).maxLines(2).textAlign(TextAlign.Center).lineHeight(this.addressRefreshFontSize()+4).textOverflow({overflow:TextOverflow.Ellipsis});}.width(this.refreshButtonWidth()).height(this.refreshButtonHeight()).fontColor(this.locationRefreshState==='refreshing'?SITE_MUTED:'#231A00').backgroundColor(this.locationRefreshState==='refreshing'?SITE_CARD_RAISED:SITE_ACCENT).enabled(this.locationRefreshState!=='refreshing').accessibilityText(this.locationRefreshState==='refreshing'?'地址刷新中':this.addressRefreshFailureMessage()).position({x:this.refreshButtonX(),y:this.refreshButtonY()}).id('camera-refresh-address').onAreaChange((oldValue,newValue)=>{const width=Number(newValue.width);const height=Number(newValue.height);const key=this.addressRefreshMeasureKey();if(width>0&&height>0&&(this.refreshButtonMeasuredKey!==key||this.refreshButtonMeasuredWidth!==width||this.refreshButtonMeasuredHeight!==height)){this.refreshButtonMeasuredKey=key;this.refreshButtonMeasuredWidth=width;this.refreshButtonMeasuredHeight=height;}}).onClick(()=>this.requestAddressRefresh());}}
+  private addressRefreshButton() {if(this.shouldShowAddressRefresh()&&this.addressRefreshPlacementAvailable()){Button(){if(this.locationRefreshState==='refreshing')LoadingProgress().width(24).height(24);else Text('↻').fontSize(24).fontWeight(FontWeight.Medium).lineHeight(36);}.width(this.refreshButtonWidth()).height(this.refreshButtonHeight()).fontColor(this.locationRefreshState==='refreshing'?SITE_MUTED:'#231A00').backgroundColor(this.locationRefreshState==='refreshing'?SITE_CARD_RAISED:SITE_ACCENT).enabled(this.locationRefreshState!=='refreshing').accessibilityText(this.locationRefreshState==='refreshing'?'地址刷新中':!this.locationPermission?'位置权限未开启，点击授权':this.addressRefreshFailureMessage()).position({x:this.refreshButtonX(),y:this.refreshButtonY()}).id('camera-refresh-address').onAreaChange((oldValue,newValue)=>{const width=Number(newValue.width);const height=Number(newValue.height);const key=this.addressRefreshMeasureKey();if(width>0&&height>0&&(this.refreshButtonMeasuredKey!==key||this.refreshButtonMeasuredWidth!==width||this.refreshButtonMeasuredHeight!==height)){this.refreshButtonMeasuredKey=key;this.refreshButtonMeasuredWidth=width;this.refreshButtonMeasuredHeight=height;}}).onClick(()=>this.requestAddressRefresh());}}
   @Builder
   private projectSwitchOverlay() {if(this.projectSwitchOpen){Rect().width('100%').height('100%').fill('#99000000').onClick(()=>this.closeProjectSwitchPanel());ProjectSwitchPanel({projects:this.projectSwitchItems,currentProjectId:this.settings.currentProject,switchingId:this.projectSwitchingId,fontScale:this.fontScale,panelWidth:this.projectSwitchPanelWidth(),panelHeight:this.projectSwitchPanelHeight(),onSwitch:(p:Project)=>this.requestProjectSwitch(p),onManage:()=>{this.closeProjectSwitchPanel();this.task(async()=>this.navigate('projects'));},onCreate:()=>{this.closeProjectSwitchPanel();this.editProject(new Project());},onClose:()=>this.closeProjectSwitchPanel()}).position({x:this.projectSwitchPanelX(),y:this.projectSwitchPanelY()});}}
   private projectQuickRows(): Project[] {const currentId=this.settings.currentProject;const recent=this.settings.recentProjectIds||[];const rows=this.projects.filter((p:Project)=>p.id===currentId||(!p.archived&&recent.includes(p.id))).slice();rows.sort((a:Project,b:Project)=>{if(a.id===currentId&&b.id!==currentId)return -1;if(b.id===currentId&&a.id!==currentId)return 1;const ai=recent.indexOf(a.id),bi=recent.indexOf(b.id);if(ai<0&&bi<0)return a.id-b.id;if(ai<0)return 1;if(bi<0)return -1;return ai-bi;});return rows.slice(0,7);}
@@ -392,7 +395,7 @@ struct Index {
       await this.restoreWindowOrientation();
       await this.camera?.close();
       this.syncFlashUi();
-      this.location.stop();
+      this.location.stop(page === 'watermark');
       if(this.timer>=0){clearInterval(this.timer);this.timer=-1;}
     }
     this.getUIContext().animateTo({ curve: curves.springMotion(0.35, 0.9) }, () => {
@@ -455,7 +458,7 @@ struct Index {
     this.microphonePermission=await manager.checkAccessToken(token,'ohos.permission.MICROPHONE')===abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED;
     const preciseLocationGranted=await manager.checkAccessToken(token,'ohos.permission.LOCATION')===abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED;
     this.locationPermission=OFFLINE_BUILD?preciseLocationGranted:(preciseLocationGranted||(await manager.checkAccessToken(token,'ohos.permission.APPROXIMATELY_LOCATION')===abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED));
-    this.locationNeedsSettings=!this.locationPermission&&this.settings.systemPermissionsRequested;
+    this.locationNeedsSettings=!this.locationPermission&&this.settings.systemPermissionsRequested;this.location.permissionStateChanged(this.locationPermission);
   }
   /** The only place allowed to open the system app-details page. */
   private async openAppSettings(): Promise<void> {
@@ -464,7 +467,7 @@ struct Index {
     if(!this.settings.systemPermissionsRequested){await this.permissions(true);}
     await this.context.startAbility({bundleName:'com.huawei.hmos.settings',abilityName:'com.huawei.hmos.settings.MainAbility',uri:'application_info_entry',parameters:{bundleName:'com.sitecam.app'}});
   }
-  private permissionRows(): PermissionStatus[] {const rows:PermissionStatus[]=[];rows.push({id:'camera',title:'相机',description:'用于拍照和录像。不开启也能浏览、管理已有工程资料。',granted:this.photoPermission,needsSettings:!this.photoPermission&&this.settings.systemPermissionsRequested,optional:false,detail:this.photoPermission?'已允许':'未开启'} as PermissionStatus);rows.push({id:'location',title:OFFLINE_BUILD?'卫星定位 · 可选':'位置 · 可选',description:OFFLINE_BUILD?'需要精确位置权限；仅显示系统明确报告的当前 GNSS 坐标。不开启定位仍可拍照。':'用于水印中的现场地点。允许大致位置也可以。',granted:this.locationPermission,needsSettings:this.locationNeedsSettings,optional:true,detail:this.locationPermission?'已允许':OFFLINE_BUILD?'需精确位置权限':'未开启'} as PermissionStatus);rows.push({id:'microphone',title:'麦克风 · 可选',description:'用于录制视频声音。不开启时可以录制无声视频。',granted:this.microphonePermission,needsSettings:!this.microphonePermission&&this.settings.systemPermissionsRequested,optional:true,detail:this.microphonePermission?'已允许':'未开启'} as PermissionStatus);return rows;}
+  private permissionRows(): PermissionStatus[] {const rows:PermissionStatus[]=[];rows.push({id:'camera',title:'相机',description:'用于拍照和录像。不开启也能浏览、管理已有工程资料。',granted:this.photoPermission,needsSettings:!this.photoPermission&&this.settings.systemPermissionsRequested,optional:false,detail:this.photoPermission?'已允许':'未开启'} as PermissionStatus);rows.push({id:'location',title:OFFLINE_BUILD?'卫星定位 · 可选':'位置 · 可选',description:OFFLINE_BUILD?'需要精确位置权限；仅显示系统明确报告的当前 GNSS 坐标。不开启定位仍可拍照。':'用于水印中的现场地点，允许大致位置即可。如之前选择仅本次允许，下次需要再次授权；不开启定位仍可拍照。',granted:this.locationPermission,needsSettings:this.locationNeedsSettings,optional:true,detail:this.locationPermission?'已允许':OFFLINE_BUILD?'需精确位置权限':'未开启'} as PermissionStatus);rows.push({id:'microphone',title:'麦克风 · 可选',description:'用于录制视频声音。不开启时可以录制无声视频。',granted:this.microphonePermission,needsSettings:!this.microphonePermission&&this.settings.systemPermissionsRequested,optional:true,detail:this.microphonePermission?'已允许':'未开启'} as PermissionStatus);return rows;}
   private showLocationSettingsPrompt(): void {AlertDialog.show({title:'系统定位已关闭',message:'请在系统设置中搜索“定位服务”并开启，返回相机后重试。',primaryButton:{value:'打开系统设置',action:()=>this.task(async()=>{try{await this.context.startAbility({bundleName:'com.huawei.hmos.settings',abilityName:'com.huawei.hmos.settings.MainAbility'});}catch(e){this.notify('请打开系统设置并搜索“定位服务”');}})},secondaryButton:{value:'取消',action:()=>{}}});}
   private updateCameraSystemBars():void {window.getLastWindow(this.context).then((win:window.Window)=>win.setWindowSystemBarEnable(this.page==='camera'?[]:['status','navigation'])).catch((e:Error)=>console.warn('SITECAM_SYSTEM_BARS '+e.message));}
   private syncFlashUi(): void {
@@ -552,10 +555,10 @@ struct Index {
       this.updateFrameRatio();
       this.message=this.camera.photoSupported?'':'当前设备仅支持预览，拍照能力不可用';
       this.location.start();
-      this.snapshot=captureSnapshot(this.current(),this.settings,this.location.fix);
+      this.snapshot=captureSnapshot(this.current(),this.settings,this.location.snapshotFixForWatermark());
       if(this.timer>=0)clearInterval(this.timer);
       this.timer=setInterval(()=>{
-        if(!this.recording&&!this.captureInFlight&&!this.videoStarting)this.snapshot=captureSnapshot(this.current(),this.settings,this.location.fix);
+        if(!this.recording&&!this.captureInFlight&&!this.videoStarting)this.snapshot=captureSnapshot(this.current(),this.settings,this.location.snapshotFixForWatermark());
       },1000);
     } catch(e) {
       this.cameraReady=false;
@@ -577,7 +580,7 @@ struct Index {
   private async shoot(): Promise<void> {
     const p=await this.captureProject();
     if(!this.cameraReady||!this.camera?.photoSupported)throw new Error('相机尚未就绪');
-    const s=captureSnapshot(p,this.settings,this.location.fix),quality=this.settings.photoQuality,degrees=this.effectiveDegrees();
+    const s=captureSnapshot(p,this.settings,this.location.snapshotFixForWatermark()),quality=this.settings.photoQuality,degrees=this.effectiveDegrees();
     const soundToken=this.lifecycleToken;const orientationMode=this.settings.orientation;const captureSurface=this.surface;s.captureRatio=degrees%180===0?3/4:4/3;this.snapshot=s;this.captureInFlight=true;
     try {
       if(!await this.applyWindowOrientation(orientationMode,true))throw new Error('无法锁定拍摄方向');
@@ -604,7 +607,7 @@ struct Index {
       this.videoStarting=true;
       const p=await this.captureProject();
       if(!this.cameraReady||!this.camera?.videoSupported)throw new Error('相机尚未就绪');
-      const s=captureSnapshot(p,this.settings,this.location.fix),orientationMode=this.settings.orientation,operationToken=this.lifecycleToken,captureSurface=this.surface;
+      const s=captureSnapshot(p,this.settings,this.location.snapshotFixForWatermark()),orientationMode=this.settings.orientation,operationToken=this.lifecycleToken,captureSurface=this.surface;
       const item=new MediaItem();item.type='VIDEO';item.projectId=p.id;item.timestamp=s.timestamp;item.snapshot=JSON.stringify(s);item.status='PROCESSING';item.name=`${s.timestamp}_source.mp4`;item.source=this.files!.path(item.name);item.path=item.source;this.snapshot=s;
       let mediaStored=false;
       try {
@@ -662,7 +665,7 @@ struct Index {
   private editableWatermarkDraft(): Watermark {const draft=JSON.parse(JSON.stringify(this.settings.watermark)) as Watermark;if(OFFLINE_BUILD){const address=draft.fields.find((field:Field)=>field.key==='address');if(address)address.enabled=this.settings.offlineAddressVisible;}return draft;}
   private saveWatermarkDraft(): Watermark {const draft=JSON.parse(JSON.stringify(this.styleDraft)) as Watermark;if(OFFLINE_BUILD){const address=draft.fields.find((field:Field)=>field.key==='address');this.settings.offlineAddressVisible=address?.enabled===true;const storedAddress=this.settings.watermark.fields.find((field:Field)=>field.key==='address');if(address&&storedAddress)address.enabled=storedAddress.enabled;}this.settings.watermark=draft;return draft;}
   private openStyles(from: string): void {this.styleDraft=this.editableWatermarkDraft();this.styleReturn=from;this.draftTemplateId=this.settings.templateId||0;this.templateName=this.templates.find(t=>t.id===this.settings.templateId)?.name||'我的模板';this.task(async()=>this.navigate('watermark','modal'));}
-  private styleSnapshot(id: string): Snapshot {const s=captureSnapshot(this.current().id?this.current():this.example(),this.settings,this.location.fix);s.watermark=JSON.parse(JSON.stringify(this.styleDraft)) as Watermark;s.watermark.style=id;return s;}
+  private styleSnapshot(id: string): Snapshot {const s=captureSnapshot(this.current().id?this.current():this.example(),this.settings,this.location.snapshotFixForWatermark());s.watermark=JSON.parse(JSON.stringify(this.styleDraft)) as Watermark;s.watermark.style=id;return s;}
   private example(): Project {const p=new Project();p.name='滨江路雨污分流改造';p.address='北段雨水管施工现场';return p;}
   private async saveWatermark(): Promise<void> {this.saveWatermarkDraft();await this.persist();const t=new WatermarkTemplate();t.id=this.draftTemplateId;t.name=this.templateName||'我的模板';t.config=JSON.stringify(this.settings.watermark);await store.putTemplate(t);this.settings.templateId=t.id;await this.persist();await this.refresh();await this.navigate(this.styleReturn,'modal');}
   private persistQuickWatermark(): void {this.saveWatermarkDraft();store.settings=this.settings;store.saveCurrentWatermark().catch((e:Error)=>this.notify(e.message));}
@@ -701,24 +704,25 @@ Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#3525
   cameraToolbar() {
     Flex({direction:this.cameraGeometry().side?FlexDirection.Column:FlexDirection.Row,justifyContent:this.cameraGeometry().side?FlexAlign.SpaceEvenly:FlexAlign.Start,alignItems:ItemAlign.Center}) {
       Button(){Text(this.current().name||'选择工程').fontSize(this.cameraGeometry().side?13:14).maxLines(this.cameraGeometry().side?2:1).textOverflow({overflow:TextOverflow.Ellipsis}).fontColor(SITE_TEXT);}.layoutWeight(this.cameraGeometry().side?0:1).width(this.cameraGeometry().side?Math.min(180,Math.max(72,this.cameraGeometry().toolbarWidth-12)):'auto').height(44).accessibilityText('工程项目：'+(this.current().name||'请选择工程'))
-        .constraintSize({maxWidth:360}).fontColor(SITE_TEXT).backgroundColor(SITE_CARD_RAISED).id('camera-project')
+        .constraintSize({maxWidth:360}).fontColor(SITE_TEXT).backgroundColor(this.toolbarControlBackground()).backgroundBlurStyle(this.toolbarBlurStyle(),{colorMode:ThemeColorMode.DARK}).id('camera-project')
         .onClick(()=>this.openProjectSwitchPanel());
-      if(this.addressRefreshFallbackVisible()) Button(){Text(this.addressRefreshLabel()).fontSize(Math.max(13,Math.min(18,14*this.fontScale))).maxLines(2).textAlign(TextAlign.Center).lineHeight(Math.max(16,14*this.fontScale+2)).textOverflow({overflow:TextOverflow.Ellipsis});}.width(this.cameraGeometry().side?72:58).height(44)
+      if(!this.locationPermission&&this.cameraGeometry().toolbarWidth>=360) Button('位置未授权').width(96).height(44).fontSize(12).fontColor(SITE_TEXT).backgroundColor(SITE_CARD_RAISED).accessibilityText('位置权限已关闭，点击重新授权').id('camera-location-permission').onClick(()=>this.task(async()=>this.requestOnlyLocationPermission()));
+      if(this.addressRefreshFallbackVisible()) Button(){if(this.locationRefreshState==='refreshing')LoadingProgress().width(24).height(24);else Text('↻').fontSize(24).fontWeight(FontWeight.Medium).lineHeight(36);}.width(48).height(48)
         .fontColor(this.locationRefreshState==='refreshing'?SITE_MUTED:'#231A00')
         .backgroundColor(this.locationRefreshState==='refreshing'?SITE_CARD_RAISED:SITE_ACCENT)
-        .enabled(this.locationRefreshState!=='refreshing').accessibilityText(this.locationRefreshState==='refreshing'?'地址刷新中':this.addressRefreshFailureMessage())
+        .enabled(this.locationRefreshState!=='refreshing').accessibilityText(this.locationRefreshState==='refreshing'?'地址刷新中':!this.locationPermission?'位置权限未开启，点击授权':this.addressRefreshFailureMessage())
         .id('camera-refresh-address-fallback').onClick(()=>this.requestAddressRefresh());
       if(!this.cameraGeometry().side&&this.windowWidth>=600)Blank().layoutWeight(1);
       Button(){Column({space:2}){if(this.flashMode==='off')Image($r('app.media.ic_flash_off')).width(20).height(20);else if(this.flashMode==='auto')Image($r('app.media.ic_flash_auto')).width(20).height(20);else if(this.flashMode==='torch')Image($r('app.media.ic_flash_torch')).width(20).height(20);else Image($r('app.media.ic_flash_on')).width(20).height(20);Text(flashModeLabel(this.flashMode)).fontSize(10).fontColor(this.flashMode==='off'?SITE_TEXT:SITE_ACCENT);}.width('100%');}.width(48).height(44).fontSize(12).padding(0).fontColor(this.flashMode==='off'?SITE_TEXT:SITE_ACCENT)
-        .backgroundColor(Color.Transparent).enabled(!this.recording&&!this.videoStarting&&this.flashAvailable)
+        .backgroundColor(this.toolbarControlBackground()).backgroundBlurStyle(this.toolbarBlurStyle(),{colorMode:ThemeColorMode.DARK}).enabled(!this.recording&&!this.videoStarting&&this.flashAvailable)
         .onTouch(e=>{if(e.type===TouchType.Down)this.flashTouchDown();}).onClick(()=>this.flashShortPress()).gesture(LongPressGesture({repeat:false}).onAction(()=>this.flashLongPress()));
       Button(){Column({space:2}){Image(this.quickIssueEnabled?$r('app.media.ic_issue_selected'):$r('app.media.ic_issue')).width(20).height(20);Text('问题').fontSize(10).fontColor(this.quickIssueEnabled?SITE_ACCENT:SITE_TEXT);}.width('100%');}.width(48).height(44).fontSize(12).padding(0).fontColor(this.quickIssueEnabled?SITE_ACCENT:SITE_TEXT)
-        .backgroundColor(Color.Transparent).enabled(!this.recording).accessibilityText(this.quickIssueEnabled?'问题标记已开启':'问题标记已关闭').onClick(()=>this.quickIssueEnabled=!this.quickIssueEnabled);
-      Button(){Column({space:2}){Image($r('app.media.ic_orientation')).width(20).height(20);Text('方向').fontSize(10).fontColor(SITE_TEXT);}.width('100%');}.width(48).height(44).fontSize(12).padding(0).fontColor(SITE_TEXT).backgroundColor(Color.Transparent)
+        .backgroundColor(this.toolbarControlBackground()).backgroundBlurStyle(this.toolbarBlurStyle(),{colorMode:ThemeColorMode.DARK}).enabled(!this.recording).accessibilityText(this.quickIssueEnabled?'问题标记已开启':'问题标记已关闭').onClick(()=>this.quickIssueEnabled=!this.quickIssueEnabled);
+      Button(){Column({space:2}){Image($r('app.media.ic_orientation')).width(20).height(20);Text('方向').fontSize(10).fontColor(SITE_TEXT);}.width('100%');}.width(48).height(44).fontSize(12).padding(0).fontColor(SITE_TEXT).backgroundColor(this.toolbarControlBackground()).backgroundBlurStyle(this.toolbarBlurStyle(),{colorMode:ThemeColorMode.DARK})
         .enabled(!this.busy&&!this.recording).id('camera-orientation').onClick(()=>this.openOrientation());
-      Button(){Column({space:2}){Image($r('app.media.ic_settings')).width(20).height(20);Text('设置').fontSize(10).fontColor(SITE_TEXT);}.width('100%');}.width(48).height(44).fontSize(12).padding(0).fontColor(SITE_TEXT).backgroundColor(Color.Transparent)
+      Button(){Column({space:2}){Image($r('app.media.ic_settings')).width(20).height(20);Text('设置').fontSize(10).fontColor(SITE_TEXT);}.width('100%');}.width(48).height(44).fontSize(12).padding(0).fontColor(SITE_TEXT).backgroundColor(this.toolbarControlBackground()).backgroundBlurStyle(this.toolbarBlurStyle(),{colorMode:ThemeColorMode.DARK})
         .id('camera-settings').onClick(()=>this.task(async()=>this.navigate('settings')));
-    }.width(this.cameraGeometry().toolbarWidth).height(this.cameraGeometry().toolbarHeight).padding(this.cameraGeometry().side?{top:8,bottom:8,left:0,right:0}:{left:8,right:8,top:0,bottom:0}).backgroundColor(Color.Black).id('camera-toolbar');
+    }.width(this.cameraGeometry().toolbarWidth).height(this.cameraGeometry().toolbarHeight).padding(this.cameraGeometry().side?{top:8,bottom:8,left:0,right:0}:{left:8,right:8,top:0,bottom:0}).backgroundColor(this.toolbarBlurEnabled()?'#66000000':Color.Black).backgroundBlurStyle(this.toolbarBlurStyle(),{colorMode:ThemeColorMode.DARK}).id('camera-toolbar');
   }
   @Builder
   cameraControls() {
@@ -728,7 +732,7 @@ Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#3525
           Scroll(){Row({space:2}){
             ForEach(this.zoomOptions(),(preset:number)=>{
               Button(zoomPresetLabel(preset)).width(44).height(44).padding(0).fontSize(13)
-                .fontColor(this.zoomPresetSelected(preset)?SITE_ACCENT:SITE_TEXT).backgroundColor(Color.Transparent)
+                .fontColor(this.zoomPresetSelected(preset)?SITE_ACCENT:SITE_TEXT).backgroundColor(this.toolbarControlBackground()).backgroundBlurStyle(this.toolbarBlurStyle(),{colorMode:ThemeColorMode.DARK})
                 .enabled(this.cameraReady&&preset>=(this.camera?.zoomMin||1)&&preset<=(this.camera?.zoomMax||1))
                 .onClick(()=>this.chooseZoom(preset));
             },(preset:number)=>preset.toString());
@@ -737,16 +741,16 @@ Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#3525
           Row({space:2}) {
             ForEach(this.zoomOptions(),(preset:number)=>{
               Button(zoomPresetLabel(preset)).layoutWeight(1).height(36).padding(0).fontSize(13)
-                .fontColor(this.zoomPresetSelected(preset)?SITE_ACCENT:SITE_TEXT).backgroundColor(Color.Transparent)
+                .fontColor(this.zoomPresetSelected(preset)?SITE_ACCENT:SITE_TEXT).backgroundColor(this.toolbarControlBackground()).backgroundBlurStyle(this.toolbarBlurStyle(),{colorMode:ThemeColorMode.DARK})
                 .enabled(this.cameraReady&&preset>=(this.camera?.zoomMin||1)&&preset<=(this.camera?.zoomMax||1))
                 .onClick(()=>this.chooseZoom(preset));
             },(preset:number)=>preset.toString());
           }.width('100%');
         }
         Row({space:18}) {
-          Text('拍照').fontSize(15).fontColor(this.captureMode==='photo'?SITE_ACCENT:SITE_MUTED)
+          Text('拍照').fontSize(15).padding({left:10,right:10,top:5,bottom:5}).backgroundColor(this.toolbarControlBackground()).backgroundBlurStyle(this.toolbarBlurStyle(),{colorMode:ThemeColorMode.DARK}).borderRadius(16).fontColor(this.captureMode==='photo'?SITE_ACCENT:SITE_MUTED)
             .enabled(!this.busy&&!this.recording).onClick(()=>{this.captureMode='photo';this.updateFrameRatio();});
-          Text('录像').fontSize(15).fontColor(this.captureMode==='video'?SITE_ACCENT:SITE_MUTED)
+          Text('录像').fontSize(15).padding({left:10,right:10,top:5,bottom:5}).backgroundColor(this.toolbarControlBackground()).backgroundBlurStyle(this.toolbarBlurStyle(),{colorMode:ThemeColorMode.DARK}).borderRadius(16).fontColor(this.captureMode==='video'?SITE_ACCENT:SITE_MUTED)
             .enabled(!this.busy&&!this.recording).onClick(()=>{this.captureMode='video';this.updateFrameRatio();});
         }.height(32).justifyContent(FlexAlign.Center);
         Flex({direction:this.cameraGeometry().side?FlexDirection.Column:FlexDirection.Row,
@@ -775,7 +779,7 @@ Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#3525
             .onClick(()=>this.task(async()=>this.switchCameraLens(this.captureMode==='video')));
         }.width('100%').height(this.cameraGeometry().side?198:82);
         if(this.cameraGeometry().hover) {
-          Button('修改水印').fontColor(SITE_ACCENT).backgroundColor(Color.Transparent)
+          Button('修改水印').fontColor(SITE_ACCENT).backgroundColor(this.toolbarControlBackground()).backgroundBlurStyle(this.toolbarBlurStyle(),{colorMode:ThemeColorMode.DARK})
             .enabled(!this.recording).onClick(()=>{this.styleDraft=this.editableWatermarkDraft();this.quickSheet=true;});
         }
       }.width('100%').padding({left:8,right:8,bottom:8});
@@ -811,13 +815,13 @@ Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#3525
     Row({space:4}) {
       Column({space:4}){ForEach(this.zoomOptions(),(preset:number)=>{
         Button(zoomPresetLabel(preset)).width(36).height(32).padding(0).fontSize(12)
-          .fontColor(this.zoomPresetSelected(preset)?SITE_ACCENT:SITE_TEXT).backgroundColor(Color.Transparent)
+          .fontColor(this.zoomPresetSelected(preset)?SITE_ACCENT:SITE_TEXT).backgroundColor(this.toolbarControlBackground()).backgroundBlurStyle(this.toolbarBlurStyle(),{colorMode:ThemeColorMode.DARK})
           .enabled(this.cameraReady&&preset>=(this.camera?.zoomMin||1)&&preset<=(this.camera?.zoomMax||1))
           .onClick(()=>this.chooseZoom(preset));
       },(preset:number)=>preset.toString());}.width(36).id('camera-zoom-rail');
       Column({space:16}){
-        Text('拍照').fontSize(13).fontColor(this.captureMode==='photo'?SITE_ACCENT:SITE_MUTED).enabled(!this.busy&&!this.recording).onClick(()=>{this.captureMode='photo';this.updateFrameRatio();});
-        Text('录像').fontSize(13).fontColor(this.captureMode==='video'?SITE_ACCENT:SITE_MUTED).enabled(!this.busy&&!this.recording).onClick(()=>{this.captureMode='video';this.updateFrameRatio();});
+        Text('拍照').fontSize(13).padding({left:8,right:8,top:5,bottom:5}).backgroundColor(this.toolbarControlBackground()).backgroundBlurStyle(this.toolbarBlurStyle(),{colorMode:ThemeColorMode.DARK}).borderRadius(16).fontColor(this.captureMode==='photo'?SITE_ACCENT:SITE_MUTED).enabled(!this.busy&&!this.recording).onClick(()=>{this.captureMode='photo';this.updateFrameRatio();});
+        Text('录像').fontSize(13).padding({left:8,right:8,top:5,bottom:5}).backgroundColor(this.toolbarControlBackground()).backgroundBlurStyle(this.toolbarBlurStyle(),{colorMode:ThemeColorMode.DARK}).borderRadius(16).fontColor(this.captureMode==='video'?SITE_ACCENT:SITE_MUTED).enabled(!this.busy&&!this.recording).onClick(()=>{this.captureMode='video';this.updateFrameRatio();});
       }.width(32).id('camera-mode-rail');
       Blank().layoutWeight(1);
       Column(){
@@ -858,6 +862,18 @@ Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#3525
         .position({x:this.cameraGeometry().previewX,y:this.cameraGeometry().previewY})
         .id('camera-preview');
       this.coverProjectEntry();
+      if(!this.environment.coverScreen&&!this.locationPermission&&this.cameraGeometry().toolbarWidth<360) {
+        Button('位置授权').fontSize(13).fontColor(SITE_TEXT).height(42).padding({left:14,right:14})
+          .backgroundColor(SITE_CARD_RAISED).borderRadius(21).position({x:this.cameraGeometry().previewX+12,y:this.cameraGeometry().previewY+12})
+          .accessibilityText('位置权限已关闭，点击重新授权').id('camera-location-permission-preview')
+          .onClick(()=>this.task(async()=>this.requestOnlyLocationPermission()));
+      }
+      if(this.environment.coverScreen&&!this.locationPermission) {
+        Button('位置授权').fontSize(13).fontColor(SITE_TEXT).height(this.coverLocationPermissionPosition().height).width(this.coverLocationPermissionPosition().width).padding({left:8,right:8})
+          .backgroundColor(SITE_CARD_RAISED).borderRadius(21).position({x:this.coverLocationPermissionPosition().x,y:this.coverLocationPermissionPosition().y})
+          .accessibilityText('位置权限已关闭，点击重新授权').id('camera-location-permission-cover')
+          .onClick(()=>this.task(async()=>this.requestOnlyLocationPermission()));
+      }
       this.cameraControls();
       this.addressRefreshButton();
       this.projectSwitchOverlay();
@@ -900,7 +916,7 @@ this.editorToolsScroll();
   @Builder
   permissionRootPage() {PermissionGuidePageView({permissions:this.permissionRows(),hasRequested:this.settings.systemPermissionsRequested,requesting:this.permissionRequesting,fontScale:this.fontScale,viewportHeight:this.windowHeight,onBack:()=>this.task(async()=>this.navigate(this.permissionsReturn||'camera','backward')),onRequest:()=>this.task(async()=>{this.permissionRequesting=true;try{await this.permissions(true);}finally{this.permissionRequesting=false;}}),onContinue:()=>this.task(async()=>{this.settings.permissionHandled=true;await this.persist();await this.navigate(this.settings.currentProject?'camera':'projects','forward');}),onOpenSettings:()=>this.task(async()=>this.openAppSettings())});}
   @Builder
-  settingsRootPage() {SettingsPageView({quality:this.settings.photoQuality,albumCopy:this.settings.albumCopy,shutterSoundEnabled:this.settings.shutterSoundEnabled,icon:this.settings.icon||'D',apiVersion:deviceInfo.sdkApiVersion,diagnostics:(this.camera?.flashDiagnostics||'')+(this.message?'\n'+this.message:''),templateId:this.settings.templateId,onBack:()=>this.task(async()=>this.navigate('camera','backward')),onHelp:()=>this.task(async()=>this.navigate('help','forward')),onWatermark:()=>this.openStyles('settings'),onQuality:(v:number)=>{this.settings.photoQuality=v;this.settings.editQuality=v;this.persist();},onAlbumCopy:(v:boolean)=>{this.settings.albumCopy=v;this.persist();},onShutterSound:(v:boolean)=>{this.settings.shutterSoundEnabled=v;this.persist();},onIcon:(v:string)=>this.task(async()=>{await bundleManager.setAlternateIcon(v==='D'?'':v);this.settings.icon=v;await this.persist();}),onCopyDiagnostics:()=>this.task(async()=>this.copyDiagnostics()),onOpenLink:(url:string)=>this.task(async()=>this.openExternal(url)),onOpenEasterEgg:()=>this.openSiteCamEasterEgg(),onPermissions:()=>this.task(async()=>this.navigate('permissions','forward'))});}
+  settingsRootPage() {SettingsPageView({quality:this.settings.photoQuality,albumCopy:this.settings.albumCopy,shutterSoundEnabled:this.settings.shutterSoundEnabled,cameraControlStyle:this.settings.cameraControlStyle||'NORMAL',icon:this.settings.icon||'D',apiVersion:deviceInfo.sdkApiVersion,diagnostics:(this.camera?.flashDiagnostics||'')+(this.message?'\n'+this.message:''),templateId:this.settings.templateId,onBack:()=>this.task(async()=>this.navigate('camera','backward')),onHelp:()=>this.task(async()=>this.navigate('help','forward')),onWatermark:()=>this.openStyles('settings'),onQuality:(v:number)=>{this.settings.photoQuality=v;this.settings.editQuality=v;this.persist();},onAlbumCopy:(v:boolean)=>{this.settings.albumCopy=v;this.persist();},onShutterSound:(v:boolean)=>{this.settings.shutterSoundEnabled=v;this.persist();},onCameraControlStyle:(v:string)=>{this.settings.cameraControlStyle=v==='BLUR'?'BLUR':'NORMAL';this.persist();},onIcon:(v:string)=>this.task(async()=>{await bundleManager.setAlternateIcon(v==='D'?'':v);this.settings.icon=v;await this.persist();}),onCopyDiagnostics:()=>this.task(async()=>this.copyDiagnostics()),onOpenLink:(url:string)=>this.task(async()=>this.openExternal(url)),onOpenEasterEgg:()=>this.openSiteCamEasterEgg(),onPermissions:()=>this.task(async()=>this.navigate('permissions','forward'))});}
   @Builder
   helpRootPage() {HelpPageView({offlineMode:OFFLINE_BUILD,onBack:()=>this.task(async()=>this.navigate('settings','backward')),onReplayGuide:()=>this.task(async()=>{this.guideStep=0;await this.navigate('guide','forward');})});}
   @Builder

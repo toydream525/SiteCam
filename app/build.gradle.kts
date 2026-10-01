@@ -33,8 +33,8 @@ android {
         applicationId = "com.sitecam.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 18
-        versionName = "0.3.5"
+        versionCode = 19
+        versionName = "0.3.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

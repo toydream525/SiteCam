@@ -35,6 +35,7 @@ class AppSettingsDataStore(
         val QUICK_ISSUE_MODE = booleanPreferencesKey("quick_issue_mode")
         val EXPORT_TREE_URI = stringPreferencesKey("export_tree_uri")
         val RECENT_PROJECT_IDS = stringPreferencesKey("recent_project_ids")
+        val CAMERA_CONTROL_STYLE = stringPreferencesKey("camera_control_style")
     }
 
     val projectSelectionCleared = store.data.map { it[PROJECT_SELECTION_CLEARED] ?: false }
@@ -73,6 +74,7 @@ class AppSettingsDataStore(
             .getOrDefault(com.sitecam.app.core.camera.CaptureOrientation.AUTO)
     }
     val shutterSoundEnabled: Flow<Boolean> = store.data.map { it[SHUTTER_SOUND_ENABLED] ?: true }
+    val cameraControlStyle: Flow<String> = store.data.map { it[CAMERA_CONTROL_STYLE] ?: "NORMAL" }
     suspend fun setPhotoQualityProfile(value: com.sitecam.app.core.media.PhotoQualityProfile) {
         store.edit { it[PHOTO_PROFILE] = value.name }
     }
@@ -83,6 +85,7 @@ class AppSettingsDataStore(
     suspend fun setShutterSoundEnabled(value: Boolean) {
         store.edit { it[SHUTTER_SOUND_ENABLED] = value }
     }
+    suspend fun setCameraControlStyle(value: String) { store.edit { it[CAMERA_CONTROL_STYLE] = value } }
 
     val jpegQuality: Flow<Int> = store.data.map { preferences ->
         preferences[JPEG_QUALITY] ?: 95

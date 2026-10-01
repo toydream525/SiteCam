@@ -209,5 +209,73 @@ export class LocationServiceChecks {
     requireResult(burst.fix !== null && burst.fix.timestamp === burstBase + 2000, '连续广播下未提交最新定位解');
     requireResult(burst.fix !== null && burst.fix.altitude === 7, '连续广播下最新海拔未提交');
     requireResult(burst.fix !== null && burst.fix.address === '', '较早定位的地址被绑定到了最新定位解');
+
+    // A successful address belongs to its original coordinates. Timestamp-only
+    // callbacks at the same place inherit it without another geocoder call.
+    let continuousCalls = 0;
+    const continuous = new LocationService({
+      hasLocationPermission: (): boolean => true,
+      isLocationEnabled: (): boolean => true,
+      getCurrentLocation: async (): Promise<geoLocationManager.Location> => located(30, 120, 10, Date.now()),
+      reverseAddress: async (_fix: Fix): Promise<string> => { continuousCalls++; return '锚点地址'; }
+    });
+    continuous.listening = true;
+    requireResult(await continuous.refreshAddress(), '锚点初次反查失败');
+    const callsAfterAnchor = continuousCalls;
+    continuous.receiveLocation(located(30, 120, 11, Date.now() + 1000));
+    requireResult(continuous.fix !== null && continuous.fix.address === '锚点地址', '同点新时间戳未继承已验证地址');
+    requireResult(continuousCalls === callsAfterAnchor, '同点广播再次触发反查');
+
+    // During one continuous lookup, same-area broadcasts replace the current
+    // Fix object. The result must land on the latest Fix rather than be lost.
+    let finishContinuous: (value: string) => void = (_value: string): void => {};
+    const pendingContinuous = new Promise<string>((resolve) => { finishContinuous = resolve; });
+    const coalesced = new LocationService({
+      hasLocationPermission: (): boolean => true,
+      isLocationEnabled: (): boolean => true,
+      reverseAddress: async (_fix: Fix): Promise<string> => pendingContinuous
+    });
+    coalesced.listening = true;
+    const coalesceBase = Date.now();
+    coalesced.receiveLocation(located(30, 120, 1, coalesceBase));
+    coalesced.receiveLocation(located(30.00001, 120, 2, coalesceBase + 1000));
+    finishContinuous('合并后的地址');
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    requireResult(coalesced.fix !== null && coalesced.fix.address === '合并后的地址', '同点突发广播导致反查结果丢失');
+
+    // Moving beyond the original anchor clears it. Small movements are always
+    // measured from that original point, so they cannot extend its lifetime.
+    continuous.receiveLocation(located(30.0003, 120, 12, Date.now() + 2000));
+    requireResult(continuous.fix !== null && continuous.fix.address === '', '超过 20 米仍沿用旧地址');
+
+    // stop(true) is the camera-to-watermark handoff: it keeps only a fresh fix
+    // and validated anchor. Default stop and refresh cancellation clear state.
+    const handoff = new LocationService({
+      hasLocationPermission: (): boolean => true,
+      isLocationEnabled: (): boolean => true,
+      getCurrentLocation: async (): Promise<geoLocationManager.Location> => located(30, 120, 10, Date.now()),
+      reverseAddress: async (_fix: Fix): Promise<string> => '交接地址'
+    });
+    requireResult(await handoff.refreshAddress(), '交接地址反查失败');
+    handoff.stop(true);
+    handoff.start();
+    requireResult(handoff.fix !== null && handoff.fix.address === '交接地址', 'camera→watermark 未保留新鲜地址');
+    handoff.stop();
+    requireResult(handoff.fix === null, '普通 stop 未清除定位');
+
+    let finishStoppedRefresh: (value: string) => void = (_value: string): void => {};
+    const stoppedLookup = new Promise<string>((resolve) => { finishStoppedRefresh = resolve; });
+    const stopping = new LocationService({
+      hasLocationPermission: (): boolean => true,
+      isLocationEnabled: (): boolean => true,
+      getCurrentLocation: async (): Promise<geoLocationManager.Location> => located(30, 120, 10, Date.now()),
+      reverseAddress: async (_fix: Fix): Promise<string> => stoppedLookup
+    });
+    const stoppedRefresh = stopping.refreshAddress();
+    stopping.stop();
+    requireResult(!(await stoppedRefresh) && stopping.refreshState === 'idle' && stopping.failureReason === '', 'stop 后手动刷新状态未回到 idle');
+    finishStoppedRefresh('stop 后的迟到地址');
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    requireResult(stopping.fix === null, 'stop 后迟到反查回填了定位');
   }
 }

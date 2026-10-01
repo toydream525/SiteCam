@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -48,6 +49,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
@@ -146,14 +149,19 @@ fun CameraBottomBar(
                     modifier = Modifier
                         .offset(fallbackSlot.left.dp, fallbackSlot.top.dp)
                         .size(fallbackSlot.width().dp)
+                        .semantics { contentDescription = "${addressRefreshFallbackStateDescription(addressRefreshFallbackState)}，点击重试" }
                         .align(Alignment.TopStart)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = "${addressRefreshFallbackStateDescription(addressRefreshFallbackState)}，点击重试",
-                        tint = EngineeringYellow,
-                        modifier = Modifier.size((fallbackSlot.width() * .72f).dp)
-                    )
+                    if (addressRefreshFallbackState == "REFRESHING") {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = EngineeringYellow, strokeWidth = 2.dp)
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "${addressRefreshFallbackStateDescription(addressRefreshFallbackState)}，点击重试",
+                            tint = EngineeringYellow,
+                            modifier = Modifier.size((fallbackSlot.width() * .72f).dp)
+                        )
+                    }
                 }
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -542,6 +550,7 @@ private fun ModeLabel(
             // tap that missed it by a few pixels hit the shutter instead.
             // Invisible 48dp touch target: the label keeps its original text-only look, but a tap
             // a few pixels off no longer lands on the shutter.
+            .background(Letterbox.copy(alpha = 0.72f), RoundedCornerShape(18.dp))
             .heightIn(min = 48.dp)
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 14.dp)
