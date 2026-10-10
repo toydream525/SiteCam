@@ -12,6 +12,7 @@ sealed class Screen(val route: String) {
         fun createRoute(mediaId: Long): String = "photo_detail/$mediaId"
     }
     data object Settings : Screen("settings")
+    data object Permissions : Screen("permissions")
     data object Help : Screen("help")
     data object Onboarding : Screen("onboarding?replay={replay}") {
         fun createRoute(replay: Boolean = false): String = "onboarding?replay=$replay"

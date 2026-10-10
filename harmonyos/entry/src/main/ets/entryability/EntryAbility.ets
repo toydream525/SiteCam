@@ -3,11 +3,11 @@ import { window } from '@kit.ArkUI';
 import { WindowEnvironmentController } from '../core/WindowEnvironment';
 export default class EntryAbility extends UIAbility {
   private environment: WindowEnvironmentController = new WindowEnvironmentController();
-  onCreate(): void { this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_DARK); }
+  onCreate(): void { this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET); }
   onWindowStageDestroy(): void { this.environment.detach(); }
   onWindowStageCreate(stage: window.WindowStage): void {
     console.info(`SITECAM_FONT_CONFIG fontSizeScale=${this.context.config.fontSizeScale} maxScale=3.2`);
-    AppStorage.setOrCreate('fontSizeScale',this.context.config.fontSizeScale||1);
+    AppStorage.setOrCreate('fontSizeScale',this.context.config.fontSizeScale||1);AppStorage.setOrCreate('systemDark',this.context.config.colorMode===ConfigurationConstant.ColorMode.COLOR_MODE_DARK);
     try {
       const win = stage.getMainWindowSync();
       this.environment.attach(win).catch((e: Error)=>console.error('SITECAM_WINDOW '+e.message));
@@ -22,7 +22,7 @@ export default class EntryAbility extends UIAbility {
     }
     stage.loadContent('pages/Index');
   }
-  onConfigurationUpdate(config: Configuration): void { console.info(`SITECAM_FONT_CONFIG_UPDATE fontSizeScale=${config.fontSizeScale} maxScale=3.2`);AppStorage.setOrCreate('fontSizeScale',config.fontSizeScale||1);}
+  onConfigurationUpdate(config: Configuration): void { console.info(`SITECAM_FONT_CONFIG_UPDATE fontSizeScale=${config.fontSizeScale} maxScale=3.2`);AppStorage.setOrCreate('fontSizeScale',config.fontSizeScale||1);AppStorage.setOrCreate('systemDark',config.colorMode===ConfigurationConstant.ColorMode.COLOR_MODE_DARK);}
   onForeground(): void { AppStorage.setOrCreate('foreground',true); }
   onBackground(): void { AppStorage.setOrCreate('foreground',false); }
 }

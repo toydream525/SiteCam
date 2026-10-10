@@ -10,7 +10,9 @@ import androidx.lifecycle.viewModelScope
 import com.sitecam.app.core.database.entity.*
 import com.sitecam.app.core.di.AppContainer
 import com.sitecam.app.core.export.ExportOptions
+import com.sitecam.app.core.media.MediaDeletionResult
 import com.sitecam.app.core.media.MediaOperationCoordinator
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -49,7 +51,13 @@ data class GalleryUiState(
     val dateRange: CaptureDateRange = CaptureDateRange(), val severity: String? = null, val status: String? = null,
     val category: String? = null, val progress: String = ""
 )
-sealed interface GalleryUiEvent { data class Message(val text: String) : GalleryUiEvent }
+sealed interface GalleryUiEvent {
+    data class Message(val text: String) : GalleryUiEvent
+    data class PendingDeleteConsent(
+        val intentSender: android.content.IntentSender,
+        val itemIds: List<Long>
+    ) : GalleryUiEvent
+}
 
 class GalleryViewModel(private val appContainer: AppContainer, initialProjectId: Long? = null) : ViewModel() {
     private data class Filters(val project: Long? = null, val filter: GalleryFilter = GalleryFilter.ALL,
@@ -89,30 +97,44 @@ class GalleryViewModel(private val appContainer: AppContainer, initialProjectId:
     fun selectAll() { filters.value = filters.value.copy(checked = uiState.value.mediaItems.map { it.id }.toSet()) }
     fun clearSelection() { filters.value = filters.value.copy(checked = emptySet()) }
     private fun operate(action: suspend () -> Unit) {
-        if(!busy.compareAndSet(false, true)) return
-        viewModelScope.launch { try { action() } catch(e: Exception) { _events.emit(GalleryUiEvent.Message("操作失败：${e.message}")) }
+        if(!busy.compareAndSet(false, true)) {
+            viewModelScope.launch { _events.emit(GalleryUiEvent.Message("当前有操作正在进行，请稍候")) }
+            return
+        }
+        viewModelScope.launch { try { action() } catch(e: CancellationException) { throw e } catch(e: Exception) { _events.emit(GalleryUiEvent.Message("操作失败：${e.message}")) }
             finally { busy.value = false; progress.value = "" } }
     }
     fun moveSelected(projectId: Long) {
-        val ids = uiState.value.checkedIds.toList()
+        val selected = uiState.value
+        val expectedProjects = selected.mediaItems.filter { it.id in selected.checkedIds }.associate { it.id to it.projectId }
+        if (expectedProjects.isEmpty() || expectedProjects.size != selected.checkedIds.size) return
         operate {
-            MediaOperationCoordinator.withExclusive { appContainer.database.mediaItemDao().moveMediaToProject(ids, projectId) }
-            clearSelection(); _events.emit(GalleryUiEvent.Message("已将 ${ids.size} 项移入工程，关联问题已同步"))
+            MediaOperationCoordinator.moveMedia(appContainer.database, expectedProjects, projectId)
+            clearSelection(); _events.emit(GalleryUiEvent.Message("已将 ${expectedProjects.size} 项移入工程，关联问题已同步"))
         }
     }
     fun deleteMedia(item: MediaItemEntity) = deleteIds(setOf(item.id))
     fun deleteSelected() = deleteIds(uiState.value.checkedIds)
+    /** Runs the same batch again after the system granted the delete request. */
+    fun retryDeleteAfterConsent(ids: List<Long>) = deleteIds(ids.toSet())
     private fun deleteIds(ids: Set<Long>) = operate {
         var success = 0; val failed = mutableListOf<String>()
-        ids.forEach { id ->
-            val item = appContainer.database.mediaItemDao().getMediaItemById(id)
-            if(item != null) {
-                progress.value = "删除：${item.fileName}"
-                val result = appContainer.mediaDeletionCoordinator.delete(item)
-                if(result.success) success++ else failed += result.message ?: item.fileName
-            }
+        var pending: MediaDeletionResult? = null
+        for(id in ids) {
+            val item = appContainer.database.mediaItemDao().getMediaItemById(id) ?: continue
+            progress.value = "删除：${item.fileName}"
+            val result = appContainer.mediaDeletionCoordinator.delete(item)
+            if(result.pendingConsent != null) { pending = result; break }
+            if(result.success) success++ else failed += result.message ?: item.fileName
         }
-        clearSelection(); _events.emit(GalleryUiEvent.Message("已删除 $success 项；失败 ${failed.size} 项" + if(failed.isEmpty()) "" else "，已保留索引：${failed.first()}"))
+        clearSelection()
+        val consent = pending?.pendingConsent
+        if(consent != null) {
+            // The system dialog must be shown; the same ids are retried after approval.
+            _events.emit(GalleryUiEvent.PendingDeleteConsent(consent.intentSender, consent.itemIds))
+            return@operate
+        }
+        _events.emit(GalleryUiEvent.Message("已删除 $success 项；失败 ${failed.size} 项" + if(failed.isEmpty()) "" else "，已保留索引：${failed.first()}"))
     }
     fun saveIssue(item: MediaItemEntity, title: String, severity: String, description: String, status: String) = operate {
         MediaOperationCoordinator.withExclusive {

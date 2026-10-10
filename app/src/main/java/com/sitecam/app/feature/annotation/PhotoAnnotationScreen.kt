@@ -5,12 +5,18 @@ import android.graphics.Typeface
 import android.widget.Toast
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -95,7 +101,7 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun PhotoAnnotationScreen(
     viewModel: PhotoAnnotationViewModel,
@@ -190,7 +196,7 @@ fun PhotoAnnotationScreen(
         contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             TopAppBar(
-                title = { Text("现场隐患照片标注", color = TextPrimaryDark, fontWeight = FontWeight.Bold, fontSize = 17.sp) },
+                title = { Text("照片标注", color = TextPrimaryDark, fontWeight = FontWeight.Bold, fontSize = 17.sp, maxLines = 1) },
                 navigationIcon = {
                     IconButton(onClick = ::requestBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = Color.White)
@@ -222,23 +228,10 @@ fun PhotoAnnotationScreen(
             )
         }
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                listOf("horizontal" to "水平翻转", "vertical" to "垂直翻转", "rotate" to "旋转90°").forEach { (kind, label) ->
-                    TextButton(enabled = !uiState.isSaving, onClick = { viewModel.applyTransform(kind, canvasSize.width.toFloat(), canvasSize.height.toFloat()) }) { Text(label, fontSize = 12.sp) }
-                }
-                TextButton(enabled = !uiState.isSaving, onClick = { cropLeft = 0f; cropTop = 0f; cropRight = 1f; cropBottom = 1f; showCrop = true }) { Text("裁剪") }
-            }
-            Text("翻转、旋转或裁剪会连同照片里已有的水印一起变化。原图始终保留。", color = TextSecondaryDark, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 12.dp))
+        @Composable fun drawing(canvasModifier: Modifier) {
             // Interactive Drawing Canvas Area
             Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
+                modifier = canvasModifier.fillMaxSize()
                     .background(Color.Black)
                     .onSizeChanged { canvasSize = it; viewModel.viewportChanged(it.width.toFloat(), it.height.toFloat()) }
                     .pointerInput(uiState.selectedTool, uiState.selectedColor, uiState.selectedStrokeWidth, uiState.isSaving, canvasSize, uiState.imageWidth, uiState.imageHeight) {
@@ -423,6 +416,15 @@ fun PhotoAnnotationScreen(
                 }
             }
 
+        }
+        @Composable fun palette(paletteModifier: Modifier) {
+            Column(paletteModifier.verticalScroll(rememberScrollState())) {
+            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                listOf("horizontal" to "水平翻转", "vertical" to "垂直翻转", "rotate" to "旋转90°").forEach { (kind, label) ->
+                    TextButton(enabled = !uiState.isSaving, onClick = { viewModel.applyTransform(kind, canvasSize.width.toFloat(), canvasSize.height.toFloat()) }) { Text(label, fontSize = 12.sp) }
+                }
+                TextButton(enabled = !uiState.isSaving, onClick = { cropLeft = 0f; cropTop = 0f; cropRight = 1f; cropBottom = 1f; showCrop = true }) { Text("裁剪") }
+            }
             // Bottom Tool Palette
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -432,7 +434,7 @@ fun PhotoAnnotationScreen(
                 Column(modifier = Modifier.padding(12.dp)) {
                     // Tool Selection Row
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.SpaceAround,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -513,6 +515,18 @@ fun PhotoAnnotationScreen(
                         }
                     }
                 }
+            }
+            }
+        }
+        BoxWithConstraints(Modifier.fillMaxSize().padding(paddingValues)) {
+            val side = maxWidth >= 840.dp || maxWidth > maxHeight
+            val toolHeight = (maxHeight * .42f).coerceIn(96.dp, 190.dp)
+            if(side) Row(Modifier.fillMaxSize()) {
+                drawing(Modifier.weight(1f).fillMaxHeight())
+                palette(Modifier.width(280.dp).fillMaxHeight())
+            } else Column(Modifier.fillMaxSize()) {
+                drawing(Modifier.weight(1f).fillMaxWidth())
+                palette(Modifier.fillMaxWidth().height(toolHeight))
             }
         }
     }
@@ -662,7 +676,7 @@ private fun DrawScope.drawMosaicPreview(points: List<Offset>, strokeWidth: Float
         for (x in minX..maxX) {
             for (y in minY..maxY) {
                 drawRect(
-                    color = if ((x + y) and 1 == 0) Color(0xF5181818) else Color(0xE6484848),
+                    color = if ((x + y) and 1 == 0) Color(0xFF181818) else Color(0xFF484848),
                     topLeft = Offset(x * cellSize, y * cellSize),
                     size = Size(cellSize, cellSize)
                 )

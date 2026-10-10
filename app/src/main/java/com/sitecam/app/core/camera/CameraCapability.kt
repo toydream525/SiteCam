@@ -22,12 +22,17 @@ enum class CameraBindingVerification {
 data class CameraLensCapability(
     val cameraId: String,
     val lensFacing: Int,
+    /** Public physical member selected through its logical parent (API 28+). */
+    val parentLogicalCameraId: String? = null,
     val role: CameraLensRole = CameraLensRole.UNKNOWN,
     val isLogicalCamera: Boolean = false,
     val physicalMemberIds: Set<String> = emptySet(),
     val horizontalFovDegrees: Float? = null,
     /** Optical view relative to the main-camera reference, when measurable. */
     val equivalentZoomRatio: Float? = null,
+    /** CameraX's supported session range, never a source of invented optical stops. */
+    val minSessionZoomRatio: Float = 1f,
+    val maxSessionZoomRatio: Float = 1f,
     val hardwarePresent: Boolean = true,
     val appAccessible: Boolean = true,
     /** The public selector is accepted as a candidate by CameraX; see verification below. */
@@ -67,7 +72,7 @@ object CameraLensRoleClassifier {
 data class CameraCapability(
     val minZoomRatio: Float = 1.0f,
     val maxZoomRatio: Float = 5.0f,
-    val zoomPillPresets: List<Float> = listOf(1.0f, 2.0f),
+    val zoomPillPresets: List<Float> = listOf(1.0f),
     val hasFlashUnit: Boolean = false,
     val isFrontCameraAvailable: Boolean = true,
     val isBackCameraAvailable: Boolean = true,
@@ -101,22 +106,9 @@ data class CameraCapability(
             val minZoom = sessionMinZoom * referenceRatio
             val maxZoom = sessionMaxZoom * referenceRatio
 
-            val candidatePills = mutableListOf<Float>()
-            // The first control must represent the camera's actual lower
-            // bound.  This matters for 0.54x wide cameras and for a tele
-            // session whose native 1x is, for example, 3.2x main-equivalent.
-            candidatePills.add(minZoom)
-            candidatePills.add(1.0f)
-            if (maxZoom >= 1.9f) candidatePills.add(2.0f)
-            if (maxZoom >= 2.9f) candidatePills.add(3.0f)
-            if (maxZoom >= 4.9f) candidatePills.add(5.0f)
-            if (maxZoom >= 9.9f) candidatePills.add(10.0f)
-
-            val availablePills = candidatePills
-                .filter { it in minZoom..maxZoom }
-                .distinct()
-                .sorted()
-            val finalPills = if (availablePills.isEmpty()) listOf(minZoom) else availablePills
+            // A zoom range proves only digital reach. Native stops come from
+            // the optical inventory; until it arrives offer the session's 1x.
+            val finalPills = listOf(referenceRatio).filter { it in minZoom..maxZoom }
 
             return CameraCapability(
                 minZoomRatio = minZoom,
@@ -167,7 +159,7 @@ object CameraZoomMapping {
      * offset; a logical wide/main group must stay at its native 1x baseline.
      */
     fun referenceRatioForActiveLens(lens: CameraLensCapability?): Float =
-        if (lens?.lensFacing == CameraSelector.LENS_FACING_BACK && !lens.isLogicalCamera) {
+        if (lens?.lensFacing == CameraSelector.LENS_FACING_BACK && !lens.isLogicalCamera && lens.parentLogicalCameraId == null) {
             sanitizeEquivalentRatio(lens.equivalentZoomRatio ?: 1.0f)
         } else {
             1.0f

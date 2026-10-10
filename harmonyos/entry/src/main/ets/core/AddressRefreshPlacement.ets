@@ -28,6 +28,8 @@ export interface AddressRefreshPlacementRequest {
   buttonHeight: number;
   watermarkRect: AddressRefreshRect | null;
   safeSpacing: number;
+  preferStart?: boolean;
+  reservedRects?: AddressRefreshRect[];
 }
 
 function finitePositive(value: number): boolean {
@@ -78,12 +80,16 @@ export function chooseAddressRefreshPlacement(request: AddressRefreshPlacementRe
     {corner: 'BOTTOM_END', x: maxX, y: maxY, width: request.buttonWidth, height: request.buttonHeight},
     {corner: 'BOTTOM_START', x: spacing, y: maxY, width: request.buttonWidth, height: request.buttonHeight}
   ];
-  const protectedRect = protectedWatermark(request.watermarkRect, spacing);
+  if(request.preferStart){const first=candidates[0];candidates[0]=candidates[1];candidates[1]=first;}
+  const protectedRects:AddressRefreshRect[]=[];
+  const watermark=protectedWatermark(request.watermarkRect,spacing);
+  if(watermark!==null)protectedRects.push(watermark);
+  for(const rect of request.reservedRects||[]){const expanded=protectedWatermark(rect,spacing);if(expanded!==null)protectedRects.push(expanded);}
   for (const candidate of candidates) {
     const inside = candidate.x >= 0 && candidate.y >= 0 &&
       candidate.x + candidate.width <= request.previewWidth &&
       candidate.y + candidate.height <= request.previewHeight;
-    if (inside && (protectedRect === null || !overlaps(candidate, protectedRect))) return candidate;
+    if (inside && protectedRects.every((rect:AddressRefreshRect)=>!overlaps(candidate,rect))) return candidate;
   }
   return null;
 }

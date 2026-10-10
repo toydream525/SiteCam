@@ -1,6 +1,6 @@
 import { geoLocationManager } from '@kit.LocationKit';
 import { abilityAccessCtrl, bundleManager } from '@kit.AbilityKit';
-import { Fix } from './Models';
+import { Fix, isCaptureFreshFix } from './Models';
 
 export type LocationRefreshState = 'idle' | 'refreshing' | 'success' | 'failed';
 export type LocationFailureReason = '' | 'permission-denied' | 'location-disabled' | 'location-timeout' | 'address-unavailable';
@@ -11,6 +11,7 @@ export interface LocationServiceDependencies {
   isLocationEnabled?: () => boolean;
   getCurrentLocation?: () => Promise<geoLocationManager.Location>;
   reverseAddress?: (fix: Fix) => Promise<string>;
+  now?: () => number;
 }
 
 const LOCATION_MAX_AGE_MS: number = 5 * 60 * 1000;
@@ -21,11 +22,13 @@ const ADDRESS_LOOKUP_TIMEOUT_MS: number = 8 * 1000;
 // 0 leaves the platform free to return a real coarse fix when the user grants
 // approximate location; freshness is still enforced by the timestamp checks.
 const CURRENT_LOCATION_MAX_ACCURACY_M: number = 0;
-/** The continuous listener may reuse a 5-minute-old fix; an explicit refresh may not. */
-const REFRESH_FIX_MAX_AGE_MS: number = 30 * 1000;
 /** Skip the geocoder for a fix that barely moved while an address is already displayed. */
 const GEOCODE_MIN_INTERVAL_MS: number = 60 * 1000;
 const GEOCODE_MIN_MOVE_M: number = 20;
+/** Coalescing window for continuous-position broadcasts; the tail is always delivered. */
+const LOCATION_BROADCAST_INTERVAL_MS: number = 250;
+/** Back-off after a failed continuous subscription so the clock cannot hot-loop. */
+const LISTEN_RETRY_BACKOFF_MS: number = 60 * 1000;
 
 interface LocationPlatformError {
   code?: number;
@@ -55,7 +58,7 @@ class RefreshFailure extends Error {
   }
 }
 
-/** A location is usable for a capture only while its timestamp is current. */
+/** Retained location/address provenance expires after five minutes; capture has a shorter boundary. */
 export function isFreshFix(fix: Fix | null, now: number = Date.now()): boolean {
   if (!fix || !Number.isFinite(now)) return false;
   if (!Number.isFinite(fix.latitude) || !Number.isFinite(fix.longitude)) return false;
@@ -127,6 +130,8 @@ export class LocationService {
   failureReason: LocationFailureReason = '';
   /** ArkUI can assign a small invalidation callback without coupling this service to a page. */
   onChange: (() => void) | null = null;
+  /** Reported when the continuous subscription could not be registered. */
+  onListenFailed: ((reason: string) => void) | null = null;
 
   /** True while the platform listener is attached. ohosTest sets it to drive receiveLocation directly. */
   listening: boolean = false;
@@ -141,11 +146,19 @@ export class LocationService {
   private lastGeocodeAt: number = 0;
   private addressAnchor: AddressAnchor | null = null;
   private continuousGeocode: ContinuousGeocode | null = null;
+  /** Pending coalesced position notification; -1 means nothing scheduled. */
+  private locationNotifyTimer: number = -1;
+  /** Earliest time ensureListening may call start() again after a failure. */
+  private listenRetryAfter: number = 0;
   private readonly dependencies: LocationServiceDependencies;
 
   constructor(dependencies: LocationServiceDependencies = {}) {
     this.dependencies = dependencies;
   }
+
+  private now(): number { return this.dependencies.now?.() ?? Date.now(); }
+  private retainedFix(fix: Fix | null): boolean { return isFreshFix(fix, this.now()); }
+  private captureFreshFix(fix: Fix | null): boolean { return isCaptureFreshFix(fix, this.now()); }
 
   private notifyChange(): void {
     try {
@@ -153,6 +166,19 @@ export class LocationService {
     } catch (e) {
       console.warn('SITECAM_LOCATION_CHANGE ' + String(e));
     }
+  }
+
+  /**
+   * A position-only broadcast is coalesced; the trailing update is never
+   * dropped because a later broadcast simply leaves the pending timer in
+   * place and the timer reads the newest state when it fires.
+   */
+  private notifyLocationChange(): void {
+    if (this.locationNotifyTimer >= 0) return;
+    this.locationNotifyTimer = setTimeout(() => {
+      this.locationNotifyTimer = -1;
+      this.notifyChange();
+    }, LOCATION_BROADCAST_INTERVAL_MS);
   }
 
   private errorCode(error: Object): number {
@@ -321,6 +347,7 @@ export class LocationService {
       return address;
     } catch (e) {
       const reason = this.reasonFromFailure(e as Object, 'address-unavailable');
+      console.info('SITECAM_LOCATION_REVERSE_FAILED code=' + this.errorCode(e as Object) + ' reason=' + reason);
       throw new RefreshFailure(reason);
     }
   };
@@ -339,10 +366,11 @@ export class LocationService {
       const fix = this.asFix(value);
       // The listener tolerates a 5-minute-old fix; an explicit refresh must not,
       // otherwise "refresh" can hand back the exact cached reading it replaced.
-      if (!fix || !isFreshFix(fix) || Date.now() - fix.timestamp > REFRESH_FIX_MAX_AGE_MS) throw new RefreshFailure('location-timeout');
+      if (!fix || !this.captureFreshFix(fix)) throw new RefreshFailure('location-timeout');
       return fix;
     } catch (e) {
       const reason = this.reasonFromFailure(e as Object, 'location-timeout');
+      console.info('SITECAM_LOCATION_CURRENT_FAILED code=' + this.errorCode(e as Object) + ' reason=' + reason);
       throw new RefreshFailure(reason);
     }
   };
@@ -387,7 +415,7 @@ export class LocationService {
       // query was in flight; never regress to an older reading.
       if (!this.fix || candidate.timestamp > this.fix.timestamp) {
         const anchor = this.addressAnchor;
-        if (anchor && isFreshFix(this.fixFromAnchor(anchor)) && movedMeters(this.fixFromAnchor(anchor), candidate) < GEOCODE_MIN_MOVE_M) {
+        if (anchor && this.retainedFix(this.fixFromAnchor(anchor)) && movedMeters(this.fixFromAnchor(anchor), candidate) < GEOCODE_MIN_MOVE_M) {
           candidate.address = anchor.address;
         }
         this.fix = candidate;
@@ -406,31 +434,31 @@ export class LocationService {
     // Retry that newer fix once so its address cannot be overwritten by an old result.
     let activeCandidate: Fix = candidate;
     for (let attempt = 0; attempt < 2; attempt++) {
-      if (!isFreshFix(activeCandidate)) return this.finishFailure(token, 'location-timeout');
+      if (!this.captureFreshFix(activeCandidate)) return this.finishFailure(token, 'location-timeout');
       const addressOrigin = activeCandidate;
       const address = await this.reverseAddress(activeCandidate);
       if (!this.canCommit(token, lifecycle, permission)) return this.finishFailure(token, this.staleReason());
       if (this.fix !== activeCandidate && (!this.fix || movedMeters(activeCandidate, this.fix) >= GEOCODE_MIN_MOVE_M)) {
         const newer: Fix | null = this.fix;
-        if (newer && isFreshFix(newer) && newer.timestamp >= activeCandidate.timestamp) {
+        if (newer && this.retainedFix(newer) && newer.timestamp >= activeCandidate.timestamp) {
           activeCandidate = newer;
           continue;
         }
         return this.finishFailure(token, 'location-timeout');
       }
       if (this.fix && this.fix !== activeCandidate && movedMeters(activeCandidate, this.fix) < GEOCODE_MIN_MOVE_M) activeCandidate = this.fix;
-      if (!isFreshFix(activeCandidate)) return this.finishFailure(token, 'location-timeout');
+      if (!this.captureFreshFix(activeCandidate)) return this.finishFailure(token, 'location-timeout');
       activeCandidate.address = address;
-      this.addressAnchor = { latitude: addressOrigin.latitude, longitude: addressOrigin.longitude, timestamp: addressOrigin.timestamp, address, resolvedAt: Date.now() };
-      this.notifyChange();
+      this.addressAnchor = { latitude: addressOrigin.latitude, longitude: addressOrigin.longitude, timestamp: addressOrigin.timestamp, address, resolvedAt: this.now() };
+      if (!this.hasUsableAddress()) return this.finishFailure(token, 'location-timeout');
       return this.finishSuccess(token);
     }
     // Both retries were spent on broadcasts that kept arriving. Commit the
     // freshest fix, but leave its address untouched because the last resolved
     // address belongs to an earlier coordinate.
     if (!this.canCommit(token, lifecycle, permission)) return this.finishFailure(token, this.staleReason());
-    const newest: Fix = this.fix !== null && isFreshFix(this.fix) && this.fix.timestamp >= activeCandidate.timestamp ? this.fix : activeCandidate;
-    if (isFreshFix(newest)) {
+    const newest: Fix = this.fix !== null && this.retainedFix(this.fix) && this.fix.timestamp >= activeCandidate.timestamp ? this.fix : activeCandidate;
+    if (this.retainedFix(newest)) {
       this.fix = newest;
       this.notifyChange();
       return this.finishFailure(token, 'address-unavailable');
@@ -489,20 +517,20 @@ export class LocationService {
       return;
     }
     const fix = this.asFix(value);
-    if (!fix || !isFreshFix(fix)) return;
+    if (!fix || !this.retainedFix(fix)) return;
     if (this.fix && fix.timestamp <= this.fix.timestamp) return;
     const anchor = this.addressAnchor;
-    if (anchor && isFreshFix(this.fixFromAnchor(anchor)) && movedMeters(this.fixFromAnchor(anchor), fix) < GEOCODE_MIN_MOVE_M) {
+    if (anchor && this.retainedFix(this.fixFromAnchor(anchor)) && movedMeters(this.fixFromAnchor(anchor), fix) < GEOCODE_MIN_MOVE_M) {
       fix.address = anchor.address;
       this.fix = fix;
-      this.notifyChange();
-      if (Date.now() - anchor.resolvedAt <= GEOCODE_MIN_INTERVAL_MS) return;
+      this.notifyLocationChange();
+      if (this.now() - anchor.resolvedAt <= GEOCODE_MIN_INTERVAL_MS) return;
     } else {
       this.addressAnchor = null;
       fix.address = '';
     }
     this.fix = fix;
-    this.notifyChange();
+    this.notifyLocationChange();
     if (this.refreshState === 'refreshing') return;
     if (this.continuousGeocode) return;
     // A stationary site would otherwise hit the geocoder on every broadcast.
@@ -512,25 +540,54 @@ export class LocationService {
     const token = this.refreshToken;
     const permission = this.permissionEpoch;
     this.lastGeocodeFix = fix;
-    this.lastGeocodeAt = Date.now();
+    this.lastGeocodeAt = this.now();
     const request: ContinuousGeocode = { origin: fix, lifecycle, token, permission };
     this.continuousGeocode = request;
     this.reverseAddress(fix).then((address: string) => {
       if (this.continuousGeocode === request) this.continuousGeocode = null;
       const current = this.fix;
-      if (this.listening && this.lifecycleEpoch === lifecycle && this.refreshToken === token && this.permissionEpoch === permission && this.refreshState !== 'refreshing' && current && isFreshFix(current) && isFreshFix(fix) && movedMeters(fix, current) < GEOCODE_MIN_MOVE_M) {
-        current.address = address;
-        this.addressAnchor = { latitude: fix.latitude, longitude: fix.longitude, timestamp: fix.timestamp, address, resolvedAt: Date.now() };
-        this.notifyChange();
-      } else if (this.listening && this.lifecycleEpoch === lifecycle && this.refreshToken === token && this.permissionEpoch === permission && current && isFreshFix(current) && this.refreshState !== 'refreshing') {
+      if (this.listening && this.lifecycleEpoch === lifecycle && this.refreshToken === token && this.permissionEpoch === permission && this.refreshState !== 'refreshing' && current && this.retainedFix(current) && this.retainedFix(fix) && movedMeters(fix, current) < GEOCODE_MIN_MOVE_M) {
+        this.commitContinuousAddress(current, fix, address);
+      } else if (this.listening && this.lifecycleEpoch === lifecycle && this.refreshToken === token && this.permissionEpoch === permission && current && this.retainedFix(current) && this.refreshState !== 'refreshing') {
         this.resolveContinuous(current);
       }
     }).catch((error: Object) => {
-      const currentRequest = this.continuousGeocode === request;
-      if (currentRequest) this.continuousGeocode = null;
-      const reason = this.reasonFromFailure(error, 'address-unavailable');
-      if (currentRequest && this.listening && this.lifecycleEpoch === lifecycle && this.refreshToken === token && this.permissionEpoch === permission && this.refreshState !== 'refreshing' && (reason === 'permission-denied' || reason === 'location-disabled')) this.invalidateLocation(reason);
+      this.continuousGeocodeFailed(error, request, lifecycle, token, permission);
     });
+  }
+
+  /**
+   * Both continuous reverse-geocode paths (broadcast-driven and retry-driven)
+   * report through here so neither can fail silently. Manual refresh state is
+   * left untouched: a background failure must not rewrite it.
+   */
+  private continuousGeocodeFailed(error: Object, request: ContinuousGeocode, lifecycle: number, token: number, permission: number): void {
+    const currentRequest = this.continuousGeocode === request;
+    if (currentRequest) this.continuousGeocode = null;
+    const code = this.errorCode(error);
+    const reason = this.reasonFromFailure(error, 'address-unavailable');
+    console.info('SITECAM_LOCATION_CONTINUOUS_FAILED code=' + code + ' reason=' + reason);
+    if (!currentRequest || !this.listening || this.lifecycleEpoch !== lifecycle || this.refreshToken !== token || this.permissionEpoch !== permission || this.refreshState === 'refreshing') return;
+    if (reason === 'permission-denied' || reason === 'location-disabled') {
+      this.invalidateLocation(reason);
+      return;
+    }
+    // Keep the fix, but surface why no address accompanies it.
+    if (reason === 'address-unavailable' && this.failureReason !== reason) {
+      this.failureReason = reason;
+      this.notifyChange();
+    }
+  }
+
+  private commitContinuousAddress(current: Fix, origin: Fix, address: string): void {
+    current.address = address;
+    this.addressAnchor = { latitude: origin.latitude, longitude: origin.longitude, timestamp: origin.timestamp, address, resolvedAt: this.now() };
+    if (this.hasUsableAddress()) {
+      this.refreshState = 'success';
+      this.failureReason = '';
+      this.lastPlatformFailure = '';
+    }
+    this.notifyChange();
   }
 
   private fixFromAnchor(anchor: AddressAnchor): Fix {
@@ -541,10 +598,10 @@ export class LocationService {
     return fix;
   }
 
-  hasUsableAddress(now: number = Date.now()): boolean {
+  hasUsableAddress(now: number = this.now()): boolean {
     if (!this.fix || !this.addressAnchor || !this.addressAnchor.address.trim()) return false;
     const origin = this.fixFromAnchor(this.addressAnchor);
-    return isFreshFix(origin, now) && isFreshFix(this.fix, now) &&
+    return isFreshFix(origin, now) && isCaptureFreshFix(this.fix, now) &&
       movedMeters(origin, this.fix) < GEOCODE_MIN_MOVE_M && this.fix.address === this.addressAnchor.address;
   }
 
@@ -563,30 +620,25 @@ export class LocationService {
     const token = this.refreshToken;
     const permission = this.permissionEpoch;
     this.lastGeocodeFix = fix;
-    this.lastGeocodeAt = Date.now();
+    this.lastGeocodeAt = this.now();
     const request: ContinuousGeocode = { origin: fix, lifecycle, token, permission };
     this.continuousGeocode = request;
     this.reverseAddress(fix).then((address: string) => {
       if (this.continuousGeocode === request) this.continuousGeocode = null;
       const current = this.fix;
-      if (this.listening && this.lifecycleEpoch === lifecycle && this.refreshToken === token && this.permissionEpoch === permission && this.refreshState !== 'refreshing' && current && isFreshFix(current) && isFreshFix(fix) && movedMeters(fix, current) < GEOCODE_MIN_MOVE_M) {
-        current.address = address;
-        this.addressAnchor = { latitude: fix.latitude, longitude: fix.longitude, timestamp: fix.timestamp, address, resolvedAt: Date.now() };
-        this.notifyChange();
-      } else if (this.listening && this.lifecycleEpoch === lifecycle && this.refreshToken === token && this.permissionEpoch === permission && current && isFreshFix(current) && this.refreshState !== 'refreshing') {
+      if (this.listening && this.lifecycleEpoch === lifecycle && this.refreshToken === token && this.permissionEpoch === permission && this.refreshState !== 'refreshing' && current && this.retainedFix(current) && this.retainedFix(fix) && movedMeters(fix, current) < GEOCODE_MIN_MOVE_M) {
+        this.commitContinuousAddress(current, fix, address);
+      } else if (this.listening && this.lifecycleEpoch === lifecycle && this.refreshToken === token && this.permissionEpoch === permission && current && this.retainedFix(current) && this.refreshState !== 'refreshing') {
         this.resolveContinuous(current);
       }
     }).catch((error: Object) => {
-      const currentRequest = this.continuousGeocode === request;
-      if (currentRequest) this.continuousGeocode = null;
-      const reason = this.reasonFromFailure(error, 'address-unavailable');
-      if (currentRequest && this.listening && this.lifecycleEpoch === lifecycle && this.refreshToken === token && this.permissionEpoch === permission && this.refreshState !== 'refreshing' && (reason === 'permission-denied' || reason === 'location-disabled')) this.invalidateLocation(reason);
+      this.continuousGeocodeFailed(error, request, lifecycle, token, permission);
     });
   }
 
   private geocodeSkipApplies(fix: Fix): boolean {
     if (this.lastGeocodeFix === null) return false;
-    if (Date.now() - this.lastGeocodeAt > GEOCODE_MIN_INTERVAL_MS) return false;
+    if (this.now() - this.lastGeocodeAt > GEOCODE_MIN_INTERVAL_MS) return false;
     return movedMeters(this.lastGeocodeFix, fix) < GEOCODE_MIN_MOVE_M;
   }
 
@@ -594,10 +646,10 @@ export class LocationService {
     if (this.listening) return;
     try {
       this.verifyLocationAccess();
-      if (this.fix && !isFreshFix(this.fix)) {
+      if (this.fix && !this.retainedFix(this.fix)) {
         this.fix = null;
         this.addressAnchor = null;
-      } else if (this.fix && this.addressAnchor && !isFreshFix(this.fixFromAnchor(this.addressAnchor))) {
+      } else if (this.fix && this.addressAnchor && !this.retainedFix(this.fixFromAnchor(this.addressAnchor))) {
         this.addressAnchor = null;
         this.fix.address = '';
       }
@@ -613,7 +665,7 @@ export class LocationService {
         priority: geoLocationManager.LocationRequestPriority.FIRST_FIX,
         scenario: geoLocationManager.LocationRequestScenario.UNSET,
         timeInterval: 10,
-        distanceInterval: 5,
+        distanceInterval: 0,
         maxAccuracy: 0
       }, this.receive);
       locationListening = true;
@@ -622,8 +674,12 @@ export class LocationService {
       geoLocationManager.on('locationEnabledChange', this.locationEnabledChanged);
       enabledListening = true;
       this.listening = true;
+      this.listenRetryAfter = 0;
+      console.info('SITECAM_LOCATION_LISTENING interval=10 distance=0');
       try { this.locationEnabledChanged(this.locationEnabled()); } catch (e) {}
     } catch (e) {
+      const failure = e as LocationPlatformError;
+      console.warn('SITECAM_LOCATION_LISTEN_FAILED code=' + this.errorCode(e as Object) + ' message=' + (failure.message ?? String(e)));
       if (locationListening) {
         try { geoLocationManager.off('locationChange', this.receive); } catch (ignored) {}
       }
@@ -634,15 +690,41 @@ export class LocationService {
         try { geoLocationManager.off('locationEnabledChange', this.locationEnabledChanged); } catch (ignored) {}
       }
       this.listening = false;
+      try {
+        this.onListenFailed?.('listen-failed:' + String(this.errorCode(e as Object)));
+      } catch (callbackError) {
+        console.warn('SITECAM_LOCATION_LISTEN_CALLBACK ' + String(callbackError));
+      }
     }
   }
 
+  /**
+   * Retry entry for the page clock. It never throws and never retries more
+   * often than the back-off allows, so a rejected subscription still reaches
+   * the page instead of leaving the session with one-shot fixes only.
+   */
+  ensureListening(): void {
+    if (this.listening) return;
+    if (this.now() < this.listenRetryAfter) return;
+    try {
+      this.start();
+    } catch (e) {
+      console.warn('SITECAM_LOCATION_LISTEN_FAILED code=' + this.errorCode(e as Object) + ' message=' + String(e));
+    }
+    if (!this.listening) this.listenRetryAfter = this.now() + LISTEN_RETRY_BACKOFF_MS;
+  }
+
   stop(preserveFix: boolean = false): void {
+    if (this.locationNotifyTimer >= 0) {
+      clearTimeout(this.locationNotifyTimer);
+      this.locationNotifyTimer = -1;
+      this.notifyChange();
+    }
     this.lifecycleEpoch++;
     this.refreshToken++;
     this.continuousGeocode = null;
-    const preserve = preserveFix && this.fix !== null && isFreshFix(this.fix);
-    const staleAddress = preserve && this.addressAnchor !== null && !isFreshFix(this.fixFromAnchor(this.addressAnchor));
+    const preserve = preserveFix && this.fix !== null && this.retainedFix(this.fix);
+    const staleAddress = preserve && this.addressAnchor !== null && !this.retainedFix(this.fixFromAnchor(this.addressAnchor));
     const hadFix = !preserve && this.fix !== null;
     if (!preserve) {
       this.fix = null;

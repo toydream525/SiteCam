@@ -25,39 +25,47 @@ object CameraDiagnostics {
                 val cameraIds = cameraManager.cameraIdList
                 sb.appendLine("Total Available Camera IDs: ${cameraIds.size}")
                 for (id in cameraIds) {
-                    val chars = cameraManager.getCameraCharacteristics(id)
-                    val facing = when (chars.get(CameraCharacteristics.LENS_FACING)) {
-                        CameraCharacteristics.LENS_FACING_BACK -> "BACK"
-                        CameraCharacteristics.LENS_FACING_FRONT -> "FRONT"
-                        CameraCharacteristics.LENS_FACING_EXTERNAL -> "EXTERNAL"
-                        else -> "UNKNOWN"
-                    }
-                    val flashAvailable = chars.get(CameraCharacteristics.FLASH_INFO_AVAILABLE) ?: false
-                    val sensorOrientation = chars.get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 0
-                    val hardwareLevel = chars.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL)
-                    val hwLevelStr = when (hardwareLevel) {
-                        CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY -> "LEGACY"
-                        CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED -> "LIMITED"
-                        CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL -> "FULL"
-                        CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_3 -> "LEVEL_3"
-                        else -> "UNKNOWN ($hardwareLevel)"
-                    }
+                    // One vendor-broken ID must not drop every later camera
+                    // from the report.
+                    runCatching { cameraManager.getCameraCharacteristics(id) }
+                        .onSuccess { chars ->
+                            val facing = when (chars.get(CameraCharacteristics.LENS_FACING)) {
+                                CameraCharacteristics.LENS_FACING_BACK -> "BACK"
+                                CameraCharacteristics.LENS_FACING_FRONT -> "FRONT"
+                                CameraCharacteristics.LENS_FACING_EXTERNAL -> "EXTERNAL"
+                                else -> "UNKNOWN"
+                            }
+                            val flashAvailable = chars.get(CameraCharacteristics.FLASH_INFO_AVAILABLE) ?: false
+                            val sensorOrientation = chars.get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 0
+                            val hardwareLevel = chars.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL)
+                            val hwLevelStr = when (hardwareLevel) {
+                                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY -> "LEGACY"
+                                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED -> "LIMITED"
+                                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL -> "FULL"
+                                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_3 -> "LEVEL_3"
+                                else -> "UNKNOWN ($hardwareLevel)"
+                            }
 
-                    sb.appendLine("--- Camera ID: $id ---")
-                    sb.appendLine("  Facing: $facing")
-                    sb.appendLine("  Hardware Level: $hwLevelStr")
-                    sb.appendLine("  Flash Available: $flashAvailable")
-                    sb.appendLine("  Sensor Orientation: ${sensorOrientation}°")
+                            sb.appendLine("--- Camera ID: $id ---")
+                            sb.appendLine("  Facing: $facing")
+                            sb.appendLine("  Hardware Level: $hwLevelStr")
+                            sb.appendLine("  Flash Available: $flashAvailable")
+                            sb.appendLine("  Sensor Orientation: ${sensorOrientation}°")
 
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        val zoomRange = chars.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE)
-                        sb.appendLine("  Control Zoom Ratio Range: $zoomRange")
-                    }
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                val zoomRange = chars.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE)
+                                sb.appendLine("  Control Zoom Ratio Range: $zoomRange")
+                            }
 
-                    val focalLengths = chars.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
-                    if (focalLengths != null) {
-                        sb.appendLine("  Focal Lengths: ${focalLengths.joinToString()}")
-                    }
+                            val focalLengths = chars.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
+                            if (focalLengths != null) {
+                                sb.appendLine("  Focal Lengths: ${focalLengths.joinToString()}")
+                            }
+                        }
+                        .onFailure { error ->
+                            sb.appendLine("--- Camera ID: $id ---")
+                            sb.appendLine("  Unreadable: ${error.message}")
+                        }
                 }
             } else {
                 sb.appendLine("System CameraManager service is unavailable.")

@@ -29,6 +29,12 @@ fun watermarkPaint(size: Float, color: Int = Color.WHITE, bold: Boolean = false)
     }
 
 object WatermarkLayoutEngine {
+    /**
+     * Readability floor for the shrink-to-fit search: a stamp clipped at the
+     * canvas edge is still readable, while a scale near zero makes Skia skip
+     * the draw and silently produces an unwatermarked photo.
+     */
+    private const val MIN_SCALE = .4f
     private data class Field(val key: String, val label: String, val value: String)
     private fun color(hex: String) = Color.parseColor(hex)
     fun measureStringWidth(text: String, textSize: Float): Float = watermarkPaint(textSize).measureText(text)
@@ -80,8 +86,35 @@ object WatermarkLayoutEngine {
             val size = (if(legacy) 26f else 30f) * s; val pad = 22f * s; val gap = (if(legacy) 14f else 7f) * s
             // Keep the ordinary card compact, expanding across the viewport only as text demands.
             val preferred = min(availableWidth, min(width,height) * if(table) .82f else .9f)
-            val cardWidth = preferred.coerceAtLeast(pad * 3)
+            fun inkWidth(text: String, font: Float, bold: Boolean = false): Float {
+                val paint = watermarkPaint(font, bold = bold)
+                return text.lineSequence().maxOfOrNull { paint.measureText(it) } ?: 0f
+            }
+            var naturalWidth = title?.let { inkWidth(it, if(style == "INFO_BOARD") 32f*s else size*1.12f, true) } ?: 0f
+            for ((index, field) in ordered.withIndex()) {
+                val blueHeader = style == "ENGINEERING_BLUE" && field.key in setOf(BuiltInWatermarkFieldKeys.PROJECT_NAME, BuiltInWatermarkFieldKeys.DATE_TIME)
+                val large = style == "TIME_LOCATION" && field.key == BuiltInWatermarkFieldKeys.DATE_TIME
+                val highlight = style == "CLASSIC" && index == 0
+                val font = if(highlight) 34f*s else size * if(large) 1.75f else if(blueHeader) 1.12f else 1f
+                val renamed = data.fieldLabels[field.key]?.let { it != BuiltInWatermarkFieldKeys.defaultLabels[field.key] } == true
+                val fieldWidth = when {
+                    blueHeader -> maxOf(inkWidth(field.value,font,true), if(renamed) inkWidth(field.label,size,true) else 0f)
+                    table -> {
+                        val labelFraction = if(style == "ACCEPTANCE") .32f else .27f
+                        maxOf((inkWidth(field.label,size,true)+gap)/labelFraction,
+                            (inkWidth(field.value,size)+gap)/(1f-labelFraction))
+                    }
+                    style == "MINIMAL" || style == "TIME_LOCATION" -> maxOf(inkWidth(field.value,font,large),
+                        if(field.key !in BuiltInWatermarkFieldKeys.all || renamed) inkWidth(field.label,size*.85f,true) else 0f)
+                    else -> inkWidth(field.label + ": ",font,true) + inkWidth(field.value,font,highlight)
+                }
+                naturalWidth = maxOf(naturalWidth, fieldWidth)
+            }
+            val cardWidth = min(preferred, naturalWidth + pad * 2 + 1f).coerceAtLeast(pad * 3)
             val inner = (cardWidth - pad * 2).coerceAtLeast(.001f)
+            // A negative column width makes wrap() emit one code point per line
+            // and turn table rows into vertical letter stacks.
+            val minTextWidth = inkWidth("字", size, true)
             val lines = mutableListOf<WatermarkTextLine>()
             val decorations = mutableListOf<WatermarkDecoration>()
             var y = pad
@@ -128,8 +161,8 @@ object WatermarkLayoutEngine {
                     }
                     table -> {
                         val labelWidth = inner * if(style == "ACCEPTANCE") .32f else .27f
-                        val labelEnd = addText(field.label,pad,y,labelWidth-gap,size,labelColor,true,field.key,"label")
-                        val valueEnd = addText(field.value,pad+labelWidth+gap,y,inner-labelWidth-gap,size,foreground,false,field.key,"value")
+                        val labelEnd = addText(field.label,pad,y,(labelWidth-gap).coerceAtLeast(minTextWidth),size,labelColor,true,field.key,"label")
+                        val valueEnd = addText(field.value,pad+labelWidth+gap,y,(inner-labelWidth-gap).coerceAtLeast(minTextWidth),size,foreground,false,field.key,"value")
                         y = maxOf(labelEnd,valueEnd)
                         decorations += WatermarkDecoration(RectF(pad+labelWidth,rowTop-gap/2,pad+labelWidth+s,y), color("#C0CEDA"))
                     }
@@ -164,12 +197,15 @@ object WatermarkLayoutEngine {
             val top = if(data.position.startsWith("TOP")) margin else height-margin-cardHeight
             fun shifted(rect: RectF) = RectF(rect).apply { offset(x,top) }
             val bg = if(light) color("#F5F8FB") else color(if(style == "MINIMAL") "#18232C" else "#16212B")
-            val alpha = (data.opacity.coerceIn(0f,1f)*255).toInt()
+            // Opacity travels as one value on the result and is applied once by
+            // the painter, so the card fill is never faded twice and the bars,
+            // dividers and text fade together with it.
+            val opacity = data.opacity.takeIf { it.isFinite() }?.coerceIn(0f,1f) ?: 1f
             return WatermarkLayoutResult(RectF(x,top,x+cardWidth,top+cardHeight),
                 if(style == "CLASSIC") shifted(RectF(0f,0f,5f*s,cardHeight)) else null,
                 headerBottom?.let { shifted(RectF(0f,0f,cardWidth,it)) },
                 lines.map { it.copy(x=it.x+x,y=it.y+top) },
-                Color.argb(alpha,Color.red(bg),Color.green(bg),Color.blue(bg)),accent,data.opacity,
+                bg,accent,opacity,
                 decorations.map { it.copy(rect=shifted(it.rect)) },if(style == "MINIMAL") 12f*s else 3f*s)
         }
         val normal = build(1f)
@@ -179,7 +215,9 @@ object WatermarkLayoutEngine {
             val mid = (low+high)/2
             if(build(mid).cardRect.height() <= availableHeight) low=mid else high=mid
         }
-        return build(low.coerceAtLeast(.000001f))
+        // Clamp to the readability floor: overflow is clipped by the canvas,
+        // an almost zero scale is not drawn at all.
+        return build(low.coerceAtLeast(MIN_SCALE))
     }
 
     /** Break only at code point boundaries; never replace or discard source content. */

@@ -11,13 +11,24 @@ import { Snapshot, MediaItem, QUALITY_EDGES, QUALITY_JPEG, safeName, timeText } 
 import { paintWatermark } from './WatermarkRenderer';
 import { ImageProcessor, EditRecipe } from './ImageProcessor';
 import { captureWorker, editWorker } from './ImageJobs';
+import { MediaDeletionCoordinator } from './MediaDeletionCoordinator';
+import { store, Store } from './Store';
 export { EditRecipe, EditStep, Mark, serializeEditRecipe, deserializeEditRecipe } from './ImageProcessor';
 export class MediaService extends ImageProcessor {
   private context: common.UIAbilityContext;
-  constructor(context: common.UIAbilityContext){super(context.filesDir+'/media');this.context=context;}
+  private deletions:MediaDeletionCoordinator;
+  private data:Store;
+  constructor(context: common.UIAbilityContext,data:Store=store){super(context.filesDir+'/media');this.context=context;this.data=data;this.deletions=new MediaDeletionCoordinator(this.root,data);}
+  /** Startup recovery also sweeps intermediate files whose rows never survived. */
+  async recoverDeletions():Promise<void>{await this.deletions.recover();try{await this.cleanupOrphans();}catch(e){console.warn('SITECAM_ORPHAN_SWEEP '+String(e));}}
+  async cleanupOrphans():Promise<number>{return await this.sweepOrphans((path:string)=>this.data.pathReferenced(path));}
+  async deleteMedia(ids:number[]):Promise<void>{await this.deletions.deleteMedia(ids);}
+  async deleteProjects(ids:number[]):Promise<void>{await this.deletions.deleteProjects(ids);}
   async capture(bytes: ArrayBuffer,s: Snapshot,q: number,rotation: number): Promise<MediaItem> {
+    // bytes is a detached copy produced by the camera and unused after this call,
+    // so the default transfer keeps the JPEG from being copied into the worker.
     const task=new taskpool.Task(captureWorker,this.root,bytes,JSON.stringify(s),q,rotation);
-    task.setTransferList([]);const result=await taskpool.execute(task) as string;return JSON.parse(result) as MediaItem;
+    const result=await taskpool.execute(task) as string;return JSON.parse(result) as MediaItem;
   }
   async edit(m: MediaItem,recipe: EditRecipe,q: number): Promise<string> {
     return await taskpool.execute(new taskpool.Task(editWorker,this.root,JSON.stringify(m),JSON.stringify(recipe),q)) as string;

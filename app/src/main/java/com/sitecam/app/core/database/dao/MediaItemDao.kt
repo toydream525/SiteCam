@@ -23,6 +23,13 @@ interface MediaItemDao {
     @Query("SELECT * FROM media_items WHERE id = :id LIMIT 1")
     suspend fun getMediaItemById(id: Long): MediaItemEntity?
 
+    @Query("SELECT * FROM media_items WHERE contentUri = :uri LIMIT 1")
+    suspend fun getMediaItemByContentUri(uri: String): MediaItemEntity?
+
+    /** Destructive project operations must also account for hidden/recycled media. */
+    @Query("SELECT * FROM media_items WHERE projectId = :projectId ORDER BY id")
+    suspend fun getAllMediaItemsForProject(projectId: Long): List<MediaItemEntity>
+
     @Query("SELECT * FROM media_items WHERE isUnavailable = 0 AND id = :id LIMIT 1")
     fun getMediaItemByIdFlow(id: Long): Flow<MediaItemEntity?>
 
@@ -38,7 +45,9 @@ interface MediaItemDao {
     @Query("UPDATE media_items SET isUnavailable = :unavailable WHERE id = :id AND contentUri = :uri")
     suspend fun setUnavailable(id: Long, uri: String, unavailable: Boolean)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    // REPLACE deletes the row first, so re-inserting a known media id would
+    // cascade its issues and annotations away; existing rows go through @Update.
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertMediaItem(item: MediaItemEntity): Long
 
     @Update
@@ -63,7 +72,12 @@ interface MediaItemDao {
 
     @androidx.room.Transaction
     suspend fun moveMediaToProject(mediaIds: List<Long>, projectId: Long) {
-        moveMediaRows(mediaIds, projectId)
-        moveIssueRows(mediaIds, projectId, System.currentTimeMillis())
+        // SQLite builds before 3.32 cap a statement at 999 host variables, so a
+        // whole-album selection must be moved in batches; the transaction still
+        // makes the whole move atomic.
+        val updatedAt = System.currentTimeMillis()
+        val batches = mediaIds.chunked(500)
+        batches.forEach { moveMediaRows(it, projectId) }
+        batches.forEach { moveIssueRows(it, projectId, updatedAt) }
     }
 }

@@ -42,8 +42,6 @@ export struct ProjectSwitchPanel {
           Column({ space: 2 }) {
             Text('切换工程包').fontSize(this.fontScale > 1.2 ? 20 : 18).fontWeight(FontWeight.Bold).fontColor(SITE_TEXT)
               .width('100%').maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis });
-            Text('选择后，新拍照片和录像归入该工程').fontSize(12).fontColor(SITE_MUTED)
-              .width('100%').maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis });
           }.width('100%').alignItems(HorizontalAlign.Start);
           Button('关闭').width('100%').height(40).fontSize(13).fontColor(SITE_MUTED).backgroundColor(Color.Transparent)
             .onClick(() => this.onClose());
@@ -80,7 +78,7 @@ export struct ProjectSwitchPanel {
         Row({ space: 8 }) {
           Column({ space: 2 }) {
             Text('切换工程包').fontSize(this.fontScale > 1.2 ? 21 : 19).fontWeight(FontWeight.Bold).fontColor(SITE_TEXT);
-            Text('选择后，新拍照片和录像归入该工程').fontSize(12).fontColor(SITE_MUTED);
+
           }.layoutWeight(1).alignItems(HorizontalAlign.Start);
           Button('关闭').fontSize(13).fontColor(SITE_MUTED).backgroundColor(Color.Transparent)
             .onClick(() => this.onClose());

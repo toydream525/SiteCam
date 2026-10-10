@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.offset
 import com.sitecam.app.core.layout.cameraGeometry
+import com.sitecam.app.core.layout.localFolds
 import com.sitecam.app.core.layout.rememberScreenEnvironment
 import androidx.window.layout.FoldingFeature
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -43,6 +44,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.size
@@ -60,6 +63,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MicOff
@@ -71,6 +75,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -108,9 +114,11 @@ import com.sitecam.app.core.camera.isLandscapeWindow
 import com.sitecam.app.core.camera.resolveCameraTargetRotation
 import com.sitecam.app.core.watermark.engine.WatermarkLayoutEngine
 import com.sitecam.app.core.watermark.renderer.WatermarkPreviewCanvas
+import com.sitecam.app.core.watermark.renderer.watermarkPreviewLayout
 import com.sitecam.app.feature.camera.components.CameraBottomBar
 import com.sitecam.app.feature.camera.components.CameraLensSelector
 import com.sitecam.app.feature.camera.components.CameraTopBar
+import com.sitecam.app.feature.camera.components.ZoomPillGroup
 import com.sitecam.app.feature.camera.components.FocusRing
 import com.sitecam.app.feature.camera.components.QuickWatermarkEditSheet
 import com.sitecam.app.ui.theme.DarkBackground
@@ -397,13 +405,22 @@ fun CameraScreen(
     }
 
     LaunchedEffect(cameraError) {
-        cameraError?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+        cameraError?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            // Delivered: reset so the same failure can be reported again later.
+            viewModel.cameraManager.clearCameraError()
+        }
     }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 refreshPermissions()
+                viewModel.recoverPendingVideos()
+                // Background tracking is stopped on ON_STOP; restore it here.
+                if (hasCameraPermission) {
+                    viewModel.startForegroundServices(locationEnabled = hasLocationPermission)
+                }
                 if (currentAddressRefreshState == "FAILED_LOCATION_DISABLED" &&
                     viewModel.isSystemLocationEnabled()
                 ) {
@@ -413,6 +430,12 @@ fun CameraScreen(
                     { viewModel.cameraManager.restoreFlashMode() },
                     180L
                 )
+            } else if (event == Lifecycle.Event.ON_STOP) {
+                viewModel.stopRecordingForBackground()
+                // Nothing on screen consumes a fix while backgrounded; keeping
+                // GPS/network updates registered would only drain the battery
+                // and age the reading out.
+                viewModel.stopForegroundServices()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -517,6 +540,10 @@ fun CameraScreen(
     }
 
     var focusPosition by remember { mutableStateOf<Offset?>(null) }
+    var focusResult by remember { mutableStateOf<Boolean?>(null) }
+    var focusRequest by remember { mutableStateOf(0) }
+    var showLensPicker by remember { mutableStateOf(false) }
+    val currentCameraUiState by rememberUpdatedState(uiState)
     var previewViewRef by remember { mutableStateOf<PreviewView?>(null) }
     var previewViewSize by remember { mutableStateOf(IntSize.Zero) }
 
@@ -534,17 +561,52 @@ fun CameraScreen(
         // Layout follows only the currently available window. Sensor
         // orientation is consumed by capture rotation/watermark metadata and
         // must never force a narrow portrait window into landscape controls.
-        val crease = screenEnvironment.fold?.takeIf { it.state == FoldingFeature.State.HALF_OPENED && it.orientation == FoldingFeature.Orientation.HORIZONTAL }
-        val verticalCrease = screenEnvironment.fold?.takeIf { it.isSeparating && it.orientation == FoldingFeature.Orientation.VERTICAL }
         val insetLeft = WindowInsets.safeDrawing.getLeft(screenDensity, androidx.compose.ui.unit.LayoutDirection.Ltr)
         val insetTop = WindowInsets.safeDrawing.getTop(screenDensity)
+        var watermarkOverlaySize by remember { mutableStateOf(IntSize.Zero) }
+        val phoneGripSpace = screenEnvironment.phoneGripEligible &&
+            maxOf(maxWidth.value, maxHeight.value) / minOf(maxWidth.value, maxHeight.value).coerceAtLeast(1f) >= 1.75f
+        val initialControlsEstimate = if (com.sitecam.app.core.layout.CameraLayoutCache.cachedPortraitControlsHeight > 0f) {
+            com.sitecam.app.core.layout.CameraLayoutCache.cachedPortraitControlsHeight
+        } else {
+            280f + 40f * (screenDensity.fontScale.coerceAtLeast(1f) - 1f)
+        }
+        var minimumPhoneControlsHeight by rememberSaveable(
+            screenDensity.fontScale,
+            phoneGripSpace
+        ) {
+            mutableFloatStateOf(initialControlsEstimate)
+        }
         val geometry = cameraGeometry(maxWidth.value, maxHeight.value, screenDensity.density,
             screenEnvironment.profile.smallCover,
-            crease?.let { (it.bounds.top - insetTop) / screenDensity.density } ?: -1f,
-            crease?.let { (it.bounds.bottom - insetTop) / screenDensity.density } ?: -1f,
-            verticalCrease?.let { (it.bounds.left - insetLeft) / screenDensity.density } ?: -1f,
-            verticalCrease?.let { (it.bounds.right - insetLeft) / screenDensity.density } ?: -1f)
+            folds = screenEnvironment.localFolds(insetLeft.toFloat(), insetTop.toFloat(), screenDensity.density),
+            fontScale = screenDensity.fontScale, phoneGripSpace = phoneGripSpace,
+            minimumPortraitControlsHeight = minimumPhoneControlsHeight,
+            referenceLandscape = !screenEnvironment.foldableDevice)
         val isLandscape = geometry.side
+        val immersivePhoneLandscape = geometry.immersivePhoneLandscape
+        val toolbarX = if (isLandscape && !immersivePhoneLandscape) geometry.previewX else geometry.toolbarX
+        val toolbarY = if (isLandscape && !immersivePhoneLandscape) geometry.previewY + 8f else geometry.toolbarY
+        val toolbarWidth = if (isLandscape && !immersivePhoneLandscape) geometry.previewWidth else geometry.toolbarWidth
+        val toolbarHeight = if (immersivePhoneLandscape) geometry.toolbarHeight
+            else if (toolbarWidth < 320f + 120f * (screenDensity.fontScale.coerceAtLeast(1f) - 1f)) 104f else 56f
+        val projectRect = android.graphics.RectF(12f, 8f, minOf(232f, geometry.previewWidth - 12f), 56f)
+        val watermarkRectDp = if (watermarkOverlaySize.width > 0 && watermarkOverlaySize.height > 0) {
+            watermarkPreviewLayout(watermarkOverlaySize.width.toFloat(), watermarkOverlaySize.height.toFloat(), uiState.watermarkData)
+                .cardRect.let { rect -> android.graphics.RectF(rect.left / screenDensity.density,
+                    rect.top / screenDensity.density, rect.right / screenDensity.density, rect.bottom / screenDensity.density) }
+        } else null
+        val floatingZoomBounds = if (immersivePhoneLandscape && uiState.cameraCapability.zoomPillPresets.isNotEmpty()) {
+            floatingZoomRect(geometry.previewWidth, geometry.previewHeight,
+                48f * screenDensity.fontScale.coerceIn(1f, 2f),
+                minOf(geometry.previewHeight * .55f, uiState.cameraCapability.zoomPillPresets.size * 48f),
+                listOfNotNull(watermarkRectDp, projectRect))
+        } else null
+        LaunchedEffect(geometry, previewViewSize) {
+            focusRequest += 1
+            focusPosition = null
+            focusResult = null
+        }
         val portraitTopBarHeight = geometry.toolbarHeight.dp
         val portraitPreviewBottom = (geometry.previewY + geometry.previewHeight).dp
         val landscapeToolBarWidth = geometry.toolbarWidth.dp
@@ -574,29 +636,27 @@ fun CameraScreen(
                 .onSizeChanged { previewViewSize = it }
                 .pointerInput(Unit) {
                     detectTransformGestures { _, _, zoom, _ ->
-                        val newRatio = (uiState.currentZoomRatio * zoom).coerceIn(
-                            uiState.cameraCapability.minZoomRatio,
-                            uiState.cameraCapability.maxZoomRatio
+                        val newRatio = (currentCameraUiState.currentZoomRatio * zoom).coerceIn(
+                            currentCameraUiState.cameraCapability.minZoomRatio,
+                            currentCameraUiState.cameraCapability.maxZoomRatio
                         )
                         viewModel.setZoomRatio(newRatio)
                     }
                 }
-                .pointerInput(smallCoverNeedsSecondaryAddressAction) {
+                .pointerInput(smallCoverNeedsSecondaryAddressAction, geometry, previewViewSize) {
                     detectTapGestures(
                         onLongPress = {
                             if (smallCoverNeedsSecondaryAddressAction) showAddressMoreMenu = true
                         },
                         onTap = { offset ->
-                            focusPosition = offset + with(screenDensity) { Offset(geometry.previewX.dp.toPx(), geometry.previewY.dp.toPx()) }
-                            val preview = previewViewRef
-                            if (preview != null && preview.width > 0 && preview.height > 0) {
-                                viewModel.cameraManager.focusOnPoint(
-                                    offset.x,
-                                    offset.y,
-                                    preview.width.toFloat(),
-                                    preview.height.toFloat()
-                                )
+                            val request = ++focusRequest
+                            focusResult = null
+                            val accepted = viewModel.cameraManager.focusOnPoint(offset.x, offset.y) { success ->
+                                if (focusRequest == request) focusResult = success
                             }
+                            focusPosition = if (accepted) offset + with(screenDensity) {
+                                Offset(geometry.previewX.dp.toPx(), geometry.previewY.dp.toPx())
+                            } else null
                         }
                     )
                 },
@@ -604,64 +664,6 @@ fun CameraScreen(
                 previewViewRef = previewView
             }
         )
-
-        // The cover display has no full top shelf. Keep the current project
-        // name and the same one-tap chooser entry on the preview itself;
-        // this overlay does not change the camera frame or control geometry.
-        if (screenEnvironment.profile.smallCover) {
-            Box(modifier = previewFrameModifier.zIndex(1f)) {
-                TextButton(
-                    onClick = { showProjectPicker = true },
-                    enabled = !isCaptureBusy,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(4.dp)
-                        // Width follows the preview; height only has a 48dp touch-target floor so
-                        // the 11sp/3-line project name keeps its room at large font scales.
-                        .widthIn(max = (geometry.previewWidth - 8f).coerceAtLeast(48f).dp)
-                        .heightIn(min = 48.dp),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = uiState.currentProject?.let { project ->
-                            buildString {
-                                append(project.name)
-                                if (project.isCaptureLocked) append(" · 已锁定")
-                                if (project.isArchived) append(" · 已归档")
-                            }
-                        } ?: "请选择工程包",
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        lineHeight = 14.sp,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                // The cover has no full top shelf, but independently exposed
-                // rear groups must remain reachable there as well.  Keep the
-                // selector in the preview's top-right corner, separate from
-                // the project chooser at top-left and the narrow control dock.
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(2.dp)
-                ) {
-                    CameraLensSelector(
-                        publicLenses = uiState.cameraCapability.publicLenses,
-                        activeCameraId = uiState.cameraCapability.activeCameraId,
-                        enabled = !isCaptureBusy,
-                        onLensSelected = { lens ->
-                            val preview = previewViewRef
-                            if (preview == null || !viewModel.cameraManager.switchToPublicLens(lens, lifecycleOwner, preview)) {
-                                Toast.makeText(context, "当前镜头暂不可绑定", Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        compact = true,
-                        captureMode = uiState.captureMode
-                    )
-                }
-            }
-        }
 
         if (!isLandscape) {
             // An opaque shelf is intentional here: MIUI keeps top actions out
@@ -728,7 +730,6 @@ fun CameraScreen(
         // 2. Realtime watermark overlay. Only taps that begin inside the actual
         // watermark card are intercepted to open the editor. Everything outside
         // the card still falls through to PreviewView for focus and zoom.
-        var watermarkOverlaySize by remember { mutableStateOf(IntSize.Zero) }
         var watermarkTapActive by remember { mutableStateOf(false) }
         Box(
             modifier = previewFrameModifier
@@ -737,11 +738,7 @@ fun CameraScreen(
                     if (screenEnvironment.profile.smallCover || isCameraBusy || watermarkOverlaySize.width <= 0 || watermarkOverlaySize.height <= 0) {
                         false
                     } else {
-                        val layout = WatermarkLayoutEngine.calculateLayout(
-                            canvasWidth = watermarkOverlaySize.width.toFloat(),
-                            canvasHeight = watermarkOverlaySize.height.toFloat(),
-                            data = uiState.watermarkData
-                        )
+                        val layout = watermarkPreviewLayout(watermarkOverlaySize.width.toFloat(), watermarkOverlaySize.height.toFloat(), uiState.watermarkData)
                         val inside = layout.cardRect.contains(event.x, event.y)
                         when (event.actionMasked) {
                             MotionEvent.ACTION_DOWN -> {
@@ -785,11 +782,16 @@ fun CameraScreen(
             Box(modifier = previewFrameModifier.zIndex(2f)) {
                 AddressRefreshPill(
                     state = uiState.addressRefreshState,
-                    watermarkRect = WatermarkLayoutEngine.calculateLayout(
-                        canvasWidth = watermarkOverlaySize.width.toFloat(),
-                        canvasHeight = watermarkOverlaySize.height.toFloat(),
-                        data = uiState.watermarkData
-                    ).cardRect,
+                    transparentControls = uiState.cameraControlStyle == "TRANSPARENT",
+                    reservedRects = if (immersivePhoneLandscape) listOfNotNull(projectRect, floatingZoomBounds).map { rect ->
+                        android.graphics.RectF(rect.left * screenDensity.density, rect.top * screenDensity.density,
+                            rect.right * screenDensity.density, rect.bottom * screenDensity.density)
+                    } else if (isLandscape && !phoneGripSpace) listOf(android.graphics.RectF(
+                        (toolbarX - geometry.previewX) * screenDensity.density,
+                        (toolbarY - geometry.previewY) * screenDensity.density,
+                        (toolbarX + toolbarWidth - geometry.previewX) * screenDensity.density,
+                        (toolbarY + toolbarHeight - geometry.previewY) * screenDensity.density)) else emptyList(),
+                    watermarkRect = watermarkPreviewLayout(watermarkOverlaySize.width.toFloat(), watermarkOverlaySize.height.toFloat(), uiState.watermarkData).cardRect,
                     enabled = !isCaptureBusy && uiState.addressRefreshState != "REFRESHING",
                     onClick = ::handleAddressRefreshTap,
                     onNoSafePlacement = { noSafePlacement ->
@@ -804,6 +806,8 @@ fun CameraScreen(
         // 3. Focus Ring
         FocusRing(
             position = focusPosition,
+            result = focusResult,
+            requestId = focusRequest,
             onAnimationEnd = { focusPosition = null }
         )
 
@@ -852,7 +856,25 @@ fun CameraScreen(
             }
         }
         // 4. Top Controls Bar
-        if (!screenEnvironment.profile.smallCover) CameraTopBar(
+        if (immersivePhoneLandscape) {
+            CameraTopBar(projectName = uiState.currentProject?.name ?: "请选择工程包",
+                flashMode = uiState.flashMode, isQuickIssueMode = uiState.isQuickIssueMode,
+                onProjectClick = { showProjectPicker = true }, onFlashToggle = {}, onFlashLongPress = {},
+                onQuickIssueToggle = {}, onSettingsClick = {}, isBusy = isCaptureBusy,
+                isLandscape = true, projectOnly = true,
+                transparentControls = uiState.cameraControlStyle == "TRANSPARENT",
+                modifier = Modifier.offset((geometry.previewX + 4f).dp, (geometry.previewY + 8f).dp)
+                    .width(minOf(236f, geometry.previewWidth - 8f).dp).height(48.dp))
+            if (floatingZoomBounds != null) {
+                ZoomPillGroup(uiState.cameraCapability.zoomPillPresets, uiState.currentZoomRatio,
+                    viewModel::selectNativeZoomRatio, isVertical = true, compact = true, photoOverlay = true,
+                    enabled = !isCameraBusy,
+                    modifier = Modifier.offset((geometry.previewX + floatingZoomBounds.left).dp,
+                        (geometry.previewY + floatingZoomBounds.top).dp)
+                        .width(floatingZoomBounds.width().dp).height(floatingZoomBounds.height().dp))
+            }
+        }
+        CameraTopBar(
             projectName = uiState.currentProject?.let { project ->
                 buildString {
                     append(project.name)
@@ -871,6 +893,8 @@ fun CameraScreen(
             onSettingsClick = onNavigateToSettings,
             isBusy = isCaptureBusy,
             isLandscape = isLandscape,
+            verticalTools = immersivePhoneLandscape,
+            transparentControls = uiState.cameraControlStyle == "TRANSPARENT",
             publicLenses = uiState.cameraCapability.publicLenses,
             activeCameraId = uiState.cameraCapability.activeCameraId,
             captureMode = uiState.captureMode,
@@ -880,74 +904,64 @@ fun CameraScreen(
                     Toast.makeText(context, "当前镜头暂不可绑定", Toast.LENGTH_SHORT).show()
                 }
             },
-            addressRefreshState = if (addressNeedsRefresh && addressRefreshNeedsFallback && !screenEnvironment.profile.smallCover) {
+            addressRefreshState = if (addressNeedsRefresh && (addressRefreshNeedsFallback || (isLandscape && !immersivePhoneLandscape)) && !screenEnvironment.profile.smallCover) {
                 uiState.addressRefreshState
             } else null,
-            onAddressRefreshClick = if (addressNeedsRefresh && addressRefreshNeedsFallback && !screenEnvironment.profile.smallCover) {
+            onAddressRefreshClick = if (addressNeedsRefresh && (addressRefreshNeedsFallback || (isLandscape && !immersivePhoneLandscape)) && !screenEnvironment.profile.smallCover) {
                 ::handleAddressRefreshTap
             } else null,
-            modifier = Modifier.offset(geometry.toolbarX.dp, 0.dp)
-                .width(geometry.toolbarWidth.dp).height(geometry.toolbarHeight.dp)
+            modifier = Modifier.offset(toolbarX.dp, toolbarY.dp)
+                .width(toolbarWidth.dp).height(toolbarHeight.dp)
         )
 
-        if (!screenEnvironment.profile.smallCover &&
-            (!hasLocationPermission || (uiState.captureMode == CaptureMode.VIDEO && !hasAudioPermission))) {
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(
-                        start = if (isLandscape) landscapeToolBarWidth + 12.dp else 12.dp,
-                        top = if (isLandscape) 12.dp else portraitTopBarHeight + 12.dp,
-                        end = 12.dp
-                    )
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(18.dp))
-                    .background(Letterbox.copy(alpha = 0.78f))
-                    .clickable(enabled = !isCaptureBusy && permissionPreferenceState != null && uiState.addressRefreshState != "REFRESHING") {
-                        showOptionalPermissions = true
+        if (!hasLocationPermission || (uiState.captureMode == CaptureMode.VIDEO && !hasAudioPermission)) {
+            Row(Modifier.offset((if (immersivePhoneLandscape) geometry.previewX else toolbarX).dp,
+                (if (immersivePhoneLandscape) geometry.previewY + 64f else toolbarY + toolbarHeight + 4f).dp)
+                .width((if (immersivePhoneLandscape) geometry.previewWidth else toolbarWidth).dp).padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!hasLocationPermission || (uiState.captureMode == CaptureMode.VIDEO && !hasAudioPermission)) {
+                    Row(Modifier.weight(1f, fill = false).heightIn(min = 48.dp)
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(18.dp))
+                        .background(Letterbox.copy(alpha = .78f))
+                        .clickable(enabled = !isCaptureBusy && permissionPreferenceState != null) { showOptionalPermissions = true }
+                        .padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(if (!hasLocationPermission) Icons.Default.LocationOn else Icons.Default.MicOff,
+                            null, tint = if (!hasLocationPermission) EngineeringYellow else Color.White,
+                            modifier = Modifier.size(20.dp))
+                        Text(if (!hasLocationPermission) {
+                            if (locationNeedsSettings) "无定位 · 去设置" else "无定位 · 可拍摄"
+                        } else if (audioNeedsSettings) "无录音 · 去设置" else "无录音 · 点此开启",
+                            color = Color.White, fontSize = 14.sp, maxLines = 2)
                     }
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = when {
-                        !hasLocationPermission -> Icons.Default.LocationOn
-                        else -> Icons.Default.MicOff
-                    },
-                    contentDescription = null,
-                    tint = if (!hasLocationPermission) EngineeringYellow else Color.White,
-                    modifier = Modifier.size(17.dp)
-                )
-                Text(
-                    text = when {
-                        !hasLocationPermission -> if (locationNeedsSettings) "无定位 · 去设置" else "无定位 · 可拍摄"
-                        else -> if (audioNeedsSettings) "无录音 · 去设置" else "无录音 · 点此开启"
-                    },
-                    color = Color.White,
-                    fontSize = 11.sp,
-                    maxLines = 1
-                )
+                } else androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+
             }
         }
 
         // 5. Unified camera control dock. Zoom, mode and shutter controls now
         // share one sequential layout and cannot drift into each other on
         // different aspect ratios, font scales or navigation configurations.
-        if (isLandscape) {
+        if (isLandscape && !geometry.hover) {
             CameraBottomBar(
+                onWatermarkClick = { showQuickWatermarkSheet = true },
+                onIssueClick = viewModel::toggleQuickIssueMode, issueActive = uiState.isQuickIssueMode,
                 latestThumbnailUri = uiState.latestThumbnailUri,
                 isCapturing = uiState.isCapturing,
                 captureAllowed = projectCanCapture,
                 captureMode = uiState.captureMode,
                 isRecordingVideo = uiState.isRecordingVideo,
                 recordingDurationSeconds = uiState.recordingDurationSeconds,
-                zoomPresets = uiState.cameraCapability.zoomPillPresets.filter { it < 9.5f },
+                zoomPresets = if (immersivePhoneLandscape && floatingZoomBounds != null) emptyList()
+                    else uiState.cameraCapability.zoomPillPresets,
                 currentZoomRatio = uiState.currentZoomRatio,
-                onZoomSelected = { ratio -> viewModel.setZoomRatio(ratio) },
+                onZoomSelected = viewModel::selectNativeZoomRatio,
                 isLandscape = true,
+                phoneGripSpace = immersivePhoneLandscape,
                 landscapeBarWidth = landscapeControlWidth,
                 compactGroup = screenEnvironment.profile.large,
                 smallCover = screenEnvironment.profile.smallCover,
                 onModeChange = { mode -> viewModel.setCaptureMode(mode) },
+                onFlipCameraLongClick = { showLensPicker = true },
                 onShutterClick = ::handleShutterPressed,
                 onGalleryClick = { onNavigateToGallery(uiState.currentProject?.id) },
                 onFlipCameraClick = {
@@ -962,26 +976,38 @@ fun CameraScreen(
                 latestMediaType = uiState.latestMediaType,
                 shutterSoundEnabled = uiState.shutterSoundEnabled,
                 thumbnailBounceToken = photoSaveAnimationToken,
-                addressRefreshFallbackState = if (addressNeedsRefresh && addressRefreshNeedsFallback && screenEnvironment.profile.smallCover) {
+                addressRefreshFallbackState = if (!immersivePhoneLandscape && addressNeedsRefresh && addressRefreshNeedsFallback) {
                     uiState.addressRefreshState
                 } else null,
-                onAddressRefreshFallbackClick = if (addressNeedsRefresh && addressRefreshNeedsFallback && screenEnvironment.profile.smallCover) {
+                onAddressRefreshFallbackClick = if (!immersivePhoneLandscape && addressNeedsRefresh && addressRefreshNeedsFallback) {
                     ::handleAddressRefreshTap
                 } else null,
             )
         } else {
             CameraBottomBar(
+                onWatermarkClick = { showQuickWatermarkSheet = true },
+                onIssueClick = viewModel::toggleQuickIssueMode, issueActive = uiState.isQuickIssueMode,
                 latestThumbnailUri = uiState.latestThumbnailUri,
                 isCapturing = uiState.isCapturing,
                 captureAllowed = projectCanCapture,
                 captureMode = uiState.captureMode,
                 isRecordingVideo = uiState.isRecordingVideo,
                 recordingDurationSeconds = uiState.recordingDurationSeconds,
-                zoomPresets = uiState.cameraCapability.zoomPillPresets.filter { it < 9.5f },
+                zoomPresets = uiState.cameraCapability.zoomPillPresets,
                 currentZoomRatio = uiState.currentZoomRatio,
-                onZoomSelected = { ratio -> viewModel.setZoomRatio(ratio) },
+                onZoomSelected = viewModel::selectNativeZoomRatio,
                 isLandscape = false,
+                phoneGripSpace = phoneGripSpace,
+                onPortraitMinimumHeightChanged = { height ->
+                    if (!isCaptureBusy && height.value > 0f) {
+                        if (kotlin.math.abs(height.value - minimumPhoneControlsHeight) > 1.5f) {
+                            minimumPhoneControlsHeight = height.value
+                            com.sitecam.app.core.layout.CameraLayoutCache.cachedPortraitControlsHeight = height.value
+                        }
+                    }
+                },
                 onModeChange = { mode -> viewModel.setCaptureMode(mode) },
+                onFlipCameraLongClick = { showLensPicker = true },
                 onShutterClick = ::handleShutterPressed,
                 onGalleryClick = { onNavigateToGallery(uiState.currentProject?.id) },
                 onFlipCameraClick = {
@@ -996,22 +1022,55 @@ fun CameraScreen(
                 latestMediaType = uiState.latestMediaType,
                 shutterSoundEnabled = uiState.shutterSoundEnabled,
                 thumbnailBounceToken = photoSaveAnimationToken,
+                addressRefreshFallbackState = if (addressNeedsRefresh && addressRefreshNeedsFallback) uiState.addressRefreshState else null,
+                onAddressRefreshFallbackClick = if (addressNeedsRefresh && addressRefreshNeedsFallback) ::handleAddressRefreshTap else null,
             )
         }
 
-        if (showAddressMoreMenu && smallCoverNeedsSecondaryAddressAction) {
+        if (showAddressMoreMenu && screenEnvironment.profile.smallCover) {
             Box(modifier = previewFrameModifier) {
                 androidx.compose.material3.DropdownMenu(
                     expanded = true,
                     onDismissRequest = { showAddressMoreMenu = false }
                 ) {
-                    androidx.compose.material3.DropdownMenuItem(
+                    uiState.cameraCapability.publicLenses.filter { com.sitecam.app.feature.camera.components.isLensSelectableInMode(it, uiState.captureMode) }.forEach { lens ->
+                        androidx.compose.material3.DropdownMenuItem(text = { Text("镜头 · " + com.sitecam.app.feature.camera.components.lensLabel(lens)) }, onClick = {
+                            showAddressMoreMenu = false
+                            previewViewRef?.let { viewModel.cameraManager.switchToPublicLens(lens, lifecycleOwner, it) }
+                        })
+                    }
+                    androidx.compose.material3.DropdownMenuItem(text = { Text("水印") }, onClick = { showAddressMoreMenu = false; showQuickWatermarkSheet = true })
+                    androidx.compose.material3.DropdownMenuItem(text = { Text("记问题") }, onClick = { showAddressMoreMenu = false; viewModel.toggleQuickIssueMode() })
+                    androidx.compose.material3.DropdownMenuItem(text = { Text("设置") }, onClick = { showAddressMoreMenu = false; onNavigateToSettings() })
+                    if (addressNeedsRefresh && addressRefreshNeedsFallback) androidx.compose.material3.DropdownMenuItem(
                         text = { Text("刷新地址") },
                         onClick = {
                             showAddressMoreMenu = false
                             handleAddressRefreshTap()
                         }
                     )
+                }
+            }
+        }
+
+        if (showLensPicker) {
+            androidx.compose.material3.ModalBottomSheet(onDismissRequest = { showLensPicker = false },
+                containerColor = Letterbox, contentColor = Color.White) {
+                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
+                    Text("镜头", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    uiState.cameraCapability.publicLenses.filter {
+                        com.sitecam.app.feature.camera.components.isLensSelectableInMode(it, uiState.captureMode)
+                    }.forEach { lens ->
+                        TextButton(enabled = !isCaptureBusy, onClick = {
+                            showLensPicker = false
+                            previewViewRef?.let { preview ->
+                                if (!viewModel.cameraManager.switchToPublicLens(lens, lifecycleOwner, preview))
+                                    Toast.makeText(context, "当前镜头暂不可绑定", Toast.LENGTH_SHORT).show()
+                            }
+                        }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                            Text(com.sitecam.app.feature.camera.components.lensLabel(lens))
+                        }
+                    }
                 }
             }
         }
@@ -1103,6 +1162,8 @@ fun CameraScreen(
 @Composable
 private fun AddressRefreshPill(
     state: String,
+    transparentControls: Boolean,
+    reservedRects: List<android.graphics.RectF>,
     watermarkRect: android.graphics.RectF,
     enabled: Boolean,
     onClick: () -> Unit,
@@ -1131,7 +1192,7 @@ private fun AddressRefreshPill(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(androidx.compose.foundation.shape.CircleShape)
-                    .background(Letterbox.copy(alpha = if (enabled) .82f else .64f))
+                    .background(Letterbox.copy(alpha = if (transparentControls) .42f else if (enabled) .82f else .64f))
                     .clickable(enabled = enabled, onClick = onClick)
                     .semantics { contentDescription = label },
                 contentAlignment = Alignment.Center
@@ -1166,7 +1227,8 @@ private fun AddressRefreshPill(
             chipHeight = measured.height.toFloat(),
             watermarkRect = watermarkRect,
             margin = marginPx,
-            gap = gapPx
+            gap = gapPx,
+            reservedRects = reservedRects
         )
         val bounds = addressRefreshRectForCorner(
             corner = corner,
@@ -1288,7 +1350,6 @@ private fun CameraProjectPickerContent(
                     Text("尚未选择工程包", color = Color.White.copy(alpha = .72f), modifier = Modifier.padding(vertical = 10.dp))
                 }
                 Text("最近拍摄", color = EngineeringYellow, fontWeight = FontWeight.Bold)
-                Text("按最近拍照或录像时间排序，不含已归档工程", color = Color.White.copy(alpha = .72f), fontSize = 12.sp)
                 if (recent.isEmpty()) {
                     Text("暂无其他有拍摄记录的工程", color = Color.White.copy(alpha = .72f), modifier = Modifier.padding(vertical = 10.dp))
                 }

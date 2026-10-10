@@ -17,8 +17,9 @@ data class CameraCapabilityInspection(
 
 /**
  * Reads the CameraX public inventory and its Camera2 metadata together.
- * Camera2 IDs that are not in CameraX's public inventory remain evidence of
- * hardware presence only and are never offered as selectable lenses.
+ * Physical members need a public logical parent, usable output metadata and
+ * the supported CameraX physical-selector path; other IDs remain hardware
+ * evidence only and are never offered as selectable lenses.
  */
 object CameraCapabilityInspector {
 
@@ -75,6 +76,15 @@ object CameraCapabilityInspector {
             .addCameraFilter { infos -> infos.filter { cameraIdOf(it) == cameraId } }
             .build()
 
+    fun selectorForLens(lens: CameraLensCapability): CameraSelector {
+        val parent = lens.parentLogicalCameraId ?: return selectorForCameraId(lens.cameraId)
+        check(Build.VERSION.SDK_INT >= 28)
+        return CameraSelector.Builder()
+            .addCameraFilter { infos -> infos.filter { cameraIdOf(it) == parent } }
+            .setPhysicalCameraId(lens.cameraId)
+            .build()
+    }
+
     fun cameraIdOf(cameraInfo: CameraInfo?): String? = cameraInfo?.let {
         runCatching { Camera2CameraInfo.from(it).cameraId }.getOrNull()
     }
@@ -84,11 +94,12 @@ object CameraCapabilityInspector {
         provider: ProcessCameraProvider,
         activeInfo: CameraInfo?,
         activeVideoBindable: Boolean = false,
-        activeVideoBindingAttempted: Boolean = false
+        activeVideoBindingAttempted: Boolean = false,
+        activeSelectionId: String? = null
     ): CameraCapabilityInspection {
         val available = provider.availableCameraInfos
         val directIds = available.mapNotNull(::cameraIdOf).toSet()
-        val activeId = cameraIdOf(activeInfo)
+        val activeId = activeSelectionId ?: cameraIdOf(activeInfo)
         val public = available.mapNotNull { info ->
             val id = cameraIdOf(info) ?: return@mapNotNull null
             capabilityFor(
@@ -175,9 +186,39 @@ object CameraCapabilityInspector {
                 isActive = lens.cameraId == activeId
             )
         }
+        // CameraX 1.4+ can bind a physical member through its public logical
+        // parent. Unlike metadata-only zoom stops, these get an explicit
+        // CameraSelector.setPhysicalCameraId and a transactional real bind.
+        val physicalCandidates = if (Build.VERSION.SDK_INT >= 28) fovNormalizedPublic.flatMap { logical ->
+            if (!logical.isLogicalCamera || !logical.photoBindable) return@flatMap emptyList()
+            logical.physicalMemberIds.filter { it !in directIds }.mapNotNull { id ->
+                val characteristics = allSystemCharacteristics[id] ?: return@mapNotNull null
+                val streams = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP) ?: return@mapNotNull null
+                if (runCatching { streams.getOutputSizes(android.graphics.ImageFormat.JPEG)?.isNotEmpty() == true &&
+                        streams.getOutputSizes(android.graphics.SurfaceTexture::class.java)?.isNotEmpty() == true }.getOrDefault(false).not()) {
+                    return@mapNotNull null
+                }
+                val fov = horizontalFovDegrees(characteristics)
+                val opticalRatio = CameraLensRoleClassifier.equivalentZoomRatio(referenceFov, fov) ?: return@mapNotNull null
+                // The bound CameraControl still uses its logical parent's
+                // coordinate system. Do not offer a native stop outside that
+                // real range (notably cropped physical streams on API 28/29).
+                if (opticalRatio !in logical.minSessionZoomRatio..logical.maxSessionZoomRatio) return@mapNotNull null
+                CameraLensCapability(cameraId = id, lensFacing = logical.lensFacing,
+                    parentLogicalCameraId = logical.cameraId, role = CameraLensRoleClassifier.roleForHorizontalFov(fov),
+                    horizontalFovDegrees = fov, equivalentZoomRatio = opticalRatio,
+                    minSessionZoomRatio = maxOf(logical.minSessionZoomRatio, opticalRatio),
+                    maxSessionZoomRatio = logical.maxSessionZoomRatio,
+                    appAccessible = true, photoBindable = true,
+                    videoBindable = id == activeId && activeVideoBindable,
+                    photoBindingVerification = if (id == activeId) CameraBindingVerification.VERIFIED else CameraBindingVerification.UNVERIFIED,
+                    videoBindingVerification = if (id == activeId && activeVideoBindingAttempted) CameraBindingVerification.VERIFIED else CameraBindingVerification.UNVERIFIED,
+                    isActive = id == activeId)
+            }
+        }.distinctBy { it.cameraId } else emptyList()
         return CameraCapabilityInspection(
-            publicLenses = fovNormalizedPublic,
-            hardwareOnlyLenses = hardwareOnly,
+            publicLenses = fovNormalizedPublic + physicalCandidates,
+            hardwareOnlyLenses = hardwareOnly.filter { hardware -> physicalCandidates.none { it.cameraId == hardware.cameraId } },
             activeCameraId = activeId
         )
     }
@@ -209,6 +250,8 @@ object CameraCapabilityInspector {
             return CameraLensCapability(
                 cameraId = cameraId,
                 lensFacing = facing,
+                minSessionZoomRatio = info.zoomState.value?.minZoomRatio ?: 1f,
+                maxSessionZoomRatio = info.zoomState.value?.maxZoomRatio ?: 1f,
                 hardwarePresent = true,
                 appAccessible = appAccessible,
                 photoBindable = publicSelectorCandidate,
@@ -242,6 +285,9 @@ object CameraCapabilityInspector {
             isActive = active,
             fallbackLensFacing = runCatching { info.lensFacing }
                 .getOrDefault(CameraSelector.LENS_FACING_UNKNOWN)
+        ).copy(
+            minSessionZoomRatio = info.zoomState.value?.minZoomRatio ?: 1f,
+            maxSessionZoomRatio = info.zoomState.value?.maxZoomRatio ?: 1f
         )
     }
 

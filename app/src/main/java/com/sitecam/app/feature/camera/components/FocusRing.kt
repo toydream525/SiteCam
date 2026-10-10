@@ -15,11 +15,14 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.sitecam.app.ui.theme.EngineeringYellow
+import com.sitecam.app.ui.theme.ErrorRed
 import kotlin.math.roundToInt
 
 @Composable
 fun FocusRing(
     position: Offset?,
+    result: Boolean? = null,
+    requestId: Int = 0,
     onAnimationEnd: () -> Unit
 ) {
     if (position == null) return
@@ -27,7 +30,7 @@ fun FocusRing(
     val scale = remember { Animatable(1.5f) }
     val alpha = remember { Animatable(1f) }
 
-    LaunchedEffect(position) {
+    LaunchedEffect(position, result, requestId) {
         scale.snapTo(1.5f)
         alpha.snapTo(1f)
 
@@ -35,11 +38,10 @@ fun FocusRing(
             targetValue = 1.0f,
             animationSpec = tween(durationMillis = 250)
         )
-        alpha.animateTo(
-            targetValue = 0f,
-            animationSpec = tween(durationMillis = 600, delayMillis = 400)
-        )
-        onAnimationEnd()
+        if (result != null) {
+            alpha.animateTo(targetValue = 0f, animationSpec = tween(durationMillis = 300, delayMillis = 700))
+            onAnimationEnd()
+        }
     }
 
     val ringSize = 72.dp
@@ -56,7 +58,7 @@ fun FocusRing(
     ) {
         val radius = (size.minDimension / 2f) * scale.value
         drawCircle(
-            color = EngineeringYellow.copy(alpha = alpha.value),
+            color = (when(result) { true -> Color(0xFF68C77A); false -> ErrorRed; null -> EngineeringYellow }).copy(alpha = alpha.value),
             radius = radius,
             center = center,
             style = Stroke(width = 2.dp.toPx())

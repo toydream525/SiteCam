@@ -224,6 +224,7 @@ class WatermarkTemplateStateTest {
         val database = Room.inMemoryDatabaseBuilder(RuntimeEnvironment.getApplication(), AppDatabase::class.java)
             .allowMainThreadQueries().build()
         var editor: WatermarkEditorViewModel? = null
+        val writerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         try {
             val dao = database.watermarkDao()
             val template = WatermarkTemplateEntity(name = "当前模板", styleType = "ENGINEERING_BLUE", fontSizeScale = 1.8f,
@@ -242,6 +243,7 @@ class WatermarkTemplateStateTest {
             val other = dao.getFieldsForTemplateSync(otherId)
             val container = mockk<AppContainer>()
             every { container.database } returns database
+            every { container.watermarkTemplateMutations } returns WatermarkTemplateMutations(dao, writerScope)
             val model = WatermarkEditorViewModel(container, id).also { editor = it }
             withTimeout(10000) { model.template.first { it != null } }
             model.restoreFieldPresentation()
@@ -265,6 +267,60 @@ class WatermarkTemplateStateTest {
             assertEquals(restored, dao.getFieldsForTemplateSync(id))
         } finally {
             editor?.viewModelScope?.coroutineContext?.job?.cancelAndJoin()
+            writerScope.coroutineContext.job.cancelAndJoin()
+            database.close()
+            Dispatchers.resetMain()
+        }
+    }
+
+    @Test fun delayedFieldWritesKeepNewValuesSwitchLabelAndOrderAfterEditorExit(): Unit = runBlocking {
+        Dispatchers.setMain(Dispatchers.Unconfined)
+        val database = Room.inMemoryDatabaseBuilder(RuntimeEnvironment.getApplication(), AppDatabase::class.java)
+            .allowMainThreadQueries().build()
+        val writerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        var editor: WatermarkEditorViewModel? = null
+        try {
+            val dao = database.watermarkDao()
+            val id = dao.insertTemplate(WatermarkTemplateEntity(name = "字段并发", isDefault = true))
+            dao.insertFields(com.sitecam.app.core.watermark.model.builtInWatermarkFieldsForTemplate(id))
+            val delayedDao = object : WatermarkDao by dao {
+                override suspend fun updateFieldValue(id: Long, value: String) {
+                    if (!entered.isCompleted) {
+                        entered.complete(Unit)
+                        release.await()
+                    }
+                    dao.updateFieldValue(id, value)
+                }
+            }
+            val changes = WatermarkTemplateMutations(delayedDao, writerScope)
+            val container = mockk<AppContainer>()
+            every { container.database } returns database
+            every { container.watermarkTemplateMutations } returns changes
+            val model = WatermarkEditorViewModel(container, id).also { editor = it }
+            val stale = withTimeout(10_000) { model.uiState.first { it.fields.isNotEmpty() } }.fields.first()
+            model.updateFieldValue(stale, "较早输入")
+            withTimeout(10_000) { entered.await() }
+            changes.fieldEnabled(stale.id, false) // The camera entry shares this FIFO.
+            model.updateField(stale, "新标签")
+            model.moveFieldDown(0)
+            model.updateFieldValue(stale, "最后输入")
+            model.viewModelScope.cancel()
+            release.complete(Unit)
+            val fields = withTimeout(10_000) {
+                dao.getFieldsForTemplate(id).first { rows -> rows.any { it.id == stale.id && it.defaultValue == "最后输入" } }
+            }
+            val saved = fields.single { it.id == stale.id }
+            assertEquals("新标签", saved.label)
+            assertFalse(saved.isEnabled)
+            assertEquals(stale.id, fields[1].id)
+            assertEquals(stale.templateId, saved.templateId)
+            assertEquals(stale.fieldKey, saved.fieldKey)
+        } finally {
+            release.complete(Unit)
+            editor?.viewModelScope?.coroutineContext?.job?.cancelAndJoin()
+            writerScope.coroutineContext.job.cancelAndJoin()
             database.close()
             Dispatchers.resetMain()
         }

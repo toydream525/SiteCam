@@ -4,51 +4,25 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.os.SystemClock
 import android.widget.Toast
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.RadioButtonDefaults
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.colorResource
@@ -58,513 +32,214 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sitecam.app.BuildConfig
 import com.sitecam.app.R
+import com.sitecam.app.core.layout.AdaptivePaneLayout
+import com.sitecam.app.core.media.PhotoQualityProfile
 import com.sitecam.app.feature.icon.AppIconChoice
 import com.sitecam.app.feature.icon.AppIconPicker
-import com.sitecam.app.ui.theme.DarkBackground
-import com.sitecam.app.ui.theme.DarkCard
 import com.sitecam.app.ui.theme.EngineeringYellow
-import com.sitecam.app.ui.theme.TextPrimaryDark
-import com.sitecam.app.ui.theme.TextSecondaryDark
 
-private const val SITECAM_WEBSITE_URL = "https://yuriaqua.com/sitecam/"
-private const val SITECAM_GITHUB_URL = "https://github.com/toydream525/SiteCam"
-private const val SITECAM_ISSUES_URL = "https://github.com/toydream525/SiteCam/issues"
+private const val WEBSITE = "https://yuriaqua.com/sitecam/"
+private const val GITHUB = "https://github.com/toydream525/SiteCam"
+private const val PRIVACY = "https://agreement-drcn.hispace.dbankcloud.cn/index.html?lang=zh&agreementId=2043675336696198208"
+private val groups = listOf("拍摄与保存", "水印", "权限与隐私", "外观", "帮助与关于")
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(
-    viewModel: SettingsViewModel,
-    onNavigateBack: () -> Unit,
-    onNavigateToWatermarkEditor: (Long) -> Unit = {},
-    onNavigateToHelp: () -> Unit = {},
-    modifier: Modifier = Modifier
-) {
+fun SettingsScreen(viewModel: SettingsViewModel, onNavigateBack: () -> Unit,
+    onNavigateToWatermarkEditor: (Long) -> Unit = {}, onNavigateToHelp: () -> Unit = {},
+    onNavigateToPermissions: () -> Unit = {}, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val legacyPermission = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
+    LaunchedEffect(viewModel) {
+        viewModel.messages.collect { message ->
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
+    }
+    val uriHandler = LocalUriHandler.current
+    val state by viewModel.uiState.collectAsState()
+    val iconPicker = remember(context) { AppIconPicker(context.applicationContext) }
+    var selectedIcon by remember { mutableStateOf(iconPicker.selectedChoice()) }
+    var page by rememberSaveable { mutableStateOf("设置") }
+    var selectedGroup by rememberSaveable { mutableStateOf(groups.first()) }
+    var cameraAppearanceExpanded by rememberSaveable { mutableStateOf(false) }
+    var showEasterEgg by remember { mutableStateOf(false) }
+    var versionTapCount by remember { mutableIntStateOf(0) }
+    var versionTapAt by remember { mutableLongStateOf(0L) }
+    val legacyPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) viewModel.setSaveToSystemGallery(true)
         else Toast.makeText(context, "未授权，继续仅保存在应用内", Toast.LENGTH_SHORT).show()
     }
-    val uriHandler = LocalUriHandler.current
-    val uiState by viewModel.uiState.collectAsState()
-    val iconPicker = remember(context) { AppIconPicker(context.applicationContext) }
-    var selectedIcon by remember(iconPicker) { mutableStateOf(iconPicker.selectedChoice()) }
-    var iconError by remember { mutableStateOf<String?>(null) }
-    var showGitHubEasterEgg by remember { mutableStateOf(false) }
-    var versionTapCount by remember { mutableStateOf(0) }
-    var lastVersionTapAt by remember { mutableStateOf(0L) }
-
-    fun openExternalUrl(url: String) {
-        try {
-            uriHandler.openUri(url)
-        } catch (_: Exception) {
-            Toast.makeText(context, "无法打开链接，请稍后重试", Toast.LENGTH_SHORT).show()
-        }
+    fun open(url: String) { runCatching { uriHandler.openUri(url) }.onFailure { Toast.makeText(context, "无法打开链接", Toast.LENGTH_SHORT).show() } }
+    fun selectIcon(choice: AppIconChoice) {
+        runCatching { iconPicker.select(choice) }.onSuccess { selectedIcon = it }
+            .onFailure { Toast.makeText(context, it.message ?: "图标切换失败", Toast.LENGTH_SHORT).show() }
     }
-
-    fun copyProjectLink() {
-        try {
-            val clipboard = context.getSystemService(ClipboardManager::class.java)
-            clipboard?.setPrimaryClip(ClipData.newPlainText("SiteCam 项目链接", SITECAM_GITHUB_URL))
+    fun toggleAlbum(enabled: Boolean) {
+        if (enabled && android.os.Build.VERSION.SDK_INT < 29 && androidx.core.content.ContextCompat.checkSelfPermission(context,
+                android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+            legacyPermission.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        else viewModel.setSaveToSystemGallery(enabled)
+    }
+    BackHandler(page != "设置") { page = "设置" }
+    if (showEasterEgg) SiteCamEasterEggDialog(onDismiss = { showEasterEgg = false },
+        onOpenStar = { open(GITHUB) }, onOpenIssue = { open("$GITHUB/issues") },
+        onCopyProjectLink = {
+            context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("SiteCam", GITHUB))
             Toast.makeText(context, "项目链接已复制", Toast.LENGTH_SHORT).show()
-        } catch (_: Exception) {
-            Toast.makeText(context, "复制失败，请稍后重试", Toast.LENGTH_SHORT).show()
+        }, onOpenWebsite = { open(WEBSITE) })
+
+    @Composable fun groupContent(group: String) {
+        when (group) {
+            "拍摄与保存" -> SettingsGroup(group) {
+                SettingsRow("照片画质", Icons.Default.Photo, state.photoQualityProfile.label) { page = "照片画质" }
+                SettingsToggle("快门声音", Icons.Default.VolumeUp, state.shutterSoundEnabled, viewModel::setShutterSoundEnabled)
+                SettingsToggle("同时在系统相册显示", Icons.Default.PhotoLibrary, state.saveToSystemGallery, ::toggleAlbum)
+            }
+            "水印" -> SettingsGroup(group) {
+                SettingsRow("水印样式与字段", Icons.Default.WaterDrop) { onNavigateToWatermarkEditor(state.activeTemplateId) }
+            }
+            "权限与隐私" -> SettingsGroup(group) {
+                SettingsRow("权限设置", Icons.Default.Security, onClick = onNavigateToPermissions)
+                SettingsRow("隐私政策", Icons.Default.Lock) { open(PRIVACY) }
+            }
+            "外观" -> SettingsGroup(group) {
+                SettingsRow("桌面图标", Icons.Default.Palette, selectedIcon.label) { page = "桌面图标" }
+                SettingsRow("相机控件外观", Icons.Default.CameraAlt,
+                    if (state.cameraControlStyle == "TRANSPARENT") "透明" else "普通",
+                    expanded = cameraAppearanceExpanded) { cameraAppearanceExpanded = !cameraAppearanceExpanded }
+                if (cameraAppearanceExpanded) CameraAppearanceChoices(state.cameraControlStyle, viewModel::setCameraControlStyle)
+            }
+            "帮助与关于" -> SettingsGroup(group) {
+                SettingsRow("使用指南", Icons.Default.MenuBook, onClick = onNavigateToHelp)
+                SettingsRow("关于 SiteCam", Icons.Default.Info) { page = "关于 SiteCam" }
+            }
         }
     }
-
-    if (showGitHubEasterEgg) {
-        SiteCamEasterEggDialog(
-            onDismiss = { showGitHubEasterEgg = false },
-            onOpenStar = { openExternalUrl(SITECAM_GITHUB_URL) },
-            onOpenIssue = { openExternalUrl(SITECAM_ISSUES_URL) },
-            onCopyProjectLink = ::copyProjectLink,
-            onOpenWebsite = { openExternalUrl(SITECAM_WEBSITE_URL) }
-        )
-    }
-
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = DarkBackground,
-        contentWindowInsets = WindowInsets.safeDrawing,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "设置",
-                        color = TextPrimaryDark,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
-                            tint = Color.White
-                        )
+    @Composable fun settingsContent(wide: Boolean, contentModifier: Modifier = Modifier) {
+    Column(contentModifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(22.dp)) {
+        Column(Modifier.widthIn(max = 720.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(22.dp)) {
+            when (page) {
+                "设置" -> if (wide) groupContent(selectedGroup) else groups.forEach { groupContent(it) }
+                "照片画质" -> SettingsGroup("") {
+                    PhotoQualityProfile.entries.forEach { quality ->
+                        Row(Modifier.fillMaxWidth().clickable { viewModel.setPhotoQualityProfile(quality) }.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(quality.label, fontWeight = FontWeight.Bold)
+                                Text(quality.maxLongEdge?.let { "长边 $it 像素" } ?: "保留原尺寸", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            RadioButton(state.photoQualityProfile == quality, { viewModel.setPhotoQualityProfile(quality) })
+                        }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = DarkBackground
-                )
-            )
+                }
+                "桌面图标" -> SettingsGroup("") {
+                    AppIconChoice.entries.forEach { choice -> Row(Modifier.fillMaxWidth().clickable { selectIcon(choice) }.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        AppIconPreview(choice, Modifier.size(64.dp))
+                        Text("${choice.name}  ${choice.label}", Modifier.weight(1f))
+                        RadioButton(selectedIcon == choice, { selectIcon(choice) })
+                    } }
+                }
+                "相机控件外观" -> SettingsGroup("") {
+                    CameraAppearanceChoices(state.cameraControlStyle, viewModel::setCameraControlStyle)
+                }
+                "关于 SiteCam" -> {
+                    Column(Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        AppIconPreview(AppIconChoice.D, Modifier.size(120.dp))
+                        Text("工程水印相机", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                        Text("SiteCam", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("版本 ${BuildConfig.VERSION_NAME}", Modifier.clickable {
+                            val now = SystemClock.elapsedRealtime()
+                            versionTapCount = if (now - versionTapAt <= 1500) versionTapCount + 1 else 1
+                            versionTapAt = now
+                            if (versionTapCount >= 5) { versionTapCount = 0; showEasterEgg = true }
+                        }.padding(8.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    SettingsGroup("") {
+                        SettingsRow("使用指南", Icons.Default.MenuBook, onClick = onNavigateToHelp)
+                        SettingsRow("隐私政策", Icons.Default.Lock) { open(PRIVACY) }
+                        SettingsRow("官网与下载", Icons.Default.OpenInNew) { open(WEBSITE) }
+                        SettingsRow("设备诊断", Icons.Default.ContentCopy) {
+                            viewModel.copyDiagnostics(context)
+                        }
+                    }
+                }
+            }
+            if (page == "照片画质" || page == "桌面图标") Button(onClick = { page = "设置" },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), colors = ButtonDefaults.buttonColors(contentColor = Color.Black)) { Text("完成") }
         }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onNavigateToHelp),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = DarkCard)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = "使用技巧与教程",
-                        tint = EngineeringYellow,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "使用技巧与教程",
-                            color = EngineeringYellow,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        )
-                        Text(
-                            text = "拍照、整理、导出，按步骤快速上手",
-                            color = TextSecondaryDark,
-                            fontSize = 12.sp
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                        contentDescription = "打开教程",
-                        tint = TextSecondaryDark,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-
-            // Watermark Customization Entry Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onNavigateToWatermarkEditor(uiState.activeTemplateId) },
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = DarkCard)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Tune,
-                            contentDescription = null,
-                            tint = EngineeringYellow
-                        )
-                        Column {
-                            Text(
-                                text = "自定义水印字段与样式",
-                                color = TextPrimaryDark,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
-                            )
-                            Text(
-                                text = "自定义字段、字号、不透明度与八款水印样式",
-                                color = TextSecondaryDark,
-                                fontSize = 12.sp
-                            )
-                        }
-                    }
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                        contentDescription = "进入定制",
-                        tint = TextSecondaryDark,
-                        modifier = Modifier.padding(end = 4.dp)
-                    )
-                }
-            }
-
-            // JPEG Quality Selection
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = DarkCard)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("相机控件外观", color = TextPrimaryDark, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    listOf("NORMAL" to "普通", "BLUR" to "毛玻璃", "LIQUID" to "液态玻璃").forEach { (value, label) ->
-                        val selected = uiState.cameraControlStyle == value
-                        val supported = value == "NORMAL"
-                        Row(
-                            modifier = Modifier.fillMaxWidth().clickable(enabled = supported) {
-                                viewModel.setCameraControlStyle(value)
-                            }.padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = selected,
-                                onClick = { if (supported) viewModel.setCameraControlStyle(value) },
-                                enabled = supported,
-                                colors = RadioButtonDefaults.colors(selectedColor = EngineeringYellow)
-                            )
-                            Text(label + if (supported) "" else " · 暂不支持", color = if (supported) TextPrimaryDark else TextSecondaryDark, fontSize = 14.sp)
-                        }
-                    }
-                }
-            }
-
-            // JPEG Quality Selection
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = DarkCard)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "照片保存质量",
-                        color = TextPrimaryDark,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    val qualities = com.sitecam.app.core.media.PhotoQualityProfile.entries
-                    qualities.forEach { q ->
-                        val desc = q.maxLongEdge?.let { "长边最多 ${it} 像素 · JPEG ${q.jpegQuality}%" } ?: "保留原尺寸 · JPEG 95%"
-                        val isSelected = uiState.photoQualityProfile == q
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { viewModel.setPhotoQualityProfile(q) }
-                                .padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = isSelected,
-                                onClick = { viewModel.setPhotoQualityProfile(q) },
-                                colors = RadioButtonDefaults.colors(selectedColor = EngineeringYellow)
-                            )
-                            Column(modifier = Modifier.padding(start = 8.dp)) {
-                                Text(
-                                    text = q.label,
-                                    color = TextPrimaryDark,
-                                    fontSize = 15.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                )
-                                Text(
-                                    text = desc,
-                                    color = TextSecondaryDark,
-                                    fontSize = 12.sp
-                                )
+    }
+    }
+    AdaptivePaneLayout(modifier, allowTwoPane = page == "设置", primaryMinWidth = 240f,
+        secondaryMinWidth = 400f, primaryFraction = .3f,
+        primary = { wide ->
+            Scaffold(Modifier.fillMaxSize(), containerColor = MaterialTheme.colorScheme.background,
+                contentWindowInsets = WindowInsets.safeDrawing,
+                topBar = { TopAppBar(title = { Text(page, fontWeight = FontWeight.Bold) },
+                    navigationIcon = { IconButton(onClick = { if (page == "设置") onNavigateBack() else page = "设置" }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)) }) { padding ->
+                if (wide) {
+                    Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        groups.forEach { group ->
+                            Surface(Modifier.fillMaxWidth().clickable { selectedGroup = group }, shape = RoundedCornerShape(12.dp),
+                                color = if (group == selectedGroup) EngineeringYellow.copy(alpha = .22f) else Color.Transparent) {
+                                Text(group, Modifier.padding(18.dp), fontWeight = if (group == selectedGroup) FontWeight.Bold else FontWeight.Normal)
                             }
                         }
                     }
-                }
+                } else settingsContent(false, Modifier.padding(padding))
             }
+        }, secondary = {
+            settingsContent(true)
+        })
+}
 
-            Card(colors = CardDefaults.cardColors(containerColor = DarkCard)) {
-                Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                    Text("同时在系统相册显示", color = TextPrimaryDark)
-                    androidx.compose.material3.Switch(checked = uiState.saveToSystemGallery, onCheckedChange = { enabled ->
-                        if (enabled && android.os.Build.VERSION.SDK_INT < 29 && androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED) legacyPermission.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                        else viewModel.setSaveToSystemGallery(enabled)
-                    })
-                    Text("关闭：仅保存在本应用。开启：应用与系统相册共用同一文件，删除会同时影响系统相册。仅影响之后拍摄和编辑保存的内容，不搬动旧文件。", color = TextSecondaryDark, fontSize = 12.sp)
-                    Text("画质仅影响之后保存的照片和编辑成品；保持比例，不放大小图。", color = TextSecondaryDark, fontSize = 12.sp)
-                }
-            }
-            Card(colors = CardDefaults.cardColors(containerColor = DarkCard)) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("拍照快门声音", color = TextPrimaryDark, fontWeight = FontWeight.Bold)
-                        Text("拍照时播放系统快门声；关闭不影响录像声音。", color = TextSecondaryDark, fontSize = 12.sp)
-                    }
-                    androidx.compose.material3.Switch(
-                        checked = uiState.shutterSoundEnabled,
-                        onCheckedChange = viewModel::setShutterSoundEnabled
-                    )
-                }
-            }
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = DarkCard)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "桌面图标",
-                        color = TextPrimaryDark,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "默认使用 D，可选四款图标；只更换桌面入口，不影响工程资料。",
-                        color = TextSecondaryDark,
-                        fontSize = 12.sp
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    AppIconChoice.entries.forEach { choice ->
-                        val selected = choice == selectedIcon
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    runCatching { iconPicker.select(choice) }
-                                        .onSuccess {
-                                            selectedIcon = it
-                                            iconError = null
-                                        }
-                                        .onFailure {
-                                            selectedIcon = iconPicker.selectedChoice()
-                                            iconError = it.message ?: "桌面图标切换失败"
-                                        }
-                                }
-                                .padding(vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = selected,
-                                onClick = {
-                                    runCatching { iconPicker.select(choice) }
-                                        .onSuccess {
-                                            selectedIcon = it
-                                            iconError = null
-                                        }
-                                        .onFailure {
-                                            selectedIcon = iconPicker.selectedChoice()
-                                            iconError = it.message ?: "桌面图标切换失败"
-                                        }
-                                },
-                                colors = RadioButtonDefaults.colors(selectedColor = EngineeringYellow)
-                            )
-                            AppIconPreview(
-                                choice = choice,
-                                modifier = Modifier
-                                    .padding(end = 10.dp)
-                                    .size(48.dp)
-                            )
-                            Column(modifier = Modifier.padding(start = 8.dp)) {
-                                Text(
-                                    text = choice.label,
-                                    color = TextPrimaryDark,
-                                    fontSize = 15.sp,
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                                )
-                                Text(
-                                    text = choice.description,
-                                    color = TextSecondaryDark,
-                                    fontSize = 12.sp
-                                )
-                            }
-                        }
-                    }
-                    iconError?.let { error ->
-                        Text(
-                            text = error,
-                            color = Color(0xFFFF8A80),
-                            fontSize = 12.sp,
-                            lineHeight = 18.sp
-                        )
-                    }
-                }
-            }
-
-            // Camera Diagnostics Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = DarkCard)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "硬件与相机诊断",
-                        color = TextPrimaryDark,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "可一键提取当前手机型号、物理镜头焦段与多摄像头支持参数，便于兼容性排查。",
-                        color = TextSecondaryDark,
-                        fontSize = 13.sp
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                viewModel.copyDiagnostics(context)
-                                Toast.makeText(context, "诊断信息已复制到剪贴板", Toast.LENGTH_SHORT).show()
-                            }
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ContentCopy,
-                            contentDescription = "复制诊断信息",
-                            tint = EngineeringYellow
-                        )
-                        Text(
-                            text = "复制设备诊断信息",
-                            color = EngineeringYellow,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-            }
-
-            // About Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = DarkCard)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "工程水印相机 (SiteCam)",
-                        color = TextPrimaryDark,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "版本：v${BuildConfig.VERSION_NAME} (Android 原生离线版)",
-                        color = TextSecondaryDark,
-                        fontSize = 13.sp,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                val now = SystemClock.elapsedRealtime()
-                                versionTapCount = if (now - lastVersionTapAt <= 1_500L) {
-                                    versionTapCount + 1
-                                } else {
-                                    1
-                                }
-                                lastVersionTapAt = now
-                                if (versionTapCount >= 5) {
-                                    versionTapCount = 0
-                                    lastVersionTapAt = 0L
-                                    showGitHubEasterEgg = true
-                                }
-                            }
-                            .padding(vertical = 3.dp)
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "官网与下载：yuriaqua.com/sitecam/",
-                        color = EngineeringYellow,
-                        fontSize = 13.sp,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 48.dp)
-                            .clickable { openExternalUrl(SITECAM_WEBSITE_URL) }
-                            .padding(vertical = 4.dp)
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "纯本地离线运行 · 无账号体系 · 保存位置由你选择",
-                        color = TextSecondaryDark,
-                        fontSize = 12.sp
-                    )
-                }
+@Composable private fun SettingsGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (title.isNotEmpty()) Text(title, Modifier.padding(start = 8.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface) {
+            Column(Modifier.fillMaxWidth(), content = content)
+        }
+    }
+}
+@Composable private fun SettingsRow(title: String, icon: ImageVector, value: String = "", expanded: Boolean? = null, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).heightIn(min = 64.dp).padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Icon(icon, null, Modifier.size(24.dp))
+        Text(title, Modifier.weight(1f))
+        if (value.isNotEmpty()) Text(value, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.widthIn(max = 160.dp))
+        Icon(if (expanded == true) Icons.Default.ExpandLess else if (expanded == false) Icons.Default.ExpandMore
+            else Icons.AutoMirrored.Filled.ArrowForwardIos, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+@Composable private fun CameraAppearanceChoices(selected: String, onSelect: (String) -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))) {
+        listOf("NORMAL" to "普通", "TRANSPARENT" to "透明").forEach { (value, label) ->
+            Row(Modifier.fillMaxWidth().clickable { onSelect(value) }.heightIn(min = 56.dp).padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                RadioButton(selected == value, { onSelect(value) })
+                Text(label)
             }
         }
     }
 }
-
-@Composable
-private fun AppIconPreview(
-    choice: AppIconChoice,
-    modifier: Modifier = Modifier
-) {
-    val (backgroundRes, foregroundRes) = when (choice) {
+@Composable private fun SettingsToggle(title: String, icon: ImageVector, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Icon(icon, null, Modifier.size(24.dp)); Text(title, Modifier.weight(1f)); Switch(checked, onChange)
+    }
+}
+@Composable private fun AppIconPreview(choice: AppIconChoice, modifier: Modifier = Modifier) {
+    val (background, foreground) = when (choice) {
         AppIconChoice.A -> R.color.launcher_a_background to R.drawable.ic_launcher_a_foreground
         AppIconChoice.B -> R.color.launcher_b_background to R.drawable.ic_launcher_b_foreground
         AppIconChoice.C -> R.color.launcher_c_background to R.drawable.ic_launcher_c_foreground
         AppIconChoice.D -> R.color.launcher_d_background to R.drawable.ic_launcher_d_foreground
     }
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(colorResource(backgroundRes)),
-        contentAlignment = Alignment.Center
-    ) {
-        androidx.compose.foundation.Image(
-            painter = painterResource(foregroundRes),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize()
-        )
+    Box(modifier.clip(RoundedCornerShape(16.dp)).background(colorResource(background)), contentAlignment = Alignment.Center) {
+        Image(painterResource(foreground), null, Modifier.fillMaxSize())
     }
 }

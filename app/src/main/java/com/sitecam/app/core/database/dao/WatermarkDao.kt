@@ -46,7 +46,9 @@ interface WatermarkDao {
     @Query("SELECT * FROM watermark_templates WHERE isDefault = 1 LIMIT 1")
     suspend fun getDefaultTemplate(): WatermarkTemplateEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    // A template is a parent row: REPLACE would delete it first and cascade
+    // its fields away. Existing templates are saved through @Update.
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertTemplate(template: WatermarkTemplateEntity): Long
 
     @Update
@@ -69,6 +71,12 @@ interface WatermarkDao {
 
     @Update
     suspend fun updateField(field: WatermarkFieldEntity)
+
+    @Query("UPDATE watermark_fields SET defaultValue = :value WHERE id = :id")
+    suspend fun updateFieldValue(id: Long, value: String)
+
+    @Query("UPDATE watermark_fields SET isEnabled = :enabled WHERE id = :id")
+    suspend fun updateFieldEnabled(id: Long, enabled: Boolean)
 
     @Query("UPDATE watermark_fields SET label = :label WHERE id = :id")
     suspend fun updateFieldLabel(id: Long, label: String)
@@ -109,6 +117,15 @@ interface WatermarkDao {
         updateFieldOrder(first.id, -first.id.toInt())
         updateFieldOrder(second.id, first.displayOrder)
         updateFieldOrder(first.id, second.displayOrder)
+    }
+
+    @Transaction
+    suspend fun moveField(templateId: Long, fieldId: Long, direction: Int) {
+        val current = getFieldsForTemplateSync(templateId)
+        val index = current.indexOfFirst { it.id == fieldId }
+        val target = index + direction
+        if (index < 0 || direction !in setOf(-1, 1) || target !in current.indices) return
+        swapFieldOrder(current[index], current[target])
     }
 
     /** Reset presentation only; user-entered values, switches and custom fields remain intact. */

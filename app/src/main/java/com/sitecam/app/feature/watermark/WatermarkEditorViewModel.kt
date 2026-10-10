@@ -9,9 +9,12 @@ import com.sitecam.app.core.di.AppContainer
 import com.sitecam.app.core.watermark.model.WatermarkData
 import com.sitecam.app.core.watermark.model.builtInWatermarkFieldsForTemplate
 import com.sitecam.app.core.watermark.model.resolveWatermarkFields
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
@@ -33,6 +36,18 @@ class WatermarkEditorViewModel(
 
     private val _template = MutableStateFlow<WatermarkTemplateEntity?>(null)
     val template: StateFlow<WatermarkTemplateEntity?> = _template.asStateFlow()
+
+    private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val messages: SharedFlow<String> = _messages.asSharedFlow()
+
+    init {
+        viewModelScope.launch {
+            // A failed watermark write is otherwise only visible in logcat.
+            appContainer.watermarkTemplateMutations.saveError.collect { error ->
+                if (error != null) _messages.tryEmit("水印设置保存失败，请重试")
+            }
+        }
+    }
 
     val uiState: StateFlow<WatermarkEditorUiState> = combine(
         _template,
@@ -114,70 +129,52 @@ class WatermarkEditorViewModel(
     }
 
     fun toggleField(field: WatermarkFieldEntity) {
-        viewModelScope.launch {
-            appContainer.database.watermarkDao().updateField(
-                field.copy(isEnabled = !field.isEnabled)
-            )
-        }
+        appContainer.watermarkTemplateMutations.fieldEnabled(field.id, !field.isEnabled)
     }
 
     fun addCustomField(label: String) {
         if (label.isBlank()) return
         val currentTemplateId = _template.value?.id ?: return
-        val currentFields = uiState.value.fields
-        val newOrder = (currentFields.maxOfOrNull { it.displayOrder } ?: 0) + 1
         val newField = WatermarkFieldEntity(
             templateId = currentTemplateId,
             fieldKey = "CUSTOM_${System.currentTimeMillis()}",
             label = label.trim(),
             defaultValue = "",
-            displayOrder = newOrder,
+            displayOrder = 0,
             isEnabled = true
         )
-        viewModelScope.launch {
-            appContainer.database.watermarkDao().insertField(newField)
-        }
+        appContainer.watermarkTemplateMutations.addField(newField)
+    }
+
+    fun updateFieldValue(field: WatermarkFieldEntity, value: String) {
+        appContainer.watermarkTemplateMutations.fieldValue(field.id, value)
     }
 
     fun updateField(field: WatermarkFieldEntity, newLabel: String) {
-        viewModelScope.launch {
-            appContainer.database.watermarkDao().updateFieldLabel(field.id, newLabel.trim())
-        }
+        appContainer.watermarkTemplateMutations.fieldLabel(field.id, newLabel.trim())
     }
 
     fun restoreFieldPresentation() {
         val id = _template.value?.id ?: return
-        viewModelScope.launch {
-            appContainer.database.watermarkDao().restoreFieldPresentation(id)
-        }
+        appContainer.watermarkTemplateMutations.restoreFieldPresentation(id)
     }
 
     fun deleteField(field: WatermarkFieldEntity) {
-        viewModelScope.launch {
-            appContainer.database.watermarkDao().deleteField(field)
-        }
+        appContainer.watermarkTemplateMutations.deleteField(field)
     }
 
     fun moveFieldUp(index: Int) {
         val fields = uiState.value.fields
         if (index <= 0 || index >= fields.size) return
         val current = fields[index]
-        val prev = fields[index - 1]
-
-        viewModelScope.launch {
-            appContainer.database.watermarkDao().swapFieldOrder(current, prev)
-        }
+        appContainer.watermarkTemplateMutations.moveField(current.templateId, current.id, -1)
     }
 
     fun moveFieldDown(index: Int) {
         val fields = uiState.value.fields
         if (index < 0 || index >= fields.size - 1) return
         val current = fields[index]
-        val next = fields[index + 1]
-
-        viewModelScope.launch {
-            appContainer.database.watermarkDao().swapFieldOrder(current, next)
-        }
+        appContainer.watermarkTemplateMutations.moveField(current.templateId, current.id, 1)
     }
 
     companion object {

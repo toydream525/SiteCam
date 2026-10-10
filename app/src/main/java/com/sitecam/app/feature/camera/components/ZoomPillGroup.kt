@@ -2,11 +2,15 @@ package com.sitecam.app.feature.camera.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Text
@@ -47,18 +51,21 @@ fun ZoomPillGroup(
     onZoomSelected: (Float) -> Unit,
     modifier: Modifier = Modifier,
     isVertical: Boolean = false,
-    compact: Boolean = false
+    compact: Boolean = false,
+    photoOverlay: Boolean = false,
+    enabled: Boolean = true
 ) {
     if (presets.isEmpty()) return
 
-    val visiblePresets = presets.take(5)
-    val selectedRatio = visiblePresets.minByOrNull { abs(currentZoomRatio - it) }
+    val visiblePresets = presets.distinct().sorted()
+    val selectedRatio = visiblePresets.lastOrNull { it <= currentZoomRatio + .001f } ?: visiblePresets.firstOrNull()
     // Minimum width only: the button may grow past it to fit its label at large font scales.
     val buttonWidth = when {
+        photoOverlay -> 48.dp
         compact && isVertical -> 42.dp
-        compact -> 38.dp
+        compact -> 44.dp
         isVertical -> 48.dp
-        else -> 44.dp
+        else -> 60.dp
     }
 
     val scrollState = rememberScrollState()
@@ -92,21 +99,26 @@ fun ZoomPillGroup(
         }
         Box(
             modifier = lensModifier
+                .then(if (photoOverlay) Modifier.fillMaxWidth() else Modifier)
                 .widthIn(min = buttonWidth)
-                .heightIn(min = 48.dp)
-                .clickable { onZoomSelected(ratio) },
+                .heightIn(min = if(compact) 48.dp else 60.dp)
+                .background(if(selected && !photoOverlay) EngineeringYellow else Color.Transparent, RoundedCornerShape(30.dp))
+                .then(if (photoOverlay && selected) Modifier.border(1.dp, EngineeringYellow, RoundedCornerShape(30.dp)) else Modifier)
+                .clickable(enabled = enabled) { onZoomSelected(ratio) }
+                .then(if (photoOverlay) Modifier.padding(horizontal = 6.dp) else Modifier),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = label,
-                color = if (selected) EngineeringYellow else Color.White,
+                color = if (selected) { if (photoOverlay) EngineeringYellow else Color.Black } else Color.White,
                 fontSize = when {
+                    photoOverlay -> 14.sp
                     compact && isVertical -> 10.sp
-                    compact -> 11.sp
+                    compact -> 14.sp
                     isVertical -> 12.sp
-                    else -> 13.sp
+                    else -> 18.sp
                 },
-                lineHeight = if (compact) 14.sp else 17.sp,
+                lineHeight = if (compact) 16.sp else 22.sp,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                 maxLines = 1,
                 softWrap = false,
@@ -117,10 +129,21 @@ fun ZoomPillGroup(
         }
     }
 
-    Box(modifier = modifier.background(Color.Black.copy(alpha = 0.72f), RoundedCornerShape(24.dp))) {
+    Box(modifier = modifier.background(Color.Black.copy(alpha = if(photoOverlay) .18f else .72f), RoundedCornerShape(24.dp))
+        .onSizeChanged { if (isVertical) viewportWidth = it.height }) {
         if (isVertical) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                visiblePresets.forEach { LensButton(it) }
+            Column(Modifier.fillMaxWidth().verticalScroll(scrollState), horizontalAlignment = Alignment.CenterHorizontally) {
+                visiblePresets.forEach { ratio ->
+                    LensButton(ratio, Modifier.onGloballyPositioned { coordinates ->
+                        val start = coordinates.positionInParent().y
+                        val end = start + coordinates.size.height
+                        val previous = itemBounds[ratio]
+                        if (previous == null || previous.start != start || previous.endInclusive != end) {
+                            itemBounds[ratio] = start..end
+                            measuredRevision += 1
+                        }
+                    })
+                }
             }
         } else {
             Row(

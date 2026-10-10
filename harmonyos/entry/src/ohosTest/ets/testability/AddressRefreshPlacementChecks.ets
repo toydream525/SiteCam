@@ -25,6 +25,8 @@ export class AddressRefreshPlacementChecks {
     const bottomWatermark: AddressRefreshRect = {x: 24, y: 1180, width: 720, height: 236};
     const clear = chooseAddressRefreshPlacement({previewWidth, previewHeight, buttonWidth, buttonHeight, watermarkRect: bottomWatermark, safeSpacing: spacing});
     requireResult(clear !== null && clear.corner === 'TOP_END', '普通水印未选择右上角');
+    const leading = chooseAddressRefreshPlacement({previewWidth, previewHeight, buttonWidth, buttonHeight, watermarkRect: bottomWatermark, safeSpacing: spacing, preferStart: true});
+    requireResult(leading !== null && leading.corner === 'TOP_START', '新相机布局刷新入口未优先使用左上角');
     requireResult(inside(clear!, previewWidth, previewHeight), '普通水印按钮越出预览');
     requireResult(!intersects(clear!, {x: bottomWatermark.x - spacing, y: bottomWatermark.y - spacing, width: bottomWatermark.width + spacing * 2, height: bottomWatermark.height + spacing * 2}), '普通水印仍与按钮重叠');
 

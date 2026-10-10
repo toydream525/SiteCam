@@ -1,1 +1,36 @@
-{"color": [{"name": "page_bg", "value": "#121212"}, {"name": "card_bg", "value": "#1E1E1E"}, {"name": "card_raised", "value": "#282828"}, {"name": "text_primary", "value": "#F5F5F5"}, {"name": "text_secondary", "value": "#B0B0B0"}, {"name": "text_accent", "value": "#FFB300"}, {"name": "start_window_background", "value": "#121212"}]}
+{
+  "color": [
+    {
+      "name": "page_bg",
+      "value": "#F3F4F6"
+    },
+    {
+      "name": "card_bg",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "card_raised",
+      "value": "#EAECF0"
+    },
+    {
+      "name": "text_primary",
+      "value": "#191B20"
+    },
+    {
+      "name": "text_secondary",
+      "value": "#666D7B"
+    },
+    {
+      "name": "text_accent",
+      "value": "#B57800"
+    },
+    {
+      "name": "start_window_background",
+      "value": "#F3F4F6"
+    },
+    {
+      "name": "divider",
+      "value": "#E3E5E9"
+    }
+  ]
+}

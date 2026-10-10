@@ -2,6 +2,8 @@ package com.sitecam.app.core.export
 
 import androidx.compose.runtime.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -11,14 +13,14 @@ import com.sitecam.app.core.media.PhotoQualityProfile
 fun ExportChoiceDialog(onDismiss: () -> Unit, onZip: (ExportOptions) -> Unit, onFolder: (ExportOptions) -> Unit) {
     var profile by remember { mutableStateOf<PhotoQualityProfile?>(null) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("导出工程档案") }, text = {
-        Column {
-            Text("导出副本不会修改原始照片，视频保持原文件。")
-            FilterChip(selected = profile == null, onClick = { profile = null }, label = { Text("保持原文件（默认）") })
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("导出质量", style = MaterialTheme.typography.titleSmall)
+            FilterChip(profile == null, { profile = null }, label = { Text("保持原文件") })
             PhotoQualityProfile.entries.forEach { option ->
-                FilterChip(selected = profile == option, onClick = { profile = option }, label = {
-                    Text("${option.label} · ${option.maxLongEdge?.toString() ?: "原尺寸"} / ${option.jpegQuality}") })
+                FilterChip(profile == option, { profile = option }, label = { Text(option.label) })
             }
+            Button(onClick = { onZip(ExportOptions(profile)) }, modifier = Modifier.fillMaxWidth()) { Text("导出 ZIP 压缩包") }
+            OutlinedButton(onClick = { onFolder(ExportOptions(profile)) }, modifier = Modifier.fillMaxWidth()) { Text("导出到文件夹") }
         }
-    }, confirmButton = { TextButton(onClick = { onZip(ExportOptions(profile)) }) { Text("一个 ZIP") } },
-        dismissButton = { Row { TextButton(onClick = { onFolder(ExportOptions(profile)) }) { Text("一个总文件夹") }; TextButton(onClick = onDismiss) { Text("取消") } } })
+    }, confirmButton = { TextButton(onClick = onDismiss) { Text("取消") } })
 }

@@ -1,6 +1,8 @@
 package com.sitecam.app.feature.camera.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -91,349 +93,58 @@ fun QuickWatermarkEditSheet(
     var showAddDialog by remember { mutableStateOf(false) }
     var focusedFieldId by remember { mutableStateOf<Long?>(null) }
     var showStylePicker by remember { mutableStateOf(false) }
+    var tab by remember { mutableStateOf("内容") }
     val currentStyle = WatermarkStyleCatalog.resolve(activeTemplate?.styleType)
-
-    ModalBottomSheet(
-        onDismissRequest = onDismissRequest,
-        sheetState = sheetState,
-        containerColor = DarkBackground,
-        dragHandle = null
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .imePadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-        ) {
-            // Header Bar
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(EngineeringYellow.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Tune,
-                            contentDescription = null,
-                            tint = EngineeringYellow,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    Text(
-                        text = "现场快速修改水印",
-                        color = TextPrimaryDark,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Button(
-                    onClick = onDismissRequest,
-                    colors = ButtonDefaults.buttonColors(containerColor = EngineeringYellow),
-                    shape = RoundedCornerShape(20.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = "完成",
-                        tint = Color.Black,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "完成",
-                        color = Color.Black,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
+    ModalBottomSheet(onDismissRequest = onDismissRequest, sheetState = sheetState, containerColor = DarkBackground, dragHandle = null) {
+        Column(Modifier.fillMaxWidth().heightIn(max = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp * .9f)).imePadding().padding(16.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("水印编辑", color = TextPrimaryDark, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                TextButton(onClick = onDismissRequest) { Text("完成", color = EngineeringYellow) }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("内容", "外观").forEach { label ->
+                    androidx.compose.material3.FilterChip(tab == label, { tab = label }, label = { Text(label, color = TextPrimaryDark) })
                 }
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // 1. Current style entry. The shared picker commits only after confirmation.
-            androidx.compose.material3.Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { showStylePicker = true },
-                shape = RoundedCornerShape(10.dp),
-                colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = DarkCard)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("当前水印样式", color = TextSecondaryDark, fontSize = 12.sp)
-                        Text(
-                            text = currentStyle.name,
-                            color = EngineeringYellow,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = currentStyle.description,
-                            color = TextSecondaryDark,
-                            fontSize = 11.sp,
-                            maxLines = 1
-                        )
-                    }
-                    TextButton(
-                        onClick = { showStylePicker = true },
-                        colors = ButtonDefaults.textButtonColors(contentColor = EngineeringYellow)
-                    ) {
-                        Text("更换样式")
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // 2. Engineering Quick Presets Chip Bar
-            Text(
-                text = "⚡ 常用工程部位 / 施工标签（点击快速填入）",
-                color = TextSecondaryDark,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                QUICK_ENGINEERING_TAGS.forEach { tag ->
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Color.White.copy(alpha = 0.08f))
-                            .clickable {
-                                // Find current focused field or first custom/non-name field
-                                val targetField = fields.find { it.id == focusedFieldId }
-                                    ?: fields.find { it.label.contains("部位") || it.label.contains("内容") || it.fieldKey.startsWith("CUSTOM") }
-                                    ?: fields.firstOrNull()
-
-                                targetField?.let { field ->
-                                    val currentVal = field.defaultValue
-                                    val updatedVal = if (currentVal.isBlank()) tag else "$currentVal $tag"
-                                    onFieldValueChange(field.id, updatedVal)
-                                }
+            LazyColumn(Modifier.fillMaxWidth().weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if(tab == "内容") {
+                    item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        QUICK_ENGINEERING_TAGS.forEach { tag -> TextButton(onClick = {
+                            val field = fields.firstOrNull { it.id == focusedFieldId } ?: fields.firstOrNull { it.isEnabled }
+                            field?.let { onFieldValueChange(it.id, listOf(it.defaultValue, tag).filter(String::isNotBlank).joinToString(" ")) }
+                        }) { Text(tag, color = EngineeringYellow) } }
+                    } }
+                    items(fields, key = { it.id }) { field ->
+                        Column(Modifier.fillMaxWidth().background(DarkCard, RoundedCornerShape(12.dp)).padding(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(field.label, color = TextPrimaryDark, modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                                Switch(field.isEnabled, { onFieldToggle(field.id, it) })
                             }
-                            .padding(horizontal = 10.dp, vertical = 5.dp)
-                    ) {
-                        Text(
-                            text = "+ $tag",
-                            color = EngineeringYellow,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
+                            OutlinedTextField(field.defaultValue, { onFieldValueChange(field.id, it) }, label = { Text(field.label) }, enabled = field.isEnabled,
+                                modifier = Modifier.fillMaxWidth().onFocusChanged { if(it.isFocused) focusedFieldId = field.id }, colors = OutlinedTextFieldDefaults.colors(focusedTextColor = TextPrimaryDark, unfocusedTextColor = TextPrimaryDark))
+                        }
                     }
+                    item { TextButton(onClick = { showAddDialog = true }) { Text("添加字段", color = EngineeringYellow) } }
+                } else {
+                    item { TextButton(onClick = { showStylePicker = true }) { Text("${currentStyle.name} ›", color = EngineeringYellow) } }
+                    item { Text("字号 ${String.format(Locale.ROOT, "%.1f", activeTemplate?.fontSizeScale ?: 1f)}×", color = TextPrimaryDark)
+                        Slider(activeTemplate?.fontSizeScale ?: 1f, onScaleChange, valueRange = .6f..2f) }
+                    item { Text("不透明度 ${((activeTemplate?.opacity ?: .85f) * 100).toInt()}%", color = TextPrimaryDark)
+                        Slider(activeTemplate?.opacity ?: .85f, onOpacityChange, valueRange = .3f..1f) }
                 }
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // 3. Watermark Size Scale Slider (0.6x ~ 2.0x)
-            val currentScale = activeTemplate?.fontSizeScale ?: 1.0f
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "字号缩放比例",
-                    color = TextSecondaryDark,
-                    fontSize = 12.sp
-                )
-                Text(
-                    text = String.format(Locale.US, "%.1f×", currentScale),
-                    color = EngineeringYellow,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Slider(
-                value = currentScale,
-                onValueChange = onScaleChange,
-                valueRange = 0.6f..2.0f,
-                steps = 13,
-                colors = SliderDefaults.colors(
-                    thumbColor = EngineeringYellow,
-                    activeTrackColor = EngineeringYellow
-                )
-            )
-
-            // 4. Scrollable Fields Editor List
-            Text(
-                text = "现场水印字段内容（实时修改）",
-                color = TextSecondaryDark,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 260.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(fields, key = { it.id }) { field ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(DarkCard)
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Switch(
-                            checked = field.isEnabled,
-                            onCheckedChange = { onFieldToggle(field.id, it) },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = EngineeringYellow,
-                                checkedTrackColor = EngineeringYellow.copy(alpha = 0.3f)
-                            ),
-                            modifier = Modifier.size(36.dp)
-                        )
-
-                        Text(
-                            text = field.label,
-                            color = TextPrimaryDark,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.width(68.dp)
-                        )
-
-                        OutlinedTextField(
-                            value = field.defaultValue,
-                            onValueChange = { onFieldValueChange(field.id, it) },
-                            singleLine = true,
-                            enabled = field.isEnabled,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = EngineeringYellow,
-                                unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
-                                focusedTextColor = TextPrimaryDark,
-                                unfocusedTextColor = TextPrimaryDark
-                            ),
-                            modifier = Modifier
-                                .weight(1f)
-                                .heightIn(min = 56.dp)
-                        )
-                    }
-                }
-
-                // Add Custom Field Button in sheet
-                item {
-                    Button(
-                        onClick = { showAddDialog = true },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.White.copy(alpha = 0.1f),
-                            contentColor = EngineeringYellow
-                        ),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "新增字段",
-                            tint = EngineeringYellow,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "新增现场自定义字段（如：标段、监理单位）",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
-
-    if (showStylePicker) {
-        WatermarkStylePickerDialog(
-            currentStyleId = activeTemplate?.styleType ?: "CLASSIC",
-            previewData = previewData,
-            onDismiss = { showStylePicker = false },
-            onConfirm = { styleId ->
-                onStyleChange(styleId)
-                showStylePicker = false
-            }
-        )
-    }
-
-    // Add Field Dialog inside bottom sheet
-    if (showAddDialog) {
-        var newLabel by remember { mutableStateOf("") }
-        var newDefaultVal by remember { mutableStateOf("") }
-
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showAddDialog = false },
-            containerColor = DarkCard,
-            title = {
-                Text(
-                    text = "新增水印字段",
-                    color = TextPrimaryDark,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = newLabel,
-                        onValueChange = { newLabel = it },
-                        label = { Text("字段名称（如：标段 / 监理单位）") },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = EngineeringYellow),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = newDefaultVal,
-                        onValueChange = { newDefaultVal = it },
-                        label = { Text("默认内容（如：一标段，选填）") },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = EngineeringYellow),
-                        modifier = Modifier.fillMaxWidth()
-                    )
+    if(showStylePicker) WatermarkStylePickerDialog(currentStyle.id, previewData, onDismiss = { showStylePicker = false }, onConfirm = { onStyleChange(it); showStylePicker = false })
+    if(showAddDialog) {
+        var label by remember { mutableStateOf("") }; var value by remember { mutableStateOf("") }
+        androidx.compose.material3.AlertDialog(onDismissRequest = { showAddDialog = false }, containerColor = DarkCard,
+            title = { Text("添加字段", color = TextPrimaryDark) }, text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    OutlinedTextField(label, { label = it }, label = { Text("字段名称") })
+                    OutlinedTextField(value, { value = it }, label = { Text("字段内容") })
                 }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (newLabel.isNotBlank()) {
-                            onAddField(newLabel.trim(), newDefaultVal.trim())
-                            showAddDialog = false
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = EngineeringYellow)
-                ) {
-                    Text("添加", color = Color.Black, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { showAddDialog = false }) {
-                    Text("取消", color = TextSecondaryDark)
-                }
-            }
-        )
+            }, confirmButton = { TextButton(enabled = label.isNotBlank(), onClick = { onAddField(label.trim(), value); showAddDialog = false }) { Text("添加") } },
+            dismissButton = { TextButton(onClick = { showAddDialog = false }) { Text("取消") } })
     }
 }

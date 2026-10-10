@@ -25,7 +25,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Composable
-fun VideoThumbnail(uri: String, modifier: Modifier = Modifier) {
+fun VideoThumbnail(uri: String, modifier: Modifier = Modifier, contentScale: ContentScale = ContentScale.Crop) {
     val context = LocalContext.current
     val bitmap by produceState<Bitmap?>(initialValue = null, uri) {
         value = withContext(Dispatchers.IO) {
@@ -55,7 +55,7 @@ fun VideoThumbnail(uri: String, modifier: Modifier = Modifier) {
                 bitmap = bitmap!!.asImageBitmap(),
                 contentDescription = "视频缩略图",
                 modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
+                contentScale = contentScale
             )
         } else {
             Box(Modifier.fillMaxSize().background(Color(0xFF303030)))

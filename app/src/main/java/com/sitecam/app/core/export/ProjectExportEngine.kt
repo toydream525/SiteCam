@@ -222,7 +222,9 @@ class ProjectExportEngine(
                     val file = File(dir, "$folder/${item.id}_${NamingEngine.sanitizeFileName(item.fileName)}")
                     var dimensions: Pair<Int, Int>? = null
                     val copied = runCatching {
-                        dimensions = copySource(Uri.parse(item.contentUri), file, if(item.mediaType == "PHOTO") options.photoProfile else null)
+                        dimensions = copySource(Uri.parse(item.contentUri), file,
+                            if(item.mediaType == "PHOTO") options.photoProfile else null,
+                            onExifFailure = { failures += "${item.fileName}: 拍摄信息未保留（${it.message}）" })
                     }.onFailure { failures += "${item.fileName}: ${it.message}"; file.delete() }.isSuccess
                     if(copied) result.copied++ else result.missing++
                     var annotationPath = ""
@@ -268,7 +270,12 @@ class ProjectExportEngine(
         } catch(t: Throwable) { root.deleteRecursively(); throw t }
     }
 
-    private fun copySource(uri: Uri, file: File, profile: com.sitecam.app.core.media.PhotoQualityProfile?): Pair<Int, Int>? {
+    private fun copySource(
+        uri: Uri,
+        file: File,
+        profile: com.sitecam.app.core.media.PhotoQualityProfile?,
+        onExifFailure: (Throwable) -> Unit = {}
+    ): Pair<Int, Int>? {
         file.parentFile?.mkdirs()
         if(profile == null) {
             context.contentResolver.openInputStream(uri)?.use { source -> file.outputStream().use { source.copyTo(it) } }
@@ -288,23 +295,30 @@ class ProjectExportEngine(
         val resized = com.sitecam.app.core.media.PhotoCompression.resize(bitmap, profile)
         try {
             file.outputStream().use { require(resized.compress(android.graphics.Bitmap.CompressFormat.JPEG, profile.jpegQuality, it)) { "图片压缩失败" } }
+            // The JPEG is complete, so its dimensions are final and must not be
+            // lost to a metadata failure below.
+            val dimensions = resized.width to resized.height
             // Keep original capture-time and location evidence. Do not stamp export time as capture time.
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                val original = androidx.exifinterface.media.ExifInterface(input)
-                val output = androidx.exifinterface.media.ExifInterface(file.absolutePath)
-                val tags = listOf("DateTime", "DateTimeOriginal", "DateTimeDigitized", "OffsetTime", "OffsetTimeOriginal", "OffsetTimeDigitized",
-                    "SubSecTime", "SubSecTimeOriginal", "SubSecTimeDigitized", "GPSLatitude", "GPSLatitudeRef", "GPSLongitude", "GPSLongitudeRef",
-                    "GPSAltitude", "GPSAltitudeRef", "GPSTimeStamp", "GPSDateStamp", "GPSProcessingMethod", "GPSHPositioningError",
-                    "Orientation", "Make", "Model", "ImageDescription", "UserComment", "Copyright", "Artist", "Software",
-                    "ExposureTime", "FNumber", "PhotographicSensitivity", "FocalLength", "WhiteBalance")
-                tags.forEach { tag -> original.getAttribute(tag)?.let { output.setAttribute(tag, it) } }
-                output.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_IMAGE_WIDTH, resized.width.toString())
-                output.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_IMAGE_LENGTH, resized.height.toString())
-                output.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_PIXEL_X_DIMENSION, resized.width.toString())
-                output.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_PIXEL_Y_DIMENSION, resized.height.toString())
-                output.saveAttributes()
-            }
-            return resized.width to resized.height
+            // Missing EXIF degrades the copy but must never delete the written
+            // JPEG nor turn a copied photo into a missing one.
+            runCatching {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    val original = androidx.exifinterface.media.ExifInterface(input)
+                    val output = androidx.exifinterface.media.ExifInterface(file.absolutePath)
+                    val tags = listOf("DateTime", "DateTimeOriginal", "DateTimeDigitized", "OffsetTime", "OffsetTimeOriginal", "OffsetTimeDigitized",
+                        "SubSecTime", "SubSecTimeOriginal", "SubSecTimeDigitized", "GPSLatitude", "GPSLatitudeRef", "GPSLongitude", "GPSLongitudeRef",
+                        "GPSAltitude", "GPSAltitudeRef", "GPSTimeStamp", "GPSDateStamp", "GPSProcessingMethod", "GPSHPositioningError",
+                        "Orientation", "Make", "Model", "ImageDescription", "UserComment", "Copyright", "Artist", "Software",
+                        "ExposureTime", "FNumber", "PhotographicSensitivity", "FocalLength", "WhiteBalance")
+                    tags.forEach { tag -> original.getAttribute(tag)?.let { output.setAttribute(tag, it) } }
+                    output.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_IMAGE_WIDTH, resized.width.toString())
+                    output.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_IMAGE_LENGTH, resized.height.toString())
+                    output.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_PIXEL_X_DIMENSION, resized.width.toString())
+                    output.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_PIXEL_Y_DIMENSION, resized.height.toString())
+                    output.saveAttributes()
+                }
+            }.onFailure(onExifFailure)
+            return dimensions
         } finally { if(resized !== bitmap) resized.recycle(); bitmap.recycle() }
     }
 
@@ -360,12 +374,16 @@ class ProjectExportEngine(
                 uri = uri,
                 outputStream = output,
                 finishSuccess = {
-                    resolver.update(
+                    val published = resolver.update(
                         uri,
                         ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) },
                         null,
                         null
                     )
+                    // A zero-row update leaves the archive pending and therefore
+                    // invisible in Downloads, so fail and let cleanupFailure
+                    // remove it instead of reporting a successful export.
+                    if (published <= 0) throw IllegalStateException("导出文件未能完成发布")
                 },
                 cleanupFailure = { resolver.delete(uri, null, null) }
             )

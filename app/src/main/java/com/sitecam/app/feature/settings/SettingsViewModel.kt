@@ -9,11 +9,16 @@ import androidx.lifecycle.viewModelScope
 import com.sitecam.app.core.camera.CameraDiagnostics
 import com.sitecam.app.core.database.entity.WatermarkTemplateEntity
 import com.sitecam.app.core.di.AppContainer
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class SettingsUiState(
     val templates: List<WatermarkTemplateEntity> = emptyList(),
@@ -74,12 +79,27 @@ class SettingsViewModel(
         viewModelScope.launch { appContainer.settingsDataStore.setCameraControlStyle(style) }
     }
 
-    fun copyDiagnostics(context: Context): String {
-        val report = CameraDiagnostics.generateDiagnosticReport(context)
-        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clip = ClipData.newPlainText("Camera Diagnostics", report)
-        clipboard.setPrimaryClip(clip)
-        return report
+    private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val messages: SharedFlow<String> = _messages.asSharedFlow()
+
+    /**
+     * Builds the diagnostics report off the main thread: it walks every camera
+     * ID through binder calls, which is enough to jank this page.
+     */
+    fun copyDiagnostics(context: Context) {
+        val appContext = context.applicationContext
+        viewModelScope.launch {
+            val report = withContext(Dispatchers.IO) {
+                runCatching { CameraDiagnostics.generateDiagnosticReport(appContext) }.getOrDefault("")
+            }
+            if (report.isBlank()) {
+                _messages.tryEmit("诊断信息生成失败，请重试")
+                return@launch
+            }
+            val clipboard = appContext.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("Camera Diagnostics", report))
+            _messages.tryEmit("诊断信息已复制")
+        }
     }
 
     companion object {

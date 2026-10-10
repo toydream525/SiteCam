@@ -81,46 +81,91 @@ class PhotoAnnotationViewModel(
     private var legacyProduct = false
     private var viewportWidth = 0f
     private var viewportHeight = 0f
+    private var queuedViewport: Pair<Float, Float>? = null
+    private var failedViewport: Pair<Float, Float>? = null
+    private var failedViewportRetries = 0
     fun viewportChanged(width: Float, height: Float) {
         if (width <= 0 || height <= 0) return
+        if (_uiState.value.isSaving) { queuedViewport = width to height; return }
+        // A new size gets its own retry budget for the render attempt below.
+        if (failedViewport != null && failedViewport != (width to height)) failedViewportRetries = 0
+        failedViewport = null
         if (viewportWidth > 0 && viewportHeight > 0 && (width != viewportWidth || height != viewportHeight)) {
             fun bake(state: EditState): EditState = if (state.elements.isEmpty()) state else EditState(state.steps + EditStep.Draw(state.elements, viewportWidth, viewportHeight), emptyList())
-            for (index in history.indices) history[index] = bake(history[index])
-            for (index in future.indices) future[index] = bake(future[index])
+            val nextHistory = history.map(::bake)
+            val nextFuture = future.map(::bake)
             if (_uiState.value.elements.isNotEmpty()) {
-                steps = steps + EditStep.Draw(_uiState.value.elements, viewportWidth, viewportHeight)
-                _uiState.value = _uiState.value.copy(elements = emptyList())
-                refreshPreview()
+                refreshPreview(bake(editState()), nextHistory, nextFuture,
+                    onCommitted = { viewportWidth = width; viewportHeight = height; failedViewportRetries = 0 },
+                    onFailed = {
+                        // The one automatic retry for this size failed too: keep
+                        // editing and saving usable instead of blocking forever.
+                        if (failedViewportRetries >= 1) {
+                            failedViewport = null
+                            failedViewportRetries = 0
+                            viewModelScope.launch { _saveFailed.emit("编辑视图尺寸处理失败，请重新调整后再试") }
+                        } else {
+                            failedViewport = width to height
+                        }
+                    })
+                return
             }
+            history.clear(); history.addAll(nextHistory)
+            future.clear(); future.addAll(nextFuture)
         }
         viewportWidth = width; viewportHeight = height
+    }
+    private fun editState() = EditState(steps, _uiState.value.elements)
+    private fun retryViewportIfNeeded(): Boolean {
+        val failed = failedViewport ?: return false
+        // Spend the single automatic retry for this size, then let the caller
+        // continue: a second failure clears the flag in viewportChanged.
+        failedViewportRetries += 1
+        viewportChanged(failed.first, failed.second)
+        return true
     }
     private fun checkpoint() {
         history.add(EditState(steps, _uiState.value.elements)); future.clear()
         _uiState.value = _uiState.value.copy(canUndo = true, canRedo = false)
     }
     fun applyTransform(kind: String, width: Float, height: Float, crop: androidx.compose.ui.geometry.Rect? = null) {
-        if (_uiState.value.isSaving || width <= 0 || height <= 0) return
-        checkpoint()
-        if (_uiState.value.elements.isNotEmpty()) steps = steps + EditStep.Draw(_uiState.value.elements, width, height)
-        steps = steps + EditStep.Transform(kind, crop?.left ?: 0f, crop?.top ?: 0f, crop?.right ?: 1f, crop?.bottom ?: 1f)
-        _uiState.value = _uiState.value.copy(elements = emptyList())
-        refreshPreview()
+        if (_uiState.value.isSaving || width <= 0 || height <= 0 || retryViewportIfNeeded()) return
+        val before = editState()
+        val draw = if (before.elements.isEmpty()) emptyList() else listOf(EditStep.Draw(before.elements, width, height))
+        val next = EditState(steps + draw + EditStep.Transform(kind, crop?.left ?: 0f, crop?.top ?: 0f, crop?.right ?: 1f, crop?.bottom ?: 1f), emptyList())
+        refreshPreview(next, history + before, emptyList())
     }
     private var previewGeneration = 0L
-    private fun refreshPreview() {
+    private fun refreshPreview(
+        next: EditState = editState(),
+        nextHistory: List<EditState> = history.toList(),
+        nextFuture: List<EditState> = future.toList(),
+        onCommitted: () -> Unit = {},
+        onFailed: () -> Unit = {}
+    ) {
         val generation = ++previewGeneration
-        val recipe = steps
         _uiState.value = _uiState.value.copy(isSaving = true)
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             try {
-                val rendered = renderRecipe(appContainer.appContext, recipe, 1600)
+                val rendered = withContext(Dispatchers.IO) { renderRecipe(appContainer.appContext, next.steps, 1600) }
                 if (generation == previewGeneration) {
-                    _uiState.value = _uiState.value.copy(previewBitmap = rendered, imageWidth = rendered.width, imageHeight = rendered.height)
+                    steps = next.steps
+                    history.clear(); history.addAll(nextHistory)
+                    future.clear(); future.addAll(nextFuture)
+                    _uiState.value = _uiState.value.copy(previewBitmap = rendered, imageWidth = rendered.width,
+                        imageHeight = rendered.height, elements = next.elements,
+                        canUndo = history.isNotEmpty(), canRedo = future.isNotEmpty())
+                    onCommitted()
                 } else rendered.recycle()
-            } catch (e: Exception) { _saveFailed.emit(e.message ?: "无法预览编辑") }
-            catch (_: OutOfMemoryError) { _saveFailed.emit("图片太大，无法预览，请关闭其他应用后重试") }
-            finally { if (generation == previewGeneration) _uiState.value = _uiState.value.copy(isSaving = false) }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { if (generation == previewGeneration) { onFailed(); _saveFailed.emit(e.message ?: "无法预览编辑") } }
+            catch (_: OutOfMemoryError) { if (generation == previewGeneration) { onFailed(); _saveFailed.emit("图片太大，无法预览，请关闭其他应用后重试") } }
+            finally {
+                if (generation == previewGeneration) {
+                    _uiState.value = _uiState.value.copy(isSaving = false)
+                    queuedViewport?.let { queuedViewport = null; viewportChanged(it.first, it.second) }
+                }
+            }
         }
     }
     private fun renderRecipe(context: Context, recipe: List<EditStep>, decodeLimit: Int = Int.MAX_VALUE): Bitmap {
@@ -198,24 +243,20 @@ class PhotoAnnotationViewModel(
     }
 
     fun addElement(element: AnnotationElement) {
-        if (_uiState.value.isSaving) return
+        if (_uiState.value.isSaving || retryViewportIfNeeded()) return
         checkpoint(); _uiState.value = _uiState.value.copy(elements = _uiState.value.elements + element)
     }
     fun undo() {
-        if (_uiState.value.isSaving || history.isEmpty()) return
-        future.add(EditState(steps, _uiState.value.elements))
-        val previous = history.removeAt(history.lastIndex); steps = previous.steps
-        _uiState.value = _uiState.value.copy(elements = previous.elements, canUndo = history.isNotEmpty(), canRedo = true)
-        refreshPreview()
+        if (_uiState.value.isSaving || history.isEmpty() || retryViewportIfNeeded()) return
+        refreshPreview(history.last(), history.dropLast(1), future + editState())
     }
     fun redo() {
-        if (_uiState.value.isSaving || future.isEmpty()) return
-        history.add(EditState(steps, _uiState.value.elements))
-        val next = future.removeAt(future.lastIndex); steps = next.steps
-        _uiState.value = _uiState.value.copy(elements = next.elements, canUndo = true, canRedo = future.isNotEmpty())
-        refreshPreview()
+        if (_uiState.value.isSaving || future.isEmpty() || retryViewportIfNeeded()) return
+        refreshPreview(future.last(), history + editState(), future.dropLast(1))
     }
-    fun clearAll() { if (!_uiState.value.isSaving) { checkpoint(); steps = emptyList(); _uiState.value = _uiState.value.copy(elements = emptyList()); refreshPreview() } }
+    fun clearAll() {
+        if (!_uiState.value.isSaving && !retryViewportIfNeeded()) refreshPreview(EditState(emptyList(), emptyList()), history + editState(), emptyList())
+    }
 
     fun saveAnnotatedImage(
         context: Context,
@@ -223,7 +264,7 @@ class PhotoAnnotationViewModel(
         viewHeight: Float
     ) {
         val media = _uiState.value.mediaItem ?: return
-        if (_uiState.value.isSaving || viewWidth <= 0 || viewHeight <= 0) return
+        if (_uiState.value.isSaving || viewWidth <= 0 || viewHeight <= 0 || retryViewportIfNeeded()) return
         val recipe = steps + if (_uiState.value.elements.isEmpty()) emptyList() else listOf(EditStep.Draw(_uiState.value.elements, viewWidth, viewHeight))
 
         _uiState.value = _uiState.value.copy(isSaving = true)
@@ -264,6 +305,10 @@ class PhotoAnnotationViewModel(
                         captureTimestamp = media.captureTimestamp,
                         latitude = media.latitude,
                         longitude = media.longitude,
+                        altitude = media.altitude,
+                        locationStatus = media.locationStatus,
+                        captureTimeZoneId = com.sitecam.app.core.watermark.model.WatermarkSnapshotCodec
+                            .decode(media.watermarkSnapshotJson)?.captureTimeZoneId,
                         addressText = media.addressText
                     ),
                     quality = profile.jpegQuality,
@@ -488,9 +533,9 @@ class PhotoAnnotationViewModel(
             for (x in minX..maxX) {
                 for (y in minY..maxY) {
                     paint.color = if ((x + y) and 1 == 0) {
-                        android.graphics.Color.argb(245, 24, 24, 24)
+                        android.graphics.Color.rgb(24, 24, 24)
                     } else {
-                        android.graphics.Color.argb(230, 72, 72, 72)
+                        android.graphics.Color.rgb(72, 72, 72)
                     }
                     canvas.drawRect(
                         RectF(x * cellSize, y * cellSize, (x + 1) * cellSize, (y + 1) * cellSize),

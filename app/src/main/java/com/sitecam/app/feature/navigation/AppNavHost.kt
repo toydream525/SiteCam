@@ -1,6 +1,8 @@
 package com.sitecam.app.feature.navigation
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
@@ -16,7 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Text
-import com.sitecam.app.core.layout.rememberScreenEnvironment
+import com.sitecam.app.core.layout.AdaptivePaneLayout
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberUpdatedState
@@ -154,7 +156,18 @@ fun AppNavHost(
                         fadeOut(animationSpec = springSpec)
                 }
             ) {
-        composable(Screen.Camera.route) {
+        composable(
+            route = Screen.Camera.route,
+            // The camera destination hosts a live preview surface. Translating
+            // or fading it as a whole reads as the capture area jerking (the
+            // preview keeps updating while the page slides), so the camera page
+            // stays put and the destination being opened or closed carries the
+            // animation instead.
+            enterTransition = { EnterTransition.None },
+            exitTransition = { ExitTransition.None },
+            popEnterTransition = { EnterTransition.None },
+            popExitTransition = { ExitTransition.None }
+        ) {
             val cameraViewModel: CameraViewModel = viewModel(
                 factory = CameraViewModel.provideFactory(appContainer)
             )
@@ -184,6 +197,12 @@ fun AppNavHost(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToGallery = { projectId ->
                     navController.navigate(Screen.Gallery.createRoute(projectId))
+                },
+                galleryPane = { id, onClose ->
+                    key(id) {
+                        val gallery: GalleryViewModel = viewModel(key = "project-gallery-$id", factory = GalleryViewModel.provideFactory(appContainer, id))
+                        GalleryScreen(gallery, onNavigateBack = onClose, onNavigateToDetail = { navController.navigate(Screen.PhotoDetail.createRoute(it)) })
+                    }
                 }
             )
         }
@@ -204,36 +223,31 @@ fun AppNavHost(
                 factory = GalleryViewModel.provideFactory(appContainer, projectId)
             )
             var selectedId by rememberSaveable { mutableStateOf<Long?>(null) }
-            val environment = rememberScreenEnvironment()
             BackHandler(selectedId != null) { selectedId = null }
-            BoxWithConstraints(Modifier.fillMaxSize()) {
-                val split = environment.profile.large && maxWidth >= 600.dp
-                val listWidth = if (split) (maxWidth * .4f).coerceIn(280.dp, 420.dp)
-                    else if (selectedId == null) maxWidth else 0.dp
-                Row(Modifier.fillMaxSize()) {
-                    // Stable composition slots preserve list scroll and the original detail state.
-                    Box(Modifier.width(listWidth).fillMaxHeight()) {
+            AdaptivePaneLayout(Modifier.fillMaxSize(), showSecondary = selectedId != null,
+                primary = {
                         GalleryScreen(
                             viewModel = galleryViewModel,
                             onNavigateBack = { navController.popBackStack() },
                             onNavigateToDetail = { selectedId = it },
                             selectedMediaId = selectedId
                         )
-                    }
-                    Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                }, secondary = {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         selectedId?.let { id ->
                             key(id) {
                                 val detail: PhotoDetailViewModel = viewModel(
                                     key = "gallery-detail-$id",
                                     factory = PhotoDetailViewModel.provideFactory(appContainer, id)
                                 )
+                                androidx.compose.material3.MaterialTheme(colorScheme = androidx.compose.material3.darkColorScheme(primary = com.sitecam.app.ui.theme.WarningYellow)) {
                                 PhotoDetailScreen(detail, onNavigateBack = { selectedId = null }, onMissingMedia = { selectedId = null },
                                     onNavigateToAnnotation = { navController.navigate(Screen.PhotoAnnotation.createRoute(it)) })
+                                }
                             }
-                        } ?: if (split) Text("选择照片或视频预览") else Unit
+                        } ?: Text("选择照片或视频预览")
                     }
-                }
-            }
+                })
         }
 
         composable(
@@ -321,10 +335,16 @@ fun AppNavHost(
                 },
                 onNavigateToHelp = {
                     navController.navigate(Screen.Help.route)
-                }
+                },
+                onNavigateToPermissions = { navController.navigate(Screen.Permissions.route) }
             )
         }
 
+        composable(Screen.Permissions.route) {
+            PermissionGuideScreen(management = true, preferences = onboardingPreferences,
+                requestedPermissions = onboardingState?.requestedPermissions.orEmpty(),
+                onContinue = { navController.popBackStack() })
+        }
         composable(Screen.Help.route) {
             HelpScreen(
                 onNavigateBack = { navController.popBackStack() },

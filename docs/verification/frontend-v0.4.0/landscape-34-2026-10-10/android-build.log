@@ -1,0 +1,62 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.13/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+Warning: SDK processing. This version only understands SDK XML versions up to 3 but an SDK XML file of version 4 was encountered. This can happen if you use versions of Android Studio and the command-line tools that were released at different times.
+> Task :app:syncUserGuideAsset UP-TO-DATE
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:kspDebugKotlin
+
+> Task :app:compileDebugKotlin
+w: file:///Users/ninja/Documents/%E5%B7%A5%E7%A8%8B%E6%B0%B4%E5%8D%B0%E7%9B%B8%E6%9C%BA/app/src/main/java/com/sitecam/app/core/camera/CameraManager.kt:316:14 'fun setTargetAspectRatio(p0: Int): @NonNull() Preview.Builder' is deprecated. Deprecated in Java.
+w: file:///Users/ninja/Documents/%E5%B7%A5%E7%A8%8B%E6%B0%B4%E5%8D%B0%E7%9B%B8%E6%9C%BA/app/src/main/java/com/sitecam/app/core/camera/CameraManager.kt:321:14 'fun setTargetAspectRatio(p0: Int): @NonNull() ImageCapture.Builder' is deprecated. Deprecated in Java.
+w: file:///Users/ninja/Documents/%E5%B7%A5%E7%A8%8B%E6%B0%B4%E5%8D%B0%E7%9B%B8%E6%9C%BA/app/src/main/java/com/sitecam/app/feature/camera/components/CameraTopBar.kt:396:88 'val Icons.Filled.RotateLeft: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.RotateLeft.
+w: file:///Users/ninja/Documents/%E5%B7%A5%E7%A8%8B%E6%B0%B4%E5%8D%B0%E7%9B%B8%E6%9C%BA/app/src/main/java/com/sitecam/app/feature/camera/components/CameraTopBar.kt:397:89 'val Icons.Filled.RotateRight: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.RotateRight.
+w: file:///Users/ninja/Documents/%E5%B7%A5%E7%A8%8B%E6%B0%B4%E5%8D%B0%E7%9B%B8%E6%9C%BA/app/src/main/java/com/sitecam/app/feature/settings/SettingsScreen.kt:87:54 'val Icons.Filled.VolumeUp: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.VolumeUp.
+w: file:///Users/ninja/Documents/%E5%B7%A5%E7%A8%8B%E6%B0%B4%E5%8D%B0%E7%9B%B8%E6%9C%BA/app/src/main/java/com/sitecam/app/feature/settings/SettingsScreen.kt:105:51 'val Icons.Filled.MenuBook: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.MenuBook.
+w: file:///Users/ninja/Documents/%E5%B7%A5%E7%A8%8B%E6%B0%B4%E5%8D%B0%E7%9B%B8%E6%9C%BA/app/src/main/java/com/sitecam/app/feature/settings/SettingsScreen.kt:153:59 'val Icons.Filled.MenuBook: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.MenuBook.
+w: file:///Users/ninja/Documents/%E5%B7%A5%E7%A8%8B%E6%B0%B4%E5%8D%B0%E7%9B%B8%E6%9C%BA/app/src/main/java/com/sitecam/app/feature/settings/SettingsScreen.kt:155:60 'val Icons.Filled.OpenInNew: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.OpenInNew.
+
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:compileDebugJavaWithJavac UP-TO-DATE
+> Task :app:mergeDebugShaders UP-TO-DATE
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets UP-TO-DATE
+> Task :app:compressDebugAssets UP-TO-DATE
+> Task :app:desugarDebugFileDependencies UP-TO-DATE
+> Task :app:dexBuilderDebug
+> Task :app:mergeDebugGlobalSynthetics UP-TO-DATE
+> Task :app:processDebugJavaRes UP-TO-DATE
+> Task :app:mergeDebugJavaResource UP-TO-DATE
+> Task :app:checkDebugDuplicateClasses UP-TO-DATE
+> Task :app:mergeExtDexDebug UP-TO-DATE
+> Task :app:mergeLibDexDebug UP-TO-DATE
+> Task :app:mergeProjectDexDebug
+> Task :app:mergeDebugJniLibFolders UP-TO-DATE
+> Task :app:mergeDebugNativeLibs UP-TO-DATE
+> Task :app:stripDebugDebugSymbols UP-TO-DATE
+> Task :app:validateSigningDebug UP-TO-DATE
+> Task :app:writeDebugAppMetadata UP-TO-DATE
+> Task :app:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect UP-TO-DATE
+> Task :app:assembleDebug
+
+BUILD SUCCESSFUL in 27s
+39 actionable tasks: 5 executed, 34 up-to-date

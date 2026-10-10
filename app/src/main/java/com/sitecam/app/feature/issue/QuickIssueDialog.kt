@@ -3,6 +3,11 @@ package com.sitecam.app.feature.issue
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,13 +32,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.sitecam.app.ui.theme.DarkCard
+import com.sitecam.app.ui.theme.PageCard as DarkCard
 import com.sitecam.app.ui.theme.EngineeringYellow
 import com.sitecam.app.ui.theme.ErrorRed
-import com.sitecam.app.ui.theme.TextPrimaryDark
-import com.sitecam.app.ui.theme.TextSecondaryDark
+import com.sitecam.app.ui.theme.PageText as TextPrimaryDark
+import com.sitecam.app.ui.theme.PageMuted as TextSecondaryDark
 import com.sitecam.app.ui.theme.WarningYellow
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun IssueDialog(
     mediaId: Long,
@@ -60,7 +66,7 @@ fun IssueDialog(
             )
         },
         text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding()) {
                 // Title Field
                 OutlinedTextField(
                     value = title,
@@ -68,7 +74,7 @@ fun IssueDialog(
                         title = it
                         if (it.isNotBlank()) isTitleError = false
                     },
-                    label = { Text("问题名称（如：临边未设防护栏）") },
+                    label = { Text("问题名称") },
                     isError = isTitleError,
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -98,7 +104,7 @@ fun IssueDialog(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium
                 )
-                Row(
+                FlowRow(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp),
@@ -141,7 +147,7 @@ fun IssueDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     listOf("PENDING" to "待处理", "IN_PROGRESS" to "处理中", "COMPLETED" to "已完成").forEach { (value, label) ->
                         FilterChip(selected = status == value, onClick = { status = value }, label = { Text(label) })
                     }
@@ -181,7 +187,7 @@ fun IssueDialog(
             }
         },
         dismissButton = {
-            Row {
+            FlowRow {
                 if (existingIssue != null && onRemove != null) TextButton(onClick = onRemove) { Text("取消问题", color = ErrorRed) }
                 TextButton(onClick = onDismiss) { Text("取消", color = TextSecondaryDark) }
             }

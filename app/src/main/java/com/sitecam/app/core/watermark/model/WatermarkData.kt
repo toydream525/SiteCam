@@ -1,8 +1,10 @@
 package com.sitecam.app.core.watermark.model
 
+import com.sitecam.app.core.location.LocationAcceptance
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 data class WatermarkFieldItem(
     val key: String,
@@ -34,13 +36,22 @@ data class WatermarkData(
     val fontSizeScale: Float = 1.0f,
     val opacity: Float = 0.85f,
     val marginDp: Int = 16,
-    val position: String = "BOTTOM_LEFT" // BOTTOM_LEFT, BOTTOM_RIGHT, TOP_LEFT, TOP_RIGHT
+    val position: String = "BOTTOM_LEFT", // BOTTOM_LEFT, BOTTOM_RIGHT, TOP_LEFT, TOP_RIGHT
+    /** Null keeps the historical behavior of snapshots that did not freeze a zone. */
+    val captureTimeZoneId: String? = null,
+    /** Frozen destination for a recording that is temporarily retained privately. */
+    val saveToSystemGallery: Boolean? = null
 ) {
     val formattedDate: String
-        get() = SimpleDateFormat("yyyy.MM.dd", Locale.getDefault()).format(Date(captureTimestamp))
+        get() = formatCaptureTime("yyyy.MM.dd")
 
     val formattedTime: String
-        get() = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(captureTimestamp))
+        get() = formatCaptureTime("HH:mm:ss")
+
+    fun formatCaptureTime(pattern: String): String =
+        SimpleDateFormat(pattern, Locale.getDefault()).apply {
+            captureTimeZoneId?.let { timeZone = TimeZone.getTimeZone(it) }
+        }.format(Date(captureTimestamp))
 
     fun builtInValue(key: String): String? {
         // Elevation is a live reading from the frozen capture location. A
@@ -70,9 +81,12 @@ data class WatermarkData(
     }
 
     val formattedGps: String?
-        get() = if (latitude != null && longitude != null) {
-            String.format(Locale.US, "%.6f, %.6f", latitude, longitude)
-        } else {
-            null
+        get() {
+            // Stored snapshots and legacy rows may hold NaN or the 0/0 "no fix"
+            // sentinel; such a row must hide instead of printing a fake fix.
+            val lat = latitude ?: return null
+            val lng = longitude ?: return null
+            if (!LocationAcceptance.isValidFix(lat, lng)) return null
+            return String.format(Locale.US, "%.6f, %.6f", lat, lng)
         }
 }

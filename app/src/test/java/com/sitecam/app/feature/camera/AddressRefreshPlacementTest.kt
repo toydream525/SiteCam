@@ -36,6 +36,17 @@ class AddressRefreshPlacementTest {
     }
 
     @Test
+    fun avoidsOverlaidToolbarAsWellAsWatermark() {
+        val toolbar = RectF(0f, 0f, 800f, 72f)
+        val watermark = RectF(12f, 300f, 440f, 580f)
+        val corner = chooseAddressRefreshCorner(800f, 600f, 48f, 48f, watermark,
+            reservedRects = listOf(toolbar))
+        val bounds = addressRefreshRectForCorner(corner, 800f, 600f, 48f, 48f)!!
+        assertFalse(RectF.intersects(bounds, toolbar))
+        assertFalse(RectF.intersects(bounds, watermark))
+    }
+
+    @Test
     fun fallsBackOutsidePreviewWhenNoInFramePositionIsSafe() {
         val corner = chooseAddressRefreshCorner(
             canvasWidth = 500f,

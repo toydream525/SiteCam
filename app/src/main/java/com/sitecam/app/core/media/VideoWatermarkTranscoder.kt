@@ -42,12 +42,18 @@ class VideoWatermarkTranscoder(private val context: Context) {
         inputFile: File,
         outputFile: File,
         watermarkData: WatermarkData
-    ): VideoTranscodeResult = withContext(Dispatchers.Main.immediate) {
-        require(inputFile.isFile && inputFile.length() > 0L) { "录像源文件不存在或为空" }
-        if (outputFile.exists()) outputFile.delete()
+    ): VideoTranscodeResult {
+        // File probes and MediaMetadataRetriever parsing block for hundreds of
+        // milliseconds on large or truncated recordings, so they must not run
+        // on the main thread.  Only Transformer construction and start need it.
+        val metadata = withContext(Dispatchers.IO) {
+            require(inputFile.isFile && inputFile.length() > 0L) { "录像源文件不存在或为空" }
+            if (outputFile.exists()) outputFile.delete()
 
-        val metadata = readMetadata(inputFile)
-        require(metadata.width > 0 && metadata.height > 0) { "无法读取录像尺寸" }
+            readMetadata(inputFile).also {
+                require(it.width > 0 && it.height > 0) { "无法读取录像尺寸" }
+            }
+        }
         // Transformer configures TextureOverlay with the dimensions of the
         // actual frame entering its GL pipeline.  Depending on the decoder
         // and rotation metadata this can be coded (1280x720) or presented
@@ -56,53 +62,55 @@ class VideoWatermarkTranscoder(private val context: Context) {
         // fixed bitmap here can otherwise be cropped or rotated out.
         val overlay = WatermarkBitmapOverlay(metadata, watermarkData)
 
-        suspendCancellableCoroutine { continuation ->
-            lateinit var transformer: Transformer
-            var completed = false
+        return withContext(Dispatchers.Main.immediate) {
+            suspendCancellableCoroutine { continuation ->
+                lateinit var transformer: Transformer
+                var completed = false
 
-            fun finish(result: Result<VideoTranscodeResult>) {
-                if (completed) return
-                completed = true
-                if (result.isFailure) outputFile.delete()
-                continuation.resumeWith(result)
-            }
-
-            val effects: List<Effect> = listOf(OverlayEffect(listOf(overlay)))
-            val editedMediaItem = EditedMediaItem.Builder(
-                MediaItem.fromUri(Uri.fromFile(inputFile))
-            ).setEffects(Effects(emptyList(), effects)).build()
-
-            val listener = object : Transformer.Listener {
-                override fun onCompleted(composition: Composition, result: Media3ExportResult) {
-                    finish(Result.success(VideoTranscodeResult(outputFile, metadata.durationMs)))
+                fun finish(result: Result<VideoTranscodeResult>) {
+                    if (completed) return
+                    completed = true
+                    if (result.isFailure) outputFile.delete()
+                    continuation.resumeWith(result)
                 }
 
-                override fun onError(
-                    composition: Composition,
-                    result: Media3ExportResult,
-                    exception: ExportException
-                ) {
-                    finish(Result.failure(exception))
-                }
-            }
+                val effects: List<Effect> = listOf(OverlayEffect(listOf(overlay)))
+                val editedMediaItem = EditedMediaItem.Builder(
+                    MediaItem.fromUri(Uri.fromFile(inputFile))
+                ).setEffects(Effects(emptyList(), effects)).build()
 
-            try {
-                transformer = Transformer.Builder(context)
-                    .setVideoMimeType(androidx.media3.common.MimeTypes.VIDEO_H264)
-                    .setAudioMimeType(androidx.media3.common.MimeTypes.AUDIO_AAC)
-                    .addListener(listener)
-                    .build()
-                continuation.invokeOnCancellation {
-                    transformer.cancel()
-                    outputFile.delete()
+                val listener = object : Transformer.Listener {
+                    override fun onCompleted(composition: Composition, result: Media3ExportResult) {
+                        finish(Result.success(VideoTranscodeResult(outputFile, metadata.durationMs)))
+                    }
+
+                    override fun onError(
+                        composition: Composition,
+                        result: Media3ExportResult,
+                        exception: ExportException
+                    ) {
+                        finish(Result.failure(exception))
+                    }
                 }
-                transformer.start(editedMediaItem, outputFile.absolutePath)
-            } catch (e: Exception) {
-                // Transformer normally releases effects through its frame
-                // processor.  If startup fails before that lifecycle exists,
-                // release the overlay explicitly.
-                runCatching { overlay.release() }
-                finish(Result.failure(e))
+
+                try {
+                    transformer = Transformer.Builder(context)
+                        .setVideoMimeType(androidx.media3.common.MimeTypes.VIDEO_H264)
+                        .setAudioMimeType(androidx.media3.common.MimeTypes.AUDIO_AAC)
+                        .addListener(listener)
+                        .build()
+                    continuation.invokeOnCancellation {
+                        transformer.cancel()
+                        outputFile.delete()
+                    }
+                    transformer.start(editedMediaItem, outputFile.absolutePath)
+                } catch (e: Exception) {
+                    // Transformer normally releases effects through its frame
+                    // processor.  If startup fails before that lifecycle exists,
+                    // release the overlay explicitly.
+                    runCatching { overlay.release() }
+                    finish(Result.failure(e))
+                }
             }
         }
     }

@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.sitecam.app.feature.camera.components
 
 import android.media.MediaActionSound
@@ -7,6 +9,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +30,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -53,6 +61,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
@@ -94,16 +103,22 @@ fun CameraBottomBar(
     landscapeBarWidth: Dp = 255.dp,
     compactGroup: Boolean = false,
     smallCover: Boolean = false,
+    phoneGripSpace: Boolean = false,
+    onPortraitMinimumHeightChanged: (Dp) -> Unit = {},
     onModeChange: (CaptureMode) -> Unit,
     onShutterClick: () -> Unit,
     onGalleryClick: () -> Unit,
     onFlipCameraClick: () -> Unit,
+    onFlipCameraLongClick: (() -> Unit)? = null,
     captureAllowed: Boolean = true,
     isBusy: Boolean = false,
     shutterSoundEnabled: Boolean = true,
     thumbnailBounceToken: Long = 0L,
     addressRefreshFallbackState: String? = null,
     onAddressRefreshFallbackClick: (() -> Unit)? = null,
+    onWatermarkClick: () -> Unit = {},
+    onIssueClick: () -> Unit = {},
+    issueActive: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -135,74 +150,16 @@ fun CameraBottomBar(
         onShutterClick()
     }
 
-    if (smallCover) {
-        BoxWithConstraints(modifier.testTag("cover-controls").width(56.dp).fillMaxHeight().background(Letterbox), contentAlignment = Alignment.Center) {
-            val showSecondary = maxHeight >= 156.dp
-            val fallbackSlot = smallCoverAddressFallbackSlot(maxHeight.value)
-            var galleryMenuExpanded by remember(addressRefreshFallbackState) { mutableStateOf(false) }
-            val fallbackNeedsMenu = addressRefreshFallbackState != null &&
-                onAddressRefreshFallbackClick != null && fallbackSlot == null
-            if (addressRefreshFallbackState != null && onAddressRefreshFallbackClick != null && fallbackSlot != null) {
-                IconButton(
-                    onClick = onAddressRefreshFallbackClick,
-                    enabled = !isBusy && addressRefreshFallbackState != "REFRESHING",
-                    modifier = Modifier
-                        .offset(fallbackSlot.left.dp, fallbackSlot.top.dp)
-                        .size(fallbackSlot.width().dp)
-                        .semantics { contentDescription = "${addressRefreshFallbackStateDescription(addressRefreshFallbackState)}，点击重试" }
-                        .align(Alignment.TopStart)
-                ) {
-                    if (addressRefreshFallbackState == "REFRESHING") {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = EngineeringYellow, strokeWidth = 2.dp)
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "${addressRefreshFallbackStateDescription(addressRefreshFallbackState)}，点击重试",
-                            tint = EngineeringYellow,
-                            modifier = Modifier.size((fallbackSlot.width() * .72f).dp)
-                        )
-                    }
-                }
-            }
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (showSecondary) {
-                    GalleryButton(
-                        latestThumbnailUri,
-                        latestMediaType,
-                        !isBusy,
-                        44.dp,
-                        thumbnailScale.value,
-                        onGalleryClick,
-                        onLongClick = if (fallbackNeedsMenu) {
-                            { galleryMenuExpanded = true }
-                        } else null
-                    )
-                }
-                ShutterButton(captureMode, isCapturing || (!captureAllowed && !isRecordingVideo), isRecordingVideo, shutterScale.value, 44.dp, ::fireShutter)
-                if (showSecondary) FlipButton(!isBusy, 44.dp, onFlipCameraClick)
-            }
-            if (fallbackNeedsMenu) {
-                DropdownMenu(
-                    expanded = galleryMenuExpanded,
-                    onDismissRequest = { galleryMenuExpanded = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("刷新地址") },
-                        onClick = {
-                            galleryMenuExpanded = false
-                            onAddressRefreshFallbackClick?.invoke()
-                        }
-                    )
-                }
-            }
-        }
-    } else if (isLandscape) {
+    if (isLandscape || smallCover) {
         LandscapeControlDock(
             compactGroup = compactGroup,
+            phoneGripSpace = phoneGripSpace,
+            addressRefreshState = addressRefreshFallbackState,
+            onAddressRefresh = onAddressRefreshFallbackClick,
             modifier = modifier
                 .testTag("camera-controls")
                 .fillMaxHeight()
-                .width(landscapeBarWidth)
+                .width(if (smallCover) 56.dp else landscapeBarWidth)
                 .background(Letterbox)
                 .clipToBounds(),
             latestThumbnailUri = latestThumbnailUri,
@@ -220,10 +177,16 @@ fun CameraBottomBar(
             onModeChange = onModeChange,
             onGalleryClick = onGalleryClick,
             onFlipCameraClick = onFlipCameraClick,
-            onShutterClick = ::fireShutter
+            onFlipCameraLongClick = onFlipCameraLongClick,
+            onShutterClick = ::fireShutter,
+            onWatermarkClick = onWatermarkClick, onIssueClick = onIssueClick, issueActive = issueActive
         )
     } else {
         PortraitControlDock(
+            phoneGripSpace = phoneGripSpace,
+            onMinimumHeightChanged = onPortraitMinimumHeightChanged,
+            addressRefreshState = addressRefreshFallbackState,
+            onAddressRefresh = onAddressRefreshFallbackClick,
             modifier = modifier
                 .fillMaxSize()
                 .background(Letterbox)
@@ -243,7 +206,9 @@ fun CameraBottomBar(
             onModeChange = onModeChange,
             onGalleryClick = onGalleryClick,
             onFlipCameraClick = onFlipCameraClick,
-            onShutterClick = ::fireShutter
+            onFlipCameraLongClick = onFlipCameraLongClick,
+            onShutterClick = ::fireShutter,
+            onWatermarkClick = onWatermarkClick, onIssueClick = onIssueClick, issueActive = issueActive
         )
     }
 }
@@ -258,6 +223,10 @@ private fun addressRefreshFallbackStateDescription(state: String): String = when
 
 @Composable
 private fun PortraitControlDock(
+    phoneGripSpace: Boolean,
+    onMinimumHeightChanged: (Dp) -> Unit,
+    addressRefreshState: String?,
+    onAddressRefresh: (() -> Unit)?,
     modifier: Modifier,
     latestThumbnailUri: String?,
     latestMediaType: String?,
@@ -274,120 +243,60 @@ private fun PortraitControlDock(
     onModeChange: (CaptureMode) -> Unit,
     onGalleryClick: () -> Unit,
     onFlipCameraClick: () -> Unit,
-    onShutterClick: () -> Unit
-) {
-    BoxWithConstraints(modifier = modifier) {
-        val fontScale = LocalDensity.current.fontScale
-        // `compact`/`veryCompact` may now only tighten spacing. They used to also shrink the
-        // shutter and the zoom rail, which made large-font text sit in an even smaller box.
-        val compact = maxHeight < 205.dp || fontScale >= 1.25f
-        val veryCompact = maxHeight < 170.dp || fontScale >= 1.45f
-        // Button sizes follow the window only, never the font scale.
-        val shortDock = maxHeight < 205.dp
-        val veryShortDock = maxHeight < 170.dp
-        val verticalPadding = when {
-            veryCompact -> 4.dp
-            compact -> 7.dp
-            else -> 10.dp
+    onFlipCameraLongClick: (() -> Unit)?,
+    onShutterClick: () -> Unit,
+    onWatermarkClick: () -> Unit,
+    onIssueClick: () -> Unit,
+    issueActive: Boolean
+ ) {
+    BoxWithConstraints(modifier) {
+        val density = LocalDensity.current
+        val fontScale = density.fontScale
+        val oneRow = maxWidth.value - 40f >= 126f * fontScale + 90f
+        val verticalModes = maxWidth.value - 40f < 56f * fontScale + 58f
+        val verticalPadding = if (phoneGripSpace) 2.dp else 6.dp
+        val gap = if (phoneGripSpace) 4.dp else 8.dp
+        val shutterSize = 72.dp
+        val gripHeight = 64.dp
+        var naturalControlsHeight by remember { mutableStateOf(0) }
+        LaunchedEffect(naturalControlsHeight, phoneGripSpace, maxWidth, maxHeight, fontScale, density.density) {
+            if (phoneGripSpace && naturalControlsHeight > 0) {
+                val fixedHeight = with(density) {
+                    verticalPadding.roundToPx() * 2 + gap.roundToPx() * 2 +
+                        shutterSize.roundToPx() + gripHeight.roundToPx()
+                }
+                onMinimumHeightChanged(with(density) { (naturalControlsHeight + fixedHeight + 1).toDp() })
+            }
         }
-        val sectionGap = when {
-            veryCompact -> 1.dp
-            compact -> 3.dp
-            else -> 6.dp
-        }
-        val shutterSize = when {
-            veryShortDock -> 56.dp
-            shortDock -> 64.dp
-            else -> 72.dp
-        }
-        val sideButtonSize = if (veryShortDock) 40.dp else 46.dp
-        val dockLift = when {
-            veryCompact -> 4.dp
-            compact -> 6.dp
-            else -> 10.dp
-        }
-
-        // Same rule as modeHeight below: the zoom rail keeps its 48dp touch-target floor and grows
-        // with the scaled label line height, matching ZoomPillGroup's own measurement.
-        val zoomHeight = if (zoomPresets.isEmpty()) 0.dp
-            else maxOf(48f, (if (compact) 14f else 17f) * fontScale).dp
-        val modeHeight = ((if (isRecordingVideo) { if (compact) 16f else 18f }
-            else { if (compact) 17f else 20f }) * fontScale).dp + if (isRecordingVideo) 10.dp else 0.dp
-        // Distance between the mode selector and the shutter row. It used to be sectionGap (6dp)
-        // minus an 8dp upward offset on the shutter row, i.e. the two controls were touching and
-        // taps aimed at "拍照/录像" could land on the shutter.
-        val modeShutterGap = if (veryCompact) 10.dp else if (compact) 14.dp else 18.dp
-        val contentHeight = zoomHeight + modeHeight + sectionGap + modeShutterGap + shutterSize
-        val liftRoom = ((maxHeight - contentHeight) / 2 - dockLift - 2.dp).coerceAtLeast(0.dp)
-        // No extra lift: the dock is top-aligned in its band (see verticalArrangement below), so all
-        // the slack already collects below the shutter exactly like the system camera app does.
-        val controlsLift = 0.dp.coerceAtMost(liftRoom)
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .offset(y = -dockLift)
-                .padding(horizontal = 22.dp, vertical = verticalPadding),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            // Top-aligned, not centred: the reference camera app keeps its mode strip right under the
-            // preview and leaves the remaining band empty below the shutter (~66dp on the phone).
-            verticalArrangement = Arrangement.Top
-        ) {
-            Column(
-                modifier = Modifier.offset(y = -controlsLift),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                ZoomPillGroup(
-                    presets = zoomPresets,
-                    currentZoomRatio = currentZoomRatio,
-                    onZoomSelected = onZoomSelected,
-                    compact = compact
-                )
-
-                Spacer(Modifier.height(sectionGap))
-
-                if (isRecordingVideo) {
-                    RecordingTimer(recordingDurationSeconds, compact = compact)
-                } else {
-                    ModeSelector(
-                        captureMode = captureMode,
-                        vertical = false,
-                        compact = compact,
-                        enabled = !isBusy,
-                        onModeChange = onModeChange
-                    )
+        Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = verticalPadding),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(gap)) {
+            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+                // Measure inside the scroll viewport, where the text is
+                // unconstrained. Clear its inherited minimum height too,
+                // so reporting the viewport cannot grow the dock in a loop.
+                .then(if (phoneGripSpace) Modifier.wrapContentHeight(Alignment.Top, unbounded = true)
+                    .onSizeChanged { naturalControlsHeight = it.height } else Modifier),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(gap)) {
+                DockZoomControls(zoomPresets, currentZoomRatio, onZoomSelected, addressRefreshState, onAddressRefresh, isBusy)
+                if (!oneRow) {
+                    if (isRecordingVideo) RecordingTimer(recordingDurationSeconds, true)
+                    else ModeSelector(captureMode, verticalModes, true, !isBusy, onModeChange)
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    CameraAction("水印", Icons.Default.WaterDrop, !isBusy, false, onWatermarkClick)
+                    if (oneRow) {
+                        if (isRecordingVideo) RecordingTimer(recordingDurationSeconds, true)
+                        else ModeSelector(captureMode, false, true, !isBusy, onModeChange)
+                    }
+                    CameraAction("记问题", Icons.Default.EditNote, !isBusy, issueActive, onIssueClick)
                 }
             }
-
-            Spacer(Modifier.height(modeShutterGap))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                GalleryButton(
-                    uri = latestThumbnailUri,
-                    mediaType = latestMediaType,
-                    enabled = !isBusy,
-                    size = sideButtonSize,
-                    scale = thumbnailScale,
-                    onClick = onGalleryClick
-                )
-                ShutterButton(
-                    captureMode = captureMode,
-                    isCapturing = isCapturing,
-                    isRecordingVideo = isRecordingVideo,
-                    scale = shutterScale,
-                    outerSize = shutterSize,
-                    onClick = onShutterClick
-                )
-                FlipButton(
-                    enabled = !isBusy,
-                    size = sideButtonSize,
-                    onClick = onFlipCameraClick
-                )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                GalleryButton(latestThumbnailUri, latestMediaType, !isBusy, 48.dp, thumbnailScale, onGalleryClick)
+                ShutterButton(captureMode, isCapturing, isRecordingVideo, shutterScale, shutterSize, onShutterClick)
+                FlipButton(!isBusy, 48.dp, onFlipCameraClick, onFlipCameraLongClick)
             }
+            if (phoneGripSpace) Spacer(Modifier.height(gripHeight))
         }
     }
 }
@@ -395,6 +304,9 @@ private fun PortraitControlDock(
 @Composable
 private fun LandscapeControlDock(
     compactGroup: Boolean,
+    phoneGripSpace: Boolean,
+    addressRefreshState: String?,
+    onAddressRefresh: (() -> Unit)?,
     modifier: Modifier,
     latestThumbnailUri: String?,
     latestMediaType: String?,
@@ -411,90 +323,113 @@ private fun LandscapeControlDock(
     onModeChange: (CaptureMode) -> Unit,
     onGalleryClick: () -> Unit,
     onFlipCameraClick: () -> Unit,
-    onShutterClick: () -> Unit
-) {
-    BoxWithConstraints(modifier = modifier) {
+    onFlipCameraLongClick: (() -> Unit)?,
+    onShutterClick: () -> Unit,
+    onWatermarkClick: () -> Unit,
+    onIssueClick: () -> Unit,
+    issueActive: Boolean
+ ) {
+    BoxWithConstraints(modifier) {
         val fontScale = LocalDensity.current.fontScale
-        // Window size decides the button sizes; fontScale only tightens the spacing.
-        val windowCompact = maxWidth < 235.dp || maxHeight < 360.dp
-        val compact = windowCompact || fontScale >= 1.25f
-        val shutterSize = if (windowCompact) 58.dp else 68.dp
-        val sideButtonSize = if (windowCompact) 40.dp else 46.dp
-        val horizontalPadding = if (compact) 4.dp else 8.dp
-        val lensModeGap = if (compact) 2.dp else 4.dp
-        // Keep the shutter group's absolute edge distance close to portrait:
-        // portrait sits ~100dp above the bottom edge on the connected device,
-        // so landscape uses a comparable distance from the right edge.
-        // Minimum clearance between the mode switch and the shutter column. Measured on the phone
-        // the two were 4dp apart in landscape once the dock filled up, which is why taps aimed at
-        // 拍照/录像 landed on the shutter. Deducted from gripInset to compensate for the clearance
-        // spacer, preserving the shutter column's absolute position.
-        val modeShutterClearance = if (compact) 14.dp else 20.dp
-        val gripInset = (if (compact) 58.dp else 68.dp) - modeShutterClearance
-        val groupHeight = (if (compactGroup) maxHeight.coerceAtMost(320.dp) else maxHeight) - 24.dp
-
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(start = horizontalPadding, end = horizontalPadding + gripInset, top = 12.dp, bottom = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Start
-        ) {
-            ZoomPillGroup(
-                presets = zoomPresets,
-                currentZoomRatio = currentZoomRatio,
-                onZoomSelected = onZoomSelected,
-                isVertical = true,
-                compact = compact
-            )
-
-            Spacer(Modifier.width(lensModeGap))
-
-            if (isRecordingVideo) {
-                RecordingTimer(recordingDurationSeconds, compact = compact)
-            } else {
-                ModeSelector(
-                    captureMode = captureMode,
-                    vertical = true,
-                    compact = compact,
-                    enabled = !isBusy,
-                    onModeChange = onModeChange
-                )
+        val modeVertical = maxWidth.value - 16f < 56f * fontScale + 56f
+        val narrow = maxWidth < 112.dp
+        val shutter = minOf(maxWidth * .72f, if(maxHeight < 500.dp) 80.dp else 100.dp).coerceAtLeast(48.dp)
+        val phonePanelHeight = ((maxHeight - shutter - 32.dp) / 2).coerceAtLeast(0.dp)
+        if (phoneGripSpace) {
+            Column(Modifier.fillMaxSize().padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+                    .heightIn(min = phonePanelHeight),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (isRecordingVideo) RecordingTimer(recordingDurationSeconds, false)
+                    else Row(Modifier.fillMaxWidth()) {
+                        LandscapeModeLabel("拍照", captureMode == CaptureMode.PHOTO, !isBusy,
+                            Modifier.weight(1f)) { onModeChange(CaptureMode.PHOTO) }
+                        LandscapeModeLabel("录像", captureMode == CaptureMode.VIDEO, !isBusy,
+                            Modifier.weight(1f)) { onModeChange(CaptureMode.VIDEO) }
+                    }
+                    if (zoomPresets.isNotEmpty())
+                        DockZoomControls(zoomPresets, currentZoomRatio, onZoomSelected, null, null, isBusy)
+                    Spacer(Modifier.weight(1f))
+                    GalleryButton(latestThumbnailUri, latestMediaType, !isBusy, 48.dp, thumbnailScale, onGalleryClick)
+                    Spacer(Modifier.weight(1f))
+                }
+                ShutterButton(captureMode, isCapturing, isRecordingVideo, shutterScale, shutter, onShutterClick)
+                Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+                    .heightIn(min = phonePanelHeight),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Spacer(Modifier.weight(1f))
+                    FlipButton(!isBusy, 48.dp, onFlipCameraClick, onFlipCameraLongClick)
+                    if (onAddressRefresh != null && addressRefreshState != null)
+                        AddressRefreshDockButton(addressRefreshState, onAddressRefresh, isBusy)
+                    Spacer(Modifier.weight(1f))
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                            CameraAction("水印", Icons.Default.WaterDrop, !isBusy, false, onWatermarkClick)
+                        }
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                            CameraAction("记问题", Icons.Default.EditNote, !isBusy, issueActive, onIssueClick)
+                        }
+                    }
+                }
             }
-
-            Spacer(Modifier.weight(1f))
-            Spacer(Modifier.width(modeShutterClearance))
-
-            Column(
-                modifier = Modifier
-                    .height(groupHeight.coerceAtLeast(1.dp))
-                    .padding(vertical = if (compact) 10.dp else 14.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                GalleryButton(
-                    uri = latestThumbnailUri,
-                    mediaType = latestMediaType,
-                    enabled = !isBusy,
-                    size = sideButtonSize,
-                    scale = thumbnailScale,
-                    onClick = onGalleryClick
-                )
-                ShutterButton(
-                    captureMode = captureMode,
-                    isCapturing = isCapturing,
-                    isRecordingVideo = isRecordingVideo,
-                    scale = shutterScale,
-                    outerSize = shutterSize,
-                    onClick = onShutterClick
-                )
-                FlipButton(
-                    enabled = !isBusy,
-                    size = sideButtonSize,
-                    onClick = onFlipCameraClick
-                )
+            return@BoxWithConstraints
+        }
+        Column(Modifier.fillMaxSize().padding(horizontal = if(narrow) 2.dp else 8.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically)) {
+                if (!narrow) DockZoomControls(zoomPresets, currentZoomRatio, onZoomSelected, addressRefreshState, onAddressRefresh, isBusy)
+                else if (onAddressRefresh != null && addressRefreshState != null) {
+                    AddressRefreshDockButton(addressRefreshState, onAddressRefresh, isBusy)
+                }
+                if (isRecordingVideo) RecordingTimer(recordingDurationSeconds, false)
+                else ModeSelector(captureMode, modeVertical, true, !isBusy, onModeChange)
+                GalleryButton(latestThumbnailUri, latestMediaType, !isBusy, if(narrow) 48.dp else 64.dp, thumbnailScale, onGalleryClick)
+            }
+            ShutterButton(captureMode, isCapturing, isRecordingVideo, shutterScale, shutter, onShutterClick)
+            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically)) {
+                FlipButton(!isBusy, 48.dp, onFlipCameraClick, onFlipCameraLongClick)
+                androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    CameraAction("水印", Icons.Default.WaterDrop, !isBusy, false, onWatermarkClick)
+                    CameraAction("记问题", Icons.Default.EditNote, !isBusy, issueActive, onIssueClick)
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun LandscapeModeLabel(text: String, selected: Boolean, enabled: Boolean,
+    modifier: Modifier, onClick: () -> Unit) {
+    Column(modifier.heightIn(min = 48.dp).clickable(enabled = enabled, onClick = onClick)
+        .padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)) {
+        Text(text, color = if (selected) EngineeringYellow else Color.White,
+            fontSize = 16.sp, maxLines = 1, fontWeight = FontWeight.Medium)
+        Box(Modifier.size(5.dp).background(if (selected) EngineeringYellow else Color.Transparent, CircleShape))
+    }
+}
+
+@Composable
+private fun DockZoomControls(presets: List<Float>, current: Float, onZoom: (Float) -> Unit,
+    refreshState: String?, onRefresh: (() -> Unit)?, isBusy: Boolean) {
+    Row(Modifier.widthIn(max = 220.dp), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center) {
+        ZoomPillGroup(presets, current, onZoom, compact = true, modifier = Modifier.weight(1f, fill = false))
+        if (refreshState != null && onRefresh != null) AddressRefreshDockButton(refreshState, onRefresh, isBusy)
+    }
+}
+
+@Composable
+private fun AddressRefreshDockButton(state: String, onRefresh: () -> Unit, isBusy: Boolean) {
+    IconButton(onClick = onRefresh, enabled = !isBusy && state != "REFRESHING", modifier = Modifier.size(48.dp)) {
+        if (state == "REFRESHING") CircularProgressIndicator(Modifier.size(24.dp), color = EngineeringYellow, strokeWidth = 2.dp)
+        else Icon(Icons.Default.Refresh, "刷新地址", tint = EngineeringYellow)
     }
 }
 
@@ -535,26 +470,15 @@ private fun ModeLabel(
     enabled: Boolean,
     onClick: () -> Unit
 ) {
-    Text(
-        text = text,
-        color = if (selected) EngineeringYellow else Color.White.copy(alpha = 0.62f),
-        fontSize = if (compact) 13.sp else 15.sp,
-        lineHeight = if (compact) 17.sp else 20.sp,
-        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-        maxLines = 1,
-        softWrap = false,
-        // Ellipsis, never Clip: a hard cut is how scaled CJK labels lose their last stroke.
-        overflow = TextOverflow.Ellipsis,
-        modifier = Modifier
-            // Material's 48dp minimum touch target. The label used to be a bare ~20dp Text, so a
-            // tap that missed it by a few pixels hit the shutter instead.
-            // Invisible 48dp touch target: the label keeps its original text-only look, but a tap
-            // a few pixels off no longer lands on the shutter.
-            .background(Letterbox.copy(alpha = 0.72f), RoundedCornerShape(18.dp))
-            .heightIn(min = 48.dp)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 14.dp)
-    )
+    Box(Modifier.heightIn(min = 48.dp)
+        .clip(RoundedCornerShape(24.dp))
+        .background(if (selected) EngineeringYellow else Color.Transparent)
+        .clickable(enabled = enabled, onClick = onClick)
+        .padding(horizontal = if(compact) 12.dp else 20.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
+        Text(text, color = if (selected) Color.Black else Color.White,
+            fontSize = if(compact) 14.sp else 16.sp, fontWeight = if(selected) FontWeight.Bold else FontWeight.Medium,
+            maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
 }
 
 @Composable
@@ -642,22 +566,14 @@ private fun GalleryButton(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun FlipButton(enabled: Boolean, size: Dp, onClick: () -> Unit) {
-    IconButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(Color(0xFF171717))
-    ) {
-        Icon(
-            Icons.Default.FlipCameraAndroid,
-            "切换镜头",
-            tint = Color.White,
-            modifier = Modifier.size(size * 0.56f)
-        )
+private fun FlipButton(enabled: Boolean, size: Dp, onClick: () -> Unit, onLongClick: (() -> Unit)? = null) {
+    Box(Modifier.size(size).clip(CircleShape).background(Color(0xFF171717))
+        .combinedClickable(enabled = enabled, onClick = onClick, onLongClick = onLongClick,
+            onLongClickLabel = if (onLongClick != null) "选择镜头" else null), contentAlignment = Alignment.Center) {
+        Icon(Icons.Default.FlipCameraAndroid, "切换镜头", tint = Color.White.copy(alpha = if(enabled) 1f else .38f),
+            modifier = Modifier.size(26.dp))
     }
 }
 
@@ -667,8 +583,8 @@ private fun RecordingTimer(seconds: Int, compact: Boolean, modifier: Modifier = 
     Text(
         text = text,
         color = Color.White,
-        fontSize = if (compact) 12.sp else 14.sp,
-        lineHeight = if (compact) 16.sp else 18.sp,
+        fontSize = 14.sp,
+        lineHeight = 18.sp,
         fontWeight = FontWeight.Bold,
         maxLines = 1,
         softWrap = false,
@@ -678,4 +594,14 @@ private fun RecordingTimer(seconds: Int, compact: Boolean, modifier: Modifier = 
             .background(ErrorRed.copy(alpha = 0.24f))
             .padding(horizontal = if (compact) 8.dp else 12.dp, vertical = 5.dp)
     )
+}
+
+@Composable
+private fun CameraAction(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, enabled: Boolean,
+    active: Boolean, onClick: () -> Unit, large: Boolean = false) {
+    Column(Modifier.heightIn(min = 48.dp).widthIn(min = 48.dp).clickable(enabled = enabled, onClick = onClick).padding(4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(icon, label, Modifier.size(24.dp), tint = (if (active) EngineeringYellow else Color.White).copy(alpha = if(enabled) 1f else .38f))
+        Text(label, color = (if (active) EngineeringYellow else Color.White).copy(alpha = if(enabled) 1f else .38f), fontSize = if(large) 15.sp else 14.sp)
+    }
 }

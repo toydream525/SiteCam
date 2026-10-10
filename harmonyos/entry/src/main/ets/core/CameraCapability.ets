@@ -105,62 +105,52 @@ export function nearbyZoomPointFocalLength(ratio: number, pointRatios: number[],
   return Number.isFinite(focal)&&focal>0?focal:0;
 }
 
-/**
- * Build the small set of common controls from the actual session range.
- * API 26 zoom points describe views, but do not prove an independently
- * accessible physical telephoto member, so they never become extra buttons.
- * The lower bound is kept as a real entry (for example 0.54).
- */
+/** Keep only supplied native lens ratios that this session can reach. */
 export function buildZoomPresets(minimum: number, maximum: number, points: number[] = []): number[] {
   if (!Number.isFinite(minimum) || !Number.isFinite(maximum) || maximum < minimum) return [];
-  const min = cleanZoom(Math.max(0.01, minimum));
-  const max = cleanZoom(Math.max(min, maximum));
   const values: number[] = [];
-  const add = (value: number, force: boolean = false): void => {
-    if (!Number.isFinite(value)) return;
-    const candidate = cleanZoom(Math.max(min, Math.min(max, value)));
-    // `force` keeps a real lower bound even when it is close to a common
-    // control, but it must never create a duplicate key for ForEach.
+  const add = (value: number): void => {
+    if (!Number.isFinite(value) || value <= 0 || value < minimum || value > maximum) return;
+    const candidate = cleanZoom(value);
     if (values.some((existing: number) => Math.abs(existing - candidate) < 0.0001)) return;
-    if (force || values.every((existing: number) => Math.abs(existing - candidate) >= 0.08)) values.push(candidate);
+    values.push(candidate);
   };
-  add(min, true);
-  if (1 >= min && 1 <= max) add(1);
-  if (2 >= min && 2 <= max) add(2);
-  // A range below 1× still needs a reachable upper control.  Larger ranges
-  // keep the UI focused on 1×/2×; pinch zoom remains continuous above 2×.
-  if (max < 1 && max - min >= 0.08) add(max);
+  for (const point of points) add(point);
   values.sort((a: number, b: number) => a - b);
   return values;
 }
 
-/**
- * Build display presets in the main-camera reference scale.  A physical
- * telephoto entry is added only when the caller has independently confirmed
- * that the current session is that physical member; zoom point metadata alone
- * is intentionally insufficient.
- */
-export function buildReferenceZoomPresets(minimum: number, maximum: number, factor: number=1, points: number[] = [], physicalTelephoto: boolean = false): number[] {
+/** Supplied points describe native members, never arbitrary digital zoom stops. */
+export function buildReferenceZoomPresets(minimum: number, maximum: number, factor: number=1, points: number[] = [], physicalLens: boolean = false): number[] {
   const safeFactor=Number.isFinite(factor)&&factor>0?factor:1;
-  if(!Number.isFinite(minimum)||!Number.isFinite(maximum)||maximum<minimum)return [];
-  const referenceMinimum=cleanZoom(Math.max(0.01,minimum*safeFactor));
-  const referenceMaximum=cleanZoom(Math.max(referenceMinimum,maximum*safeFactor));
-  const values:number[]=[];
-  const add=(value:number, force: boolean = false): void=>{
-    if(!Number.isFinite(value))return;
-    const candidate=cleanZoom(Math.max(referenceMinimum,Math.min(referenceMaximum,value)));
-    // A forced physical-lens entry may be close to the minimum, but exact
-    // duplicates are still invalid UI keys and do not represent two controls.
-    if(values.some((existing:number)=>Math.abs(existing-candidate)<0.0001))return;
-    if(force||values.every((existing:number)=>Math.abs(existing-candidate)>=0.08))values.push(candidate);
-  };
-  add(referenceMinimum, true);
-  if(1>=referenceMinimum&&1<=referenceMaximum)add(1);
-  if(2>=referenceMinimum&&2<=referenceMaximum)add(2);
-  if(physicalTelephoto&&safeFactor>1)add(safeFactor, true);
-  if(referenceMaximum<1&&referenceMaximum-referenceMinimum>=0.08)add(referenceMaximum);
-  values.sort((a:number,b:number)=>a-b);
-  return values;
+  const native=points.slice();
+  if(physicalLens)native.push(1);
+  return buildZoomPresets(minimum,maximum,native).map((point:number)=>cleanZoom(point*safeFactor));
+}
+
+/** Reachable session shortcuts; these ratios do not claim a physical lens identity. */
+export function buildSessionZoomPresets(minimum:number,maximum:number,factor:number=1,points:number[]=[]):number[] {
+  const values=points.slice();
+  values.push(minimum,1);
+  const safeFactor=Number.isFinite(factor)&&factor>0?factor:1;
+  return buildZoomPresets(minimum,maximum,values).map((value:number)=>cleanZoom(value*safeFactor));
+}
+
+/** Highest native ratio not above the requested field of view; no cross-facing switch. */
+export function nativeLensForZoom(capabilities: CameraLensCapability[], active: number, requested: number, videoMode: boolean): number {
+  const current=capabilities[active];
+  if(!current||(!current.logical&&!current.referenceZoomMapped)||!Number.isFinite(requested)||requested<=0)return active;
+  const candidates:number[]=[];
+  for(let i=0;i<capabilities.length;i++){
+    const lens=capabilities[i];
+    if(!lens.logical&&lens.cameraPosition===current.cameraPosition&&lens.appAccessible&&lens.referenceZoomMapped&&lens.photoOutputCandidate&&(!videoMode||lens.videoOutputCandidate))candidates.push(i);
+  }
+  candidates.sort((a:number,b:number)=>capabilities[a].referenceZoomFactor-capabilities[b].referenceZoomFactor);
+  if(!candidates.length)return active;
+  let target=candidates[0];
+  for(const index of candidates)if(capabilities[index].referenceZoomFactor<=requested+0.0001)target=index;
+  if(candidates.includes(active)&&Math.abs(capabilities[target].referenceZoomFactor-current.referenceZoomFactor)<0.0001)return active;
+  return target;
 }
 
 export function zoomPresetLabel(value: number): string {

@@ -1,4 +1,4 @@
-import { SITE_ACCENT, SITE_CARD, SITE_MUTED, SITE_TEXT } from './UiPrimitives';
+import { SITE_ACCENT, PAGE_CARD as SITE_CARD, PAGE_MUTED as SITE_MUTED, PAGE_TEXT as SITE_TEXT } from './UiPrimitives';
 
 @CustomDialog
 export struct ProjectCategoryDialog {
@@ -13,7 +13,7 @@ export struct ProjectCategoryDialog {
       Scroll() {
         Column({ space: 5 }) {
           ForEach(this.categories, (category: string) => {
-            Button(category).width('100%').height(40).fontSize(13).fontColor(SITE_TEXT).backgroundColor('#303030').onClick(() => { this.controller.close(); this.onSelect(category); });
+            Button(category).width('100%').height(40).fontSize(13).fontColor(SITE_TEXT).backgroundColor($r('app.color.card_raised')).onClick(() => { this.controller.close(); this.onSelect(category); });
           }, (category: string) => category);
         }.width('100%');
       }.width('100%').constraintSize({ maxHeight: 260 }).scrollBar(BarState.Off);

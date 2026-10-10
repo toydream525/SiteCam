@@ -30,7 +30,7 @@ class CameraCapabilityTest {
     }
 
     @Test
-    fun fromZoomStateKeepsActualWideLowerBound() {
+    fun zoomRangeDoesNotInventOpticalPresets() {
         val state = mockk<ZoomState>()
         every { state.minZoomRatio } returns 0.54f
         every { state.maxZoomRatio } returns 8.0f
@@ -38,7 +38,7 @@ class CameraCapabilityTest {
         val capability = CameraCapability.fromZoomState(state)
 
         assertEquals(0.54f, capability.minZoomRatio, 0.0001f)
-        assertTrue("the wide pill must remain bindable", capability.zoomPillPresets.contains(0.54f))
+        assertEquals(listOf(1f), capability.zoomPillPresets)
     }
 
     @Test

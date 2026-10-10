@@ -1,0 +1,3 @@
+versionCode=20 minSdk=26 targetSdk=36
+versionName=0.4.0
+lastUpdateTime=2026-10-03 23:41:48

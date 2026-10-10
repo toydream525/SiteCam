@@ -17,28 +17,48 @@ private val DarkColorScheme = darkColorScheme(
     primaryContainer = EngineeringOrange,
     onPrimaryContainer = TextPrimaryDark,
     secondary = EngineeringAmber,
+    secondaryContainer = EngineeringYellow,
+    onSecondaryContainer = TextPrimaryLight,
+    tertiary = EngineeringYellow,
+    tertiaryContainer = EngineeringYellow,
+    onTertiaryContainer = TextPrimaryLight,
     onSecondary = DarkBackground,
     background = DarkBackground,
     onBackground = TextPrimaryDark,
     surface = DarkSurface,
     onSurface = TextPrimaryDark,
     surfaceVariant = DarkCard,
+    surfaceContainerLowest = DarkBackground,
+    surfaceContainerLow = DarkSurface,
+    surfaceContainer = DarkCard,
+    surfaceContainerHigh = DarkCard,
+    surfaceContainerHighest = DarkSurface,
     onSurfaceVariant = TextSecondaryDark,
     outline = DarkBorder
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = EngineeringOrange,
-    onPrimary = LightSurface,
+    primary = EngineeringYellow,
+    onPrimary = TextPrimaryLight,
     primaryContainer = EngineeringYellow,
     onPrimaryContainer = TextPrimaryLight,
     secondary = EngineeringAmber,
+    secondaryContainer = EngineeringYellow,
+    onSecondaryContainer = TextPrimaryLight,
+    tertiary = EngineeringYellow,
+    tertiaryContainer = EngineeringYellow,
+    onTertiaryContainer = TextPrimaryLight,
     onSecondary = LightSurface,
     background = LightBackground,
     onBackground = TextPrimaryLight,
     surface = LightSurface,
     onSurface = TextPrimaryLight,
     surfaceVariant = LightCard,
+    surfaceContainerLowest = LightBackground,
+    surfaceContainerLow = LightSurface,
+    surfaceContainer = LightSurface,
+    surfaceContainerHigh = LightCard,
+    surfaceContainerHighest = LightCard,
     onSurfaceVariant = TextSecondaryLight,
     outline = LightBorder
 )
@@ -46,18 +66,19 @@ private val LightColorScheme = lightColorScheme(
 @Composable
 fun SiteCamTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    updateSystemBars: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
     val view = LocalView.current
-    if (!view.isInEditMode) {
+    if (updateSystemBars && !view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
             val insetsController = WindowCompat.getInsetsController(window, view)
             // MainActivity enables edge-to-edge. Keep dark system icons off
             // without using the API-35-deprecated bar color setters.
-            insetsController.isAppearanceLightStatusBars = false
-            insetsController.isAppearanceLightNavigationBars = false
+            insetsController.isAppearanceLightStatusBars = !darkTheme
+            insetsController.isAppearanceLightNavigationBars = !darkTheme
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 window.isNavigationBarContrastEnforced = false
             }

@@ -6,9 +6,6 @@ import android.os.Build
 import androidx.exifinterface.media.ExifInterface
 import com.sitecam.app.core.watermark.model.WatermarkData
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 object ExifPreserver {
 
@@ -21,8 +18,9 @@ object ExifPreserver {
             val exif = ExifInterface(file)
             applyExif(exif, watermarkData, orientation)
             exif.saveAttributes()
-        } catch (_: Exception) {
-            // Non-fatal if EXIF writing fails on specific storage wrappers
+        } catch (error: Exception) {
+            // Keep saving successful: only the capture metadata is degraded.
+            android.util.Log.w("ExifPreserver", "写入照片 EXIF 失败: ${file.absolutePath}", error)
         }
     }
 
@@ -39,14 +37,14 @@ object ExifPreserver {
                 applyExif(exif, watermarkData, orientation)
                 exif.saveAttributes()
             }
-        } catch (_: Exception) {
-            // Non-fatal fallback
+        } catch (error: Exception) {
+            // Keep saving successful: only the capture metadata is degraded.
+            android.util.Log.w("ExifPreserver", "写入照片 EXIF 失败: $uri", error)
         }
     }
 
     private fun applyExif(exif: ExifInterface, data: WatermarkData, orientation: Int) {
-        val exifDateFormat = SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.getDefault())
-        val dateString = exifDateFormat.format(Date(data.captureTimestamp))
+        val dateString = data.formatCaptureTime("yyyy:MM:dd HH:mm:ss")
 
         exif.setAttribute(ExifInterface.TAG_DATETIME_ORIGINAL, dateString)
         exif.setAttribute(ExifInterface.TAG_DATETIME_DIGITIZED, dateString)

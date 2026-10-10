@@ -1,4 +1,4 @@
 import { UIAbility, Want } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
-export default class TestAbility extends UIAbility {onCreate(want: Want): void {AppStorage.setOrCreate('seedQA',want.parameters?.seedQA===true);}
+export default class TestAbility extends UIAbility {onCreate(want: Want): void {AppStorage.setOrCreate('seedQA',want.parameters?.seedQA===true);AppStorage.setOrCreate('watermarkWidthOnly',want.parameters?.watermarkWidthOnly===true);}
 onWindowStageCreate(stage: window.WindowStage): void {stage.loadContent('testability/pages/Index');}}

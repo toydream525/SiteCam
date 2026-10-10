@@ -1,4 +1,4 @@
-import { SITE_ACCENT, SITE_CARD, SITE_MUTED, SITE_TEXT } from './UiPrimitives';
+import { SITE_ACCENT, PAGE_CARD as SITE_CARD, PAGE_MUTED as SITE_MUTED, PAGE_TEXT as SITE_TEXT } from './UiPrimitives';
 
 @CustomDialog
 export struct ProjectBatchActionDialog {

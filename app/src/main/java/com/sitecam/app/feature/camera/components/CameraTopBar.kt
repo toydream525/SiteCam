@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.sitecam.app.feature.camera.components
 
 import androidx.compose.foundation.background
@@ -8,6 +10,9 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -32,6 +37,8 @@ import androidx.compose.material.icons.filled.RotateLeft
 import androidx.compose.material.icons.filled.RotateRight
 import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.StayCurrentPortrait
 import androidx.compose.material3.Icon
@@ -75,6 +82,9 @@ fun CameraTopBar(
     onOrientationSelected: (CaptureOrientation) -> Unit = {},
     isBusy: Boolean = false,
     isLandscape: Boolean = false,
+    verticalTools: Boolean = false,
+    projectOnly: Boolean = false,
+    transparentControls: Boolean = false,
     publicLenses: List<CameraLensCapability> = emptyList(),
     activeCameraId: String? = null,
     onLensSelected: (CameraLensCapability) -> Unit = {},
@@ -96,118 +106,53 @@ fun CameraTopBar(
         "AUTO" -> "闪光灯，自动"
         else -> "闪光灯，关闭"
     }
-    // Typography scaling only relaxes widths here; it never shrinks a touch target.
-    val fontScale = LocalDensity.current.fontScale
-
-    if (isLandscape) {
-        Column(
-            modifier = modifier.fillMaxHeight().background(Letterbox).padding(vertical = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceEvenly
-        ) {
-            ProjectNameTool(projectName, !isBusy, onProjectClick)
-            CameraLensSelector(
-                publicLenses = publicLenses,
-                activeCameraId = activeCameraId,
-                enabled = !isBusy,
-                onLensSelected = onLensSelected,
-                captureMode = captureMode
-            )
-            if (addressRefreshState != null && onAddressRefreshClick != null) {
-                ToolIcon(
-                    Icons.Default.Refresh,
-                    EngineeringYellow,
-                    addressRefreshDescription(addressRefreshState),
-                    !isBusy && addressRefreshState != "REFRESHING",
-                    onAddressRefreshClick,
-                    boxSize = 48.dp,
-                    iconSize = 24.dp,
-                    darkBackground = false,
-                    loading = addressRefreshState == "REFRESHING"
-                )
+    val plateAlpha = if (transparentControls) .42f else .82f
+    BoxWithConstraints(modifier.fillMaxWidth()
+        .background(if (isLandscape) Color.Transparent else Letterbox)
+        .padding(horizontal = if (verticalTools) 4.dp else 8.dp)) {
+        val shelfWidth = maxWidth
+        val project: @Composable (Modifier) -> Unit = { placement ->
+            Row(placement.heightIn(min = 48.dp).clip(RoundedCornerShape(24.dp))
+                .background(Letterbox.copy(alpha = plateAlpha)).clickable(enabled = !isBusy, onClick = onProjectClick)
+                .padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(projectName.ifBlank { "选择工程" }, color = Color.White, fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false))
+                Icon(Icons.Default.ArrowDropDown, null, tint = Color.White, modifier = Modifier.size(24.dp))
             }
-            ToolIcon(
-                flashIcon,
-                if (flashSelected) EngineeringYellow else Color.White,
-                flashDescription,
-                !isBusy,
-                onFlashToggle,
-                onFlashLongPress
-            )
-            ToolIcon(Icons.Default.ReportProblem, if (isQuickIssueMode) ErrorRed else Color.White, "重点问题", !isBusy, onQuickIssueToggle)
-            OrientationSelector(orientationLabel, !isBusy, onOrientationSelected)
-            ToolIcon(Icons.Default.Settings, Color.White, "设置", !isBusy, onSettingsClick)
         }
-    } else {
-        Row(
-            modifier = modifier.fillMaxWidth().background(Letterbox).padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                modifier = Modifier
-                    // 125dp was tuned for 13sp text. Let the capsule widen with the scaled type so
-                    // the project name is not ellipsized at large font scales, and keep 48dp as a
-                    // floor instead of a fixed height the text cannot outgrow.
-                    .widthIn(max = (125f * fontScale.coerceIn(1f, 2f)).dp)
-                    .heightIn(min = 48.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(Color(0xFF1B1B1B))
-                    .clickable(enabled = !isBusy, onClick = onProjectClick)
-                    .padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(7.dp)
-            ) {
-                Icon(Icons.Default.Folder, "工程项目", tint = EngineeringYellow, modifier = Modifier.size(20.dp))
-                Text(
-                    text = projectName.ifBlank { "请选择工程包" },
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-                Icon(Icons.Default.ArrowDropDown, null, tint = Color.White.copy(alpha = 0.72f), modifier = Modifier.size(17.dp))
-            }
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                CameraLensSelector(
-                    publicLenses = publicLenses,
-                    activeCameraId = activeCameraId,
-                    enabled = !isBusy,
-                    onLensSelected = onLensSelected,
-                    captureMode = captureMode
-                )
-                if (addressRefreshState != null && onAddressRefreshClick != null) {
-                    ToolIcon(
-                        Icons.Default.Refresh,
-                        EngineeringYellow,
-                        addressRefreshDescription(addressRefreshState),
-                        !isBusy && addressRefreshState != "REFRESHING",
-                        onAddressRefreshClick,
-                        boxSize = 48.dp,
-                        iconSize = 24.dp,
-                        loading = addressRefreshState == "REFRESHING"
-                    )
+        val actions: @Composable () -> Unit = {
+            ToolIcon(flashIcon, if (flashSelected) EngineeringYellow else Color.White,
+                flashDescription, !isBusy, onFlashToggle, onFlashLongPress, boxSize = 48.dp, backgroundAlpha = plateAlpha)
+            OrientationSelector(orientationLabel, !isBusy, onOrientationSelected, plateAlpha,
+                menuTowardPreview = verticalTools)
+            ToolIcon(Icons.Default.Settings, Color.White, "设置", !isBusy, onSettingsClick,
+                boxSize = 48.dp, backgroundAlpha = plateAlpha)
+            if (verticalTools && addressRefreshState != null && onAddressRefreshClick != null) {
+                IconButton(onClick = onAddressRefreshClick, enabled = !isBusy && addressRefreshState != "REFRESHING",
+                    modifier = Modifier.size(48.dp)) {
+                    if (addressRefreshState == "REFRESHING") CircularProgressIndicator(Modifier.size(24.dp),
+                        color = EngineeringYellow, strokeWidth = 2.dp)
+                    else Icon(Icons.Default.Refresh, "刷新地址", tint = EngineeringYellow)
                 }
-                ToolIcon(
-                    flashIcon,
-                    if (flashSelected) EngineeringYellow else Color.White,
-                    flashDescription,
-                    !isBusy,
-                    onFlashToggle,
-                    onFlashLongPress
-                )
-                ToolIcon(Icons.Default.ReportProblem, if (isQuickIssueMode) ErrorRed else Color.White, "重点问题", !isBusy, onQuickIssueToggle)
-                OrientationSelector(orientationLabel, !isBusy, onOrientationSelected)
-                ToolIcon(Icons.Default.Settings, Color.White, "设置", !isBusy, onSettingsClick)
             }
+        }
+        if (projectOnly) {
+            project(Modifier.widthIn(max = minOf(220.dp, shelfWidth)))
+        } else if (verticalTools) {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceEvenly) { actions() }
+        } else if (maxWidth < (304f + 120f * (LocalDensity.current.fontScale.coerceAtLeast(1f) - 1f)).dp) {
+            Column(Modifier.fillMaxWidth()) {
+                project(Modifier.widthIn(max = minOf(220.dp, shelfWidth)))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { actions() }
+            }
+        } else Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            project(Modifier.widthIn(max = minOf(220.dp, shelfWidth - 144.dp)))
+            androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+            actions()
         }
     }
 }
@@ -225,9 +170,8 @@ fun CameraLensSelector(
     compact: Boolean = false,
     captureMode: CaptureMode = CaptureMode.PHOTO
 ) {
-    // Only independently exposed, rear CameraX groups are selectable here.
-    // Physical IDs that Camera2 reports inside a logical group stay evidence
-    // of hardware and are deliberately absent from this menu.
+    // Public rear groups and supported physical-selector candidates are
+    // selectable. Metadata-only hardware remains absent from this menu.
     val options = publicLenses
         .filter { isLensSelectableInMode(it, captureMode) }
         .distinctBy { it.cameraId }
@@ -287,7 +231,7 @@ internal fun isLensSelectableInMode(
         lens.videoBindingVerification != com.sitecam.app.core.camera.CameraBindingVerification.VERIFIED ||
         lens.videoBindable)
 
-private fun lensLabel(lens: CameraLensCapability): String = when (lens.role) {
+internal fun lensLabel(lens: CameraLensCapability): String = when (lens.role) {
     CameraLensRole.WIDE -> "广角"
     CameraLensRole.MAIN -> "主摄"
     CameraLensRole.TELE -> "长焦"
@@ -380,13 +324,14 @@ private fun ToolIcon(
     boxSize: androidx.compose.ui.unit.Dp = 46.dp,
     iconSize: androidx.compose.ui.unit.Dp = 24.dp,
     loading: Boolean = false,
-    darkBackground: Boolean = true
+    darkBackground: Boolean = true,
+    backgroundAlpha: Float = .72f
 ) {
     Box(
         modifier = Modifier
             .size(boxSize)
             .clip(CircleShape)
-            .background(if (darkBackground) DarkCard.copy(alpha = 0.72f) else Color.Transparent)
+            .background(if (darkBackground) DarkCard.copy(alpha = backgroundAlpha) else Color.Transparent)
             .semantics { contentDescription = description }
             .then(
                 if (onLongClick != null) {
@@ -407,55 +352,39 @@ private fun ToolIcon(
 }
 
 @Composable
-private fun OrientationSelector(label: String, enabled: Boolean, onSelect: (CaptureOrientation) -> Unit) {
+private fun OrientationSelector(label: String, enabled: Boolean, onSelect: (CaptureOrientation) -> Unit,
+    backgroundAlpha: Float, menuTowardPreview: Boolean = false) {
     var expanded by remember { mutableStateOf(false) }
     val current = CaptureOrientation.entries.firstOrNull { it.label == label } ?: CaptureOrientation.AUTO
     Box {
-        ToolIcon(
-            icon = orientationIcon(current),
-            tint = EngineeringYellow,
-            description = "拍摄方向：${current.label}",
-            enabled = enabled,
-            onClick = { expanded = true }
-        )
+        ToolIcon(icon = Icons.Default.ScreenRotation,
+            tint = if (expanded || current != CaptureOrientation.AUTO) EngineeringYellow else Color.White,
+            description = "拍摄方向：${current.label}", enabled = enabled,
+            onClick = { expanded = true }, boxSize = 48.dp, backgroundAlpha = backgroundAlpha)
         androidx.compose.material3.DropdownMenu(
-            expanded = expanded && enabled,
-            onDismissRequest = { expanded = false },
-            containerColor = DarkCard
+            expanded = expanded && enabled, onDismissRequest = { expanded = false },
+            containerColor = DarkCard,
+            offset = androidx.compose.ui.unit.DpOffset((if (menuTowardPreview) 56 else -160).dp, 0.dp)
         ) {
-            CaptureOrientation.entries.forEach { mode ->
-                androidx.compose.material3.DropdownMenuItem(
-                    text = {
-                        Row(
-                            modifier = Modifier.widthIn(min = 164.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = orientationIcon(mode),
-                                contentDescription = mode.label,
-                                tint = if (mode == current) EngineeringYellow else Color.White
-                            )
-                            androidx.compose.foundation.layout.Spacer(Modifier.size(10.dp))
-                            Text(
-                                text = mode.label,
-                                color = if (mode == current) EngineeringYellow else Color.White
-                            )
-                            androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
-                            if (mode == current) {
-                                Icon(
-                                    imageVector = androidx.compose.material.icons.Icons.Default.Check,
-                                    contentDescription = "当前选择",
-                                    tint = EngineeringYellow,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    },
-                    onClick = {
-                        expanded = false
-                        onSelect(mode)
+            val modes = listOf(CaptureOrientation.AUTO, CaptureOrientation.PORTRAIT,
+                CaptureOrientation.LANDSCAPE_LEFT, CaptureOrientation.LANDSCAPE_RIGHT)
+            modes.chunked(2).forEach { row ->
+                Row(Modifier.widthIn(min = 208.dp, max = 208.dp)) {
+                    row.forEach { mode ->
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = {
+                                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(orientationIcon(mode), null, Modifier.size(24.dp),
+                                        tint = if (mode == current) EngineeringYellow else Color.White)
+                                    Text(mode.label, color = if (mode == current) EngineeringYellow else Color.White, fontSize = 14.sp)
+                                }
+                            },
+                            modifier = Modifier.weight(1f).heightIn(min = 64.dp)
+                                .background(if (mode == current) EngineeringYellow.copy(alpha = .12f) else Color.Transparent, RoundedCornerShape(8.dp)),
+                            onClick = { expanded = false; onSelect(mode) }
+                        )
                     }
-                )
+                }
             }
         }
     }

@@ -51,12 +51,14 @@ class MainActivity : ComponentActivity() {
         lifecycle.addObserver(appContainer.mediaAvailabilitySync)
 
         setContent {
-            SiteCamTheme(darkTheme = true) {
+            val navController = rememberNavController()
+            val entry by navController.currentBackStackEntryAsState()
+            val immersive = entry?.destination?.route?.let { it == "camera" || it.startsWith("photo_detail") || it.startsWith("photo_annotation") } ?: false
+            SiteCamTheme(darkTheme = immersive || androidx.compose.foundation.isSystemInDarkTheme()) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = DarkBackground
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.background
                 ) {
-                    val navController = rememberNavController()
                     DisposableEffect(navController) {
                         val controller = WindowCompat.getInsetsController(window, window.decorView)
                         val bars = WindowInsetsCompat.Type.systemBars()
@@ -73,17 +75,7 @@ class MainActivity : ComponentActivity() {
                         navController.addOnDestinationChangedListener(listener)
                         onDispose { navController.removeOnDestinationChangedListener(listener) }
                     }
-                    val environment = rememberScreenEnvironment()
-                    val entry by navController.currentBackStackEntryAsState()
-                    Box(Modifier.fillMaxSize()) {
-                        AppNavHost(navController = navController, appContainer = appContainer)
-                        if (environment.profile.smallCover && entry?.destination?.route != "camera") {
-                            // Keep the current page composed underneath, including unsaved editor drafts.
-                            Box(Modifier.fillMaxSize().background(DarkBackground).clickable { }.padding(12.dp), contentAlignment = Alignment.Center) {
-                                Text("展开手机继续操作")
-                            }
-                        }
-                    }
+                    AppNavHost(navController = navController, appContainer = appContainer)
                 }
             }
         }

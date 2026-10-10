@@ -1,0 +1,349 @@
+{
+  "total": 146,
+  "failed": 1,
+  "skipped": 0,
+  "suites": [
+    {
+      "suite": "com.sitecam.app.core.camera.CameraCapabilityTest",
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.camera.CameraRotationTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.camera.CaptureOperationCoordinatorTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.camera.OrientationStabilizerTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.camera.ScreenAdaptationTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.camera.WindowOrientationTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.database.ProjectDataTransactionsTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.database.RecentCaptureProjectsTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.database.WatermarkTemplateStateTest",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.export.ProjectExportEngineIntegrationTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.export.ProjectExportTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.location.LocationFreshnessTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.media.MediaAvailabilitySyncTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.media.MediaDeletionCoordinatorTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.media.MediaFileReservationTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.media.MediaSaveTargetTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.media.NamingEngineTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.media.PhotoQualityProfileTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.media.PhotoQualitySaveTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.media.VideoOrientationTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.preferences.CaptureOrientationPreferencesTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.watermark.UnifiedWatermarkRenderingTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.watermark.WatermarkFieldPresentationTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.watermark.WatermarkFieldResolverTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.watermark.WatermarkLayoutEngineTest",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.core.watermark.WatermarkSnapshotCodecTest",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.feature.annotation.EditRecipeTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.feature.annotation.ImageContentRectTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.feature.annotation.PhotoAnnotationViewModelIntegrationTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.feature.annotation.TextNoteGeometryTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.feature.camera.AddressRefreshCoordinatorTest",
+      "tests": 13,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.feature.camera.AddressRefreshPlacementTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.feature.camera.WatermarkEditEntryTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.feature.camera.components.CameraTopBarLensTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.feature.gallery.CaptureDateRangeTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.feature.icon.AppIconChoiceTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.feature.icon.AppIconPickerPackageManagerTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.feature.icon.AppIconVectorTest",
+      "tests": 1,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": [
+        {
+          "test": "iconCPathsCanBeParsedWithoutFallingBackToTheApplicationIcon",
+          "type": "java.io.FileNotFoundException",
+          "message": "java.io.FileNotFoundException: /Users/ninja/Documents/工程水印相机/app/src/main/res/drawable/ic_launcher_c_foreground.xml (No such file or directory)"
+        }
+      ]
+    },
+    {
+      "suite": "com.sitecam.app.feature.permissions.PermissionAccessTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.feature.permissions.PermissionGuidePersistenceTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.feature.permissions.PermissionGuidePolicyTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    },
+    {
+      "suite": "com.sitecam.app.feature.projects.ProjectBrowserTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures_detail": []
+    }
+  ]
+}

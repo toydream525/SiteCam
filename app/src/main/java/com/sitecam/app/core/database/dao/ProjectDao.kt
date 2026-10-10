@@ -33,7 +33,9 @@ interface ProjectDao {
     @Query("SELECT * FROM projects WHERE id = :id LIMIT 1")
     fun getProjectByIdFlow(id: Long): Flow<ProjectEntity?>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    // REPLACE deletes the parent row first, which would cascade the project's
+    // media, issues and annotations away on a duplicate primary key.
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertProject(project: ProjectEntity): Long
 
     @Update

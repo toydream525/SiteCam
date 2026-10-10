@@ -85,35 +85,47 @@ class LocationTracker(private val context: Context) {
         if (isUpdating) return
         isUpdating = true
         val generation = ++updateGeneration
-        val requestPriority = if (hasFine) {
-            Priority.PRIORITY_HIGH_ACCURACY
-        } else {
-            Priority.PRIORITY_BALANCED_POWER_ACCURACY
-        }
 
         // 1. Read last known location immediately
         readLastKnownLocation(generation)
 
-        // 2. Try FusedLocationProviderClient first
-        if (fusedClient != null) {
-            try {
-                val request = LocationRequest.Builder(requestPriority, 5000L)
-                    .setMinUpdateDistanceMeters(2.0f)
-                    .setMinUpdateIntervalMillis(2000L)
-                    .build()
+        // 2. Fused first, with platform providers kept active alongside it.
+        // Fused registration can succeed while delivering no fix on a
+        // disconnected device or without Google Play Services, so registration
+        // alone is not a usable offline fallback.
+        startFusedUpdates(generation)
+        startSystemLocationUpdates(generation)
+    }
 
-                val callback = object : LocationCallback() {
-                    override fun onLocationResult(result: LocationResult) {
-                        val location = result.lastLocation ?: return
-                        updateLocation(location)
-                    }
+    private fun fusedPriority(): Int =
+        if (ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        ) Priority.PRIORITY_HIGH_ACCURACY else Priority.PRIORITY_BALANCED_POWER_ACCURACY
+
+    /**
+     * Registers the fused stream for [generation] when it is not registered
+     * already, so a retry can restore it instead of leaving the session on
+     * platform providers only.
+     */
+    @SuppressLint("MissingPermission")
+    private fun startFusedUpdates(generation: Long): Boolean {
+        val client = fusedClient ?: return false
+        if (fusedCallback != null) return true
+        return try {
+            val request = LocationRequest.Builder(fusedPriority(), 5000L)
+                .setMinUpdateDistanceMeters(0.0f)
+                .setMinUpdateIntervalMillis(2000L)
+                .build()
+            val callback = object : LocationCallback() {
+                override fun onLocationResult(result: LocationResult) {
+                    val location = result.lastLocation ?: return
+                    updateLocation(location)
                 }
-                fusedCallback = callback
-                fusedClient?.requestLocationUpdates(
-                    request,
-                    callback,
-                    Looper.getMainLooper()
-                )?.addOnFailureListener {
+            }
+            fusedCallback = callback
+            client.requestLocationUpdates(request, callback, Looper.getMainLooper())
+                ?.addOnFailureListener {
                     if (isUpdating && generation == updateGeneration) {
                         stopFusedUpdates()
                         startSystemLocationUpdates(generation)
@@ -124,23 +136,15 @@ class LocationTracker(private val context: Context) {
                         startSystemLocationUpdates(generation)
                     }
                 }
-                // Keep the platform GNSS provider active alongside fused
-                // updates. Fused registration can succeed while delivering
-                // no fix on a disconnected device, so registration alone is
-                // not a usable offline fallback.
-                startSystemLocationUpdates(generation, satelliteOnly = hasFine)
-                return
-            } catch (_: Exception) {
-                // Fallback to System LocationManager
-            }
+            true
+        } catch (_: Exception) {
+            fusedCallback = null
+            false
         }
-
-        // 3. Fallback: Android system LocationManager
-        startSystemLocationUpdates(generation)
     }
 
     @SuppressLint("MissingPermission")
-    private fun startSystemLocationUpdates(generation: Long, satelliteOnly: Boolean = false) {
+    private fun startSystemLocationUpdates(generation: Long) {
         if (!isUpdating || generation != updateGeneration || systemLocationListener != null) return
         try {
             val listener = object : LocationListener {
@@ -159,11 +163,7 @@ class LocationTracker(private val context: Context) {
             ) == PackageManager.PERMISSION_GRANTED
             val providers = systemLocationManager?.getProviders(true)
                 ?.filter { provider ->
-                    when {
-                        satelliteOnly -> provider == LocationManager.GPS_PROVIDER
-                        !hasFine -> provider != LocationManager.GPS_PROVIDER
-                        else -> true
-                    }
+                    if (!hasFine) provider != LocationManager.GPS_PROVIDER else true
                 }
                 .orEmpty()
             if (providers.isEmpty()) {
@@ -176,7 +176,7 @@ class LocationTracker(private val context: Context) {
                     systemLocationManager?.requestLocationUpdates(
                         provider,
                         3000L,
-                        2.0f,
+                        0.0f,
                         listener,
                         Looper.getMainLooper()
                     )
@@ -203,16 +203,18 @@ class LocationTracker(private val context: Context) {
         } catch (_: Exception) {}
 
         try {
-            val gpsLoc = systemLocationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-            val netLoc = systemLocationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-            val bestLoc = when {
-                gpsLoc != null && netLoc != null -> if (gpsLoc.time >= netLoc.time) gpsLoc else netLoc
-                gpsLoc != null -> gpsLoc
-                else -> netLoc
-            }
-            if (bestLoc != null && _currentLocation.value == null &&
-                isUpdating && generation == updateGeneration
-            ) {
+            val hasFine = ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+            val candidates = listOfNotNull(
+                systemLocationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER).takeIf { hasFine },
+                systemLocationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER),
+                systemLocationManager?.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER)
+            )
+            val bestLoc = candidates.maxByOrNull { it.time }
+            // Every candidate passes the same acceptance gate as a live fix, so
+            // the guard must not lock in whichever provider answered first.
+            if (bestLoc != null && isUpdating && generation == updateGeneration) {
                 updateLocation(bestLoc)
             }
         } catch (_: Exception) {}
@@ -250,27 +252,22 @@ class LocationTracker(private val context: Context) {
 
         val generation = ++updateGeneration
         isUpdating = true
-        val requestPriority = if (hasFine) {
-            Priority.PRIORITY_HIGH_ACCURACY
-        } else {
-            Priority.PRIORITY_BALANCED_POWER_ACCURACY
-        }
         stopFusedUpdates()
         systemLocationListener?.let {
             runCatching { systemLocationManager?.removeUpdates(it) }
             systemLocationListener = null
         }
         readLastKnownLocation(generation)
-        // Request GNSS directly while the one-shot fused request is pending.
-        // This lets an offline satellite fix satisfy callers waiting for a
-        // fresh location even if fused never returns a result.
-        startSystemLocationUpdates(generation, satelliteOnly = hasFine)
+        // Restore both streams before the one-shot request: a retry must not
+        // leave the session on platform providers only.
+        startFusedUpdates(generation)
+        startSystemLocationUpdates(generation)
 
         val client = fusedClient
         if (client != null) {
             runCatching {
                 client.getCurrentLocation(
-                    requestPriority,
+                    fusedPriority(),
                     CancellationTokenSource().token
                 ).addOnSuccessListener { location ->
                     if (location != null && generation == updateGeneration) updateLocation(location)
@@ -307,6 +304,8 @@ class LocationTracker(private val context: Context) {
 
     private fun updateLocation(location: Location) {
         if (!isUpdating) return
+        val now = System.currentTimeMillis()
+        if (!LocationAcceptance.isValidFix(location.latitude, location.longitude)) return
         val siteLocation = SiteLocation(
             latitude = location.latitude,
             longitude = location.longitude,
@@ -314,13 +313,15 @@ class LocationTracker(private val context: Context) {
             // keep that reading unavailable all the way through capture and
             // EXIF rather than persisting NaN/Infinity as a real elevation.
             altitude = if (location.hasAltitude()) location.altitude.takeIf { it.isFinite() } else null,
-            accuracy = if (location.hasAccuracy()) location.accuracy else null,
-            timestamp = location.time
+            accuracy = if (location.hasAccuracy()) location.accuracy.takeIf { it > 0f } else null,
+            // A provider can hand back a cached fix on the first callback after
+            // a request. Keeping its own measurement time is what lets
+            // LocationFreshness reject it instead of watermarking an old
+            // coordinate as a current reading.
+            timestamp = LocationFreshness.evidenceTimestamp(location.time, now)
         )
-        _currentLocation.value = if (LocationFreshness.isFresh(siteLocation, System.currentTimeMillis())) {
-            siteLocation
-        } else {
-            null
-        }
+        if (!LocationFreshness.isFresh(siteLocation, now)) return
+        if (!LocationAcceptance.isBetter(siteLocation, _currentLocation.value, now)) return
+        _currentLocation.value = siteLocation
     }
 }

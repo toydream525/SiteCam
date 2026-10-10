@@ -79,6 +79,28 @@ fun PhotoDetailScreen(
     onMissingMedia: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val window = (view.context as? android.app.Activity)?.window
+    // Gallery details are dark even when their containing management page follows light mode.
+    androidx.compose.runtime.DisposableEffect(window, systemDark) {
+        onDispose {
+            window?.let {
+                androidx.core.view.WindowCompat.getInsetsController(it, view).apply {
+                    isAppearanceLightStatusBars = !systemDark
+                    isAppearanceLightNavigationBars = !systemDark
+                }
+            }
+        }
+    }
+    androidx.compose.runtime.SideEffect {
+        window?.let {
+            androidx.core.view.WindowCompat.getInsetsController(it, view).apply {
+                isAppearanceLightStatusBars = false
+                isAppearanceLightNavigationBars = false
+            }
+        }
+    }
     val item by viewModel.mediaItem.collectAsState()
     val annotation by viewModel.annotation.collectAsState()
     var hadMedia by remember(viewModel) { mutableStateOf(false) }
@@ -98,6 +120,15 @@ fun PhotoDetailScreen(
     val isRetrying by viewModel.isRetrying.collectAsState()
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showInfoSheet by remember { mutableStateOf(false) }
+    // Android 10/11+ deletes media the app does not own only after this system request.
+    var pendingDeleteItem by remember { mutableStateOf<com.sitecam.app.core.database.entity.MediaItemEntity?>(null) }
+    val deleteConsent = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        val item = pendingDeleteItem
+        if (result.resultCode == android.app.Activity.RESULT_OK && item != null) viewModel.retryDeleteAfterConsent(item)
+        else Toast.makeText(context, "已取消删除", Toast.LENGTH_LONG).show()
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
@@ -117,6 +148,12 @@ fun PhotoDetailScreen(
                 PhotoDetailEvent.Deleted -> {
                     Toast.makeText(context, "媒体已删除", Toast.LENGTH_SHORT).show()
                     onNavigateBack()
+                }
+                is PhotoDetailEvent.PendingDeleteConsent -> {
+                    pendingDeleteItem = event.item
+                    deleteConsent.launch(
+                        androidx.activity.result.IntentSenderRequest.Builder(event.intentSender).build()
+                    )
                 }
                 is PhotoDetailEvent.RetryCompleted -> Toast.makeText(
                     context,
@@ -198,7 +235,7 @@ fun PhotoDetailScreen(
                                 modifier = Modifier.fillMaxSize(),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                VideoThumbnail(media.contentUri, Modifier.fillMaxWidth().weight(1f))
+                                VideoThumbnail(media.contentUri, Modifier.fillMaxWidth().weight(1f), contentScale = ContentScale.Fit)
                                 Button(
                                     onClick = {
                                         try {
@@ -279,7 +316,7 @@ fun PhotoDetailScreen(
             onDismissRequest = { showDeleteConfirm = false },
             containerColor = DarkCard,
             title = { Text("确认删除", color = TextPrimaryDark, fontWeight = FontWeight.Bold) },
-            text = { Text("确定要删除该${if (item?.mediaType == "VIDEO") "视频" else "照片"}吗？设备媒体删除失败时会保留工程索引。", color = TextSecondaryDark) },
+            text = { Text("确定要删除该${if (item?.mediaType == "VIDEO") "视频" else "照片"}吗？", color = TextSecondaryDark) },
             confirmButton = {
                 Button(onClick = { showDeleteConfirm = false; viewModel.delete() }, colors = ButtonDefaults.buttonColors(containerColor = ErrorRed)) {
                     Text("删除", color = Color.White, fontWeight = FontWeight.Bold)

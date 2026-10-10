@@ -1,5 +1,5 @@
 import { Project } from '../../core/Models';
-import { SITE_CARD, SITE_MUTED, SITE_TEXT } from './UiPrimitives';
+import { PAGE_CARD as SITE_CARD, PAGE_MUTED as SITE_MUTED, PAGE_TEXT as SITE_TEXT } from './UiPrimitives';
 
 @CustomDialog
 export struct ProjectMoveDialog {
@@ -20,7 +20,7 @@ export struct ProjectMoveDialog {
       Scroll() {
         Column({ space: 4 }) {
           ForEach(this.projects, (project: Project) => {
-            Button(this.projectLabel(project)).width('100%').height(44).fontSize(13).fontColor(SITE_TEXT).backgroundColor('#303030').onClick(() => { this.controller.close(); this.onSelect(project.id); });
+            Button(this.projectLabel(project)).width('100%').height(44).fontSize(13).fontColor(SITE_TEXT).backgroundColor($r('app.color.card_raised')).onClick(() => { this.controller.close(); this.onSelect(project.id); });
           }, (project: Project) => project.id.toString());
         }.width('100%');
       }.width('100%').height(260).scrollBar(BarState.Off);

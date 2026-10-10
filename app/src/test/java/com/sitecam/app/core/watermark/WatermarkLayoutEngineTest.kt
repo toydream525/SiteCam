@@ -200,10 +200,22 @@ class WatermarkLayoutEngineTest {
                     height,
                     data.copy(styleType = style)
                 )
-                assertTrue("$style card left", result.cardRect.left >= 0f)
-                assertTrue("$style card top", result.cardRect.top >= 0f)
-                assertTrue("$style card right", result.cardRect.right <= width + 0.01f)
-                assertTrue("$style card bottom", result.cardRect.bottom <= height + 0.01f)
+                val fitsInside = result.cardRect.width() <= width + .01f && result.cardRect.height() <= height + .01f
+                if (fitsInside) {
+                    assertTrue("$style card left", result.cardRect.left >= 0f)
+                    assertTrue("$style card top", result.cardRect.top >= 0f)
+                    assertTrue("$style card right", result.cardRect.right <= width + 0.01f)
+                    assertTrue("$style card bottom", result.cardRect.bottom <= height + 0.01f)
+                } else {
+                    // A pathological template (12 huge fields at 2.2x on a
+                    // 240x180 canvas) renders at the readability floor and is
+                    // clipped by the canvas instead of shrinking to an invisible
+                    // size. It must stay anchored on the canvas and keep every
+                    // field rather than disappear.
+                    assertTrue("$style stays on canvas", result.cardRect.right > 0f && result.cardRect.bottom > 0f &&
+                        result.cardRect.left < width && result.cardRect.top < height)
+                    assertTrue("$style keeps fields", result.lines.isNotEmpty())
+                }
                 result.lines.forEach { line ->
                     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                         textSize = line.textSize

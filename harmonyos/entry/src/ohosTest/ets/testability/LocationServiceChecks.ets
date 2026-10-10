@@ -1,4 +1,4 @@
-import { Fix } from '../../../main/ets/core/Models';
+import { Fix, isCaptureFreshFix } from '../../../main/ets/core/Models';
 import { addressFromGeoAddresses, isFreshFix, LocationService, LocationServiceDependencies, movedMeters, usableAltitude } from '../../../main/ets/core/LocationService';
 import { geoLocationManager } from '@kit.LocationKit';
 
@@ -37,6 +37,8 @@ export class LocationServiceChecks {
     requireResult(isFreshFix(fresh, now + 5 * 60 * 1000), '五分钟边界定位被拒绝');
     requireResult(!isFreshFix(fresh, now + 5 * 60 * 1000 + 1), '过期定位仍被接受');
     requireResult(!isFreshFix(fresh, now - 30 * 1000 - 1), '未来定位仍被接受');
+    requireResult(isCaptureFreshFix(fresh, now + 30000), '拍摄三十秒边界被拒绝');
+    requireResult(!isCaptureFreshFix(fresh, now + 30001), '拍摄三十秒过期仍被接受');
     const invalid = new Fix();
     invalid.latitude = 91;
     invalid.longitude = 120;
@@ -65,6 +67,48 @@ export class LocationServiceChecks {
 
   /** Service-level checks use only the injected platform seams and no user data. */
   static async serviceBoundaries(): Promise<void> {
+    // All three regressions exercise real refresh/receive commits with an injected clock.
+    let clock = 1_000_000;
+    let failReverse = true;
+    let recoveredChanges = 0;
+    const recovery = new LocationService({
+      now: (): number => clock,
+      hasLocationPermission: (): boolean => true,
+      isLocationEnabled: (): boolean => true,
+      getCurrentLocation: async (): Promise<geoLocationManager.Location> => located(30, 120, 10, clock),
+      reverseAddress: async (_fix: Fix): Promise<string> => {
+        if (failReverse) throw new Error('address-unavailable');
+        return '后台恢复地址';
+      }
+    });
+    recovery.onChange = (): void => { recoveredChanges++; };
+    recovery.listening = true;
+    requireResult(!(await recovery.refreshAddress()), '注入反解失败却报告成功');
+    requireResult(recovery.refreshState === 'failed', '手动失败状态未建立');
+    failReverse = false;
+    clock += 1000;
+    recovery.receiveLocation(located(30, 120, 10, clock));
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    requireResult(recovery.hasUsableAddress() && recovery.refreshState === 'success' && recovery.failureReason === '', '连续反解成功未清除手动失败');
+    requireResult(recoveredChanges > 0, '连续恢复未通知页面');
+    const resolvedStamp = recovery.fix?.timestamp || 0;
+    clock += 31000;
+    requireResult(!recovery.hasUsableAddress(), '没有新广播的第 31 秒仍隐藏刷新入口');
+    requireResult(recovery.fix !== null && !isCaptureFreshFix(recovery.fix, clock), '第 31 秒水印定位没有过期');
+    requireResult(recovery.fix?.timestamp === resolvedStamp, '地址有效性检查伪造定位时间戳');
+    requireResult(recovery.snapshotFixForWatermark()?.address === '', '过期自动地址进入水印输入');
+
+    const lateCommit = new LocationService({
+      now: (): number => clock,
+      hasLocationPermission: (): boolean => true,
+      isLocationEnabled: (): boolean => true,
+      getCurrentLocation: async (): Promise<geoLocationManager.Location> => located(30, 120, 10, clock - 29000),
+      reverseAddress: async (_fix: Fix): Promise<string> => { clock += 2000; return '超过拍摄有效期的地址'; }
+    });
+    requireResult(!(await lateCommit.refreshAddress()), '29 秒定位加 2 秒反解被误报为成功');
+    requireResult(lateCommit.refreshState === 'failed' && lateCommit.failureReason === 'location-timeout', '反解完成后的定位过期未分类');
+    requireResult(!lateCommit.hasUsableAddress(), '过期手动反解隐藏了刷新入口');
+
     const location: geoLocationManager.Location = {
       latitude: 30.5,
       longitude: 120.25,

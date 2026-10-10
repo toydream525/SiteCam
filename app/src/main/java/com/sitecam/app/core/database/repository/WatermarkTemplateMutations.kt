@@ -2,6 +2,7 @@ package com.sitecam.app.core.database.repository
 
 import android.util.Log
 import com.sitecam.app.core.database.dao.WatermarkDao
+import com.sitecam.app.core.database.entity.WatermarkFieldEntity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,9 +29,12 @@ class WatermarkTemplateMutations(
                     _saveError.value = null
                 } catch (cancelled: CancellationException) {
                     throw cancelled
-                } catch (error: Exception) {
-                    _saveError.value = error
-                    Log.e("WatermarkTemplate", "Unable to save watermark setting", error)
+                } catch (t: Throwable) {
+                    // A single failure (including an Error) must not end the
+                    // consumer: with an unlimited channel trySend keeps
+                    // succeeding and every later edit would be dropped.
+                    _saveError.value = t as? Exception ?: RuntimeException(t.message, t)
+                    Log.e("WatermarkTemplate", "Unable to save watermark setting", t)
                 }
             }
         }
@@ -40,6 +44,18 @@ class WatermarkTemplateMutations(
     fun fontSize(id: Long, scale: Float) = enqueue { dao.updateTemplateFontSize(id, scale) }
     fun opacity(id: Long, opacity: Float) = enqueue { dao.updateTemplateOpacity(id, opacity) }
     fun position(id: Long, position: String) = enqueue { dao.updateTemplatePosition(id, position) }
+    fun fieldValue(id: Long, value: String) = enqueue { dao.updateFieldValue(id, value) }
+    fun fieldEnabled(id: Long, enabled: Boolean) = enqueue { dao.updateFieldEnabled(id, enabled) }
+    fun fieldLabel(id: Long, label: String) = enqueue { dao.updateFieldLabel(id, label) }
+    fun deleteField(field: WatermarkFieldEntity) = enqueue { dao.deleteField(field) }
+    fun moveField(templateId: Long, fieldId: Long, direction: Int) = enqueue {
+        dao.moveField(templateId, fieldId, direction)
+    }
+    fun restoreFieldPresentation(templateId: Long) = enqueue { dao.restoreFieldPresentation(templateId) }
+    fun addField(field: WatermarkFieldEntity) = enqueue {
+        val order = (dao.getFieldsForTemplateSync(field.templateId).maxOfOrNull { it.displayOrder } ?: -1) + 1
+        dao.insertField(field.copy(displayOrder = order))
+    }
 
     private fun enqueue(update: suspend () -> Unit) {
         updates.trySend(update).getOrThrow()

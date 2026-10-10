@@ -1,0 +1,57 @@
+[
+  {
+    "id": 1,
+    "projectId": 1,
+    "mediaType": "PHOTO",
+    "contentUri": "content://com.sitecam.app.debug.fileprovider/external_files/Pictures/SiteCam/%E7%A4%BA%E4%BE%8B%E5%B7%A5%E7%A8%8B%E9%A1%B9%E7%9B%AE/%E7%A4%BA%E4%BE%8B%E5%B7%A5%E7%A8%8B%E9%A1%B9%E7%9B%AE_20261002_225122_315.jpg",
+    "filePath": "/storage/emulated/0/Android/data/com.sitecam.app.debug/files/Pictures/SiteCam/示例工程项目/示例工程项目_20261002_225122_315.jpg",
+    "processingStatus": "READY",
+    "duration": 0,
+    "width": 1044,
+    "height": 1392
+  },
+  {
+    "id": 2,
+    "projectId": 1,
+    "mediaType": "PHOTO",
+    "contentUri": "content://com.sitecam.app.debug.fileprovider/external_files/Pictures/SiteCam/%E7%A4%BA%E4%BE%8B%E5%B7%A5%E7%A8%8B%E9%A1%B9%E7%9B%AE/%E7%A4%BA%E4%BE%8B%E5%B7%A5%E7%A8%8B%E9%A1%B9%E7%9B%AE_20261003_001909_686.jpg",
+    "filePath": "/storage/emulated/0/Android/data/com.sitecam.app.debug/files/Pictures/SiteCam/示例工程项目/示例工程项目_20261003_001909_686.jpg",
+    "processingStatus": "READY",
+    "duration": 0,
+    "width": 1044,
+    "height": 1392
+  },
+  {
+    "id": 3,
+    "projectId": 1,
+    "mediaType": "VIDEO",
+    "contentUri": "content://com.sitecam.app.debug.fileprovider/external_files/Pictures/SiteCam/%E7%A4%BA%E4%BE%8B%E5%B7%A5%E7%A8%8B%E9%A1%B9%E7%9B%AE/%E7%A4%BA%E4%BE%8B%E5%B7%A5%E7%A8%8B%E9%A1%B9%E7%9B%AE_20261003_002741_993.mp4",
+    "filePath": "/storage/emulated/0/Android/data/com.sitecam.app.debug/files/Pictures/SiteCam/示例工程项目/示例工程项目_20261003_002741_993.mp4",
+    "processingStatus": "READY",
+    "duration": 57784,
+    "width": 960,
+    "height": 720
+  },
+  {
+    "id": 4,
+    "projectId": 2,
+    "mediaType": "VIDEO",
+    "contentUri": "content://com.sitecam.app.debug.fileprovider/external_files/Pictures/SiteCam/FullAudit-20261003/FullAudit-20261003_20261003_234526_462.mp4",
+    "filePath": "/storage/emulated/0/Android/data/com.sitecam.app.debug/files/Pictures/SiteCam/FullAudit-20261003/FullAudit-20261003_20261003_234526_462.mp4",
+    "processingStatus": "READY",
+    "duration": 39992,
+    "width": 960,
+    "height": 720
+  },
+  {
+    "id": 5,
+    "projectId": 2,
+    "mediaType": "VIDEO",
+    "contentUri": "content://com.sitecam.app.debug.fileprovider/external_files/Pictures/SiteCam/FullAudit-20261003/FullAudit-20261003_20261004_034024_887.mp4",
+    "filePath": "/storage/emulated/0/Android/data/com.sitecam.app.debug/files/Pictures/SiteCam/FullAudit-20261003/FullAudit-20261003_20261004_034024_887.mp4",
+    "processingStatus": "READY",
+    "duration": 24120,
+    "width": 960,
+    "height": 720
+  }
+]

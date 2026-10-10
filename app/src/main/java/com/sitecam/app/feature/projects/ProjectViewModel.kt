@@ -11,6 +11,7 @@ import com.sitecam.app.core.database.entity.ProjectEntity
 import com.sitecam.app.core.database.AppDatabase
 import com.sitecam.app.core.export.FolderExportResult
 import com.sitecam.app.core.di.AppContainer
+import com.sitecam.app.core.media.PendingDeleteConsent
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -107,6 +108,9 @@ class ProjectViewModel(
     val projectSelected: SharedFlow<Long> = _projectSelected.asSharedFlow()
     private val _undoEvent = MutableSharedFlow<ProjectMutationUndo>(extraBufferCapacity = 1)
     val undoEvent: SharedFlow<ProjectMutationUndo> = _undoEvent.asSharedFlow()
+    /** Project deletion needs the user's approval before it can continue. */
+    private val _deleteConsentEvent = MutableSharedFlow<PendingDeleteConsent>(extraBufferCapacity = 1)
+    val deleteConsentEvent: SharedFlow<PendingDeleteConsent> = _deleteConsentEvent.asSharedFlow()
     // A project row can be tapped repeatedly before the first DataStore write
     // completes. Keep only the newest request so an older selection cannot
     // navigate back and then overwrite the user's later choice.
@@ -279,7 +283,8 @@ class ProjectViewModel(
         category: String,
         address: String,
         description: String,
-        route: String = ""
+        route: String = "",
+        selectForCapture: Boolean = false
     ) {
         if (name.isBlank()) return
         viewModelScope.launch {
@@ -306,7 +311,7 @@ class ProjectViewModel(
                     .putString("sort", ProjectSort.CREATED.name)
                     .putBoolean("ascending", false)
                     .apply()
-                val switched = try {
+                val switched = if (!selectForCapture) true else try {
                     appContainer.captureOperationCoordinator.withAllProjectsIdle {
                         appContainer.settingsDataStore.setSelectedProjectIdAndRecordRecent(newId)
                     }
@@ -326,32 +331,44 @@ class ProjectViewModel(
 
     fun deleteProject(project: ProjectEntity) = deleteProjects(setOf(project.id))
 
+    /** Re-runs the same project deletion once the system granted the delete request. */
+    fun retryProjectDeletionAfterConsent(projectId: Long) = deleteProjects(setOf(projectId))
+
     fun deleteProjects(ids: Set<Long>) {
         if(!_isExporting.compareAndSet(false, true)) return
         viewModelScope.launch {
             var removed = 0; var mediaRemoved = 0; var failed = 0; val errors = mutableListOf<String>()
+            var consent: PendingDeleteConsent? = null
             try {
                 for(id in ids) {
+                    if(consent != null) break
                     runCatching {
                         appContainer.captureOperationCoordinator.withProjectIdle(id) {
-                            val project = appContainer.database.projectDao().getProjectById(id) ?: return@withProjectIdle
-                            val media = appContainer.database.mediaItemDao().getMediaItemsByProject(id).first()
-                            var projectFailed = false
-                            for(item in media) {
-                                _exportProgress.value = "删除：${item.fileName}"
-                                val result = appContainer.mediaDeletionCoordinator.delete(item)
-                                if(result.success) mediaRemoved++ else { failed++; projectFailed = true; errors += result.message ?: item.fileName }
-                            }
-                            if(!projectFailed) {
-                                appContainer.database.projectDao().deleteProject(project)
-                                if(appContainer.settingsDataStore.selectedProjectId.first() == id) appContainer.settingsDataStore.setSelectedProjectId(null)
-                                removed++
-                            }
+                            val result = appContainer.mediaDeletionCoordinator.deleteProject(
+                                id,
+                                onProgress = { _exportProgress.value = "删除：${it.fileName}" },
+                                onDeleted = {
+                                    if (appContainer.settingsDataStore.selectedProjectId.first() == id) {
+                                        appContainer.settingsDataStore.setSelectedProjectId(null)
+                                    }
+                                }
+                            )
+                            // The project and its index are untouched until the request is approved.
+                            consent = result.pendingConsent
+                            mediaRemoved += result.deletedMediaCount
+                            failed += result.failures.size
+                            errors += result.failures
+                            if (result.projectDeleted) removed++
                         }
-                    }.onFailure { failed++; errors += it.message ?: "删除失败" }
+                    }.onFailure {
+                        if (it is CancellationException) throw it
+                        failed++; errors += it.message ?: "删除失败"
+                    }
                 }
                 clearSelection()
-                _toastEvent.emit("已删除 $removed 个工程、$mediaRemoved 个媒体；失败 $failed 项" + if(errors.isEmpty()) "" else "，已保留失败索引：${errors.first()}")
+                val pending = consent
+                if (pending != null) _deleteConsentEvent.emit(pending)
+                else _toastEvent.emit("已删除 $removed 个工程、$mediaRemoved 个媒体；失败 $failed 项" + if(errors.isEmpty()) "" else "，已保留失败索引：${errors.first()}")
             } finally { _isExporting.value = false; _exportProgress.value = "" }
         }
     }

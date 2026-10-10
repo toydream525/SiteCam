@@ -159,6 +159,18 @@ export class Snapshot {
   mediaId: number = 0;
   captureTimestamp: number = 0;
 }
+/** Copy capture-time metadata only; callers updating an existing row retain its current project. */
+export function hydrateMediaFromSnapshot(m: MediaItem,s: Snapshot): void {
+  if(s.projectId>0)m.projectId=s.projectId;
+  m.latitude=s.fix?s.fix.latitude:null;
+  m.longitude=s.fix?s.fix.longitude:null;
+  m.altitude=s.fix?s.fix.altitude:null;
+  m.locationAccuracy=s.fix?s.fix.accuracy:null;
+  m.locationTimestamp=s.fix?s.fix.timestamp:null;
+  m.locationStatus=s.locationStatus||'UNAVAILABLE';
+  m.addressText=s.address||(s.fix?s.fix.address:'')||'';
+  m.createdAt=s.captureTimestamp||s.timestamp||m.timestamp;
+}
 export class Style {
   id: string; name: string; accent: string; background: string;
   constructor(id: string,name: string,accent: string,background: string) {
@@ -181,13 +193,27 @@ export const QUALITY_JPEG: number[] = [65,75,85,95];
 export function pad(n: number): string { return n.toString().padStart(2,'0'); }
 export function dateText(t: number): string { const d=new Date(t); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
 export function timeText(t: number): string { const d=new Date(t); return `${dateText(t)} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
-export function safeName(s: string): string { return s.replace(/[\\/:*?"<>|\r\n]/g,'_').trim().slice(0,100)||'工程'; }
+export function safeName(s: string): string {
+  const cleaned=s.replace(/[\\/:*?"<>|\r\n]/g,'_').trim();
+  if(cleaned.length<=100)return cleaned||'工程';
+  // Keep a short trailing extension inside the 100-character budget: capture
+  // callers append a timestamp and ".jpg", and the old slice could drop it.
+  const dot=cleaned.lastIndexOf('.'),ext=dot>0?cleaned.slice(dot):'';
+  const kept=ext.length>1&&ext.length<=12?cleaned.slice(0,100-ext.length)+ext:cleaned.slice(0,100);
+  return kept||'工程';
+}
+/** The same current-fix boundary is used by capture output and address availability. */
+export function isCaptureFreshFix(fix: Fix|null, now: number = Date.now()): boolean {
+  if(!fix||!Number.isFinite(now)||!Number.isFinite(fix.timestamp))return false;
+  if(!Number.isFinite(fix.latitude)||!Number.isFinite(fix.longitude)||fix.latitude < -90||fix.latitude > 90||fix.longitude < -180||fix.longitude > 180)return false;
+  const age=now-fix.timestamp;
+  return age>=-30000&&age<=30000;
+}
 export function captureSnapshot(p: Project, settings: Settings, fix: Fix|null): Snapshot {
   const s=new Snapshot(); s.project=p.name;s.projectId=p.id;s.route=p.route;s.category=p.category || p.categoryName;
   s.captureTimestamp=s.timestamp;
   s.watermark=JSON.parse(JSON.stringify(settings.watermark)) as Watermark;
-  const age=fix?s.timestamp-fix.timestamp:Number.POSITIVE_INFINITY;
-  const captureFresh=!!fix&&age>=-30000&&age<=30000;
+  const captureFresh=isCaptureFreshFix(fix,s.timestamp);
   const usable=!!fix&&(!OFFLINE_BUILD||(fix.sourceType===1&&captureFresh));
   if(usable&&fix) { s.fix=JSON.parse(JSON.stringify(fix)) as Fix; s.locationStatus=captureFresh?'FRESH':'STALE'; }
   if(OFFLINE_BUILD){

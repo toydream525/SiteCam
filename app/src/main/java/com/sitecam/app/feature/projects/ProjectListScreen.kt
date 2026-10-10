@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.sitecam.app.feature.projects
 
 import android.widget.Toast
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -43,6 +46,7 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -76,6 +80,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -88,15 +93,16 @@ import androidx.compose.ui.unit.sp
 import com.sitecam.app.core.database.entity.ProjectEntity
 import com.sitecam.app.core.export.ExportChoiceDialog
 import com.sitecam.app.core.export.ExportOptions
-import com.sitecam.app.ui.theme.DarkBackground
-import com.sitecam.app.ui.theme.DarkBorder
-import com.sitecam.app.ui.theme.DarkCard
-import com.sitecam.app.ui.theme.DarkSurface
+import com.sitecam.app.core.layout.AdaptivePaneLayout
+import com.sitecam.app.ui.theme.PageBackground as DarkBackground
+import com.sitecam.app.ui.theme.PageBorder as DarkBorder
+import com.sitecam.app.ui.theme.PageCard as DarkCard
+import com.sitecam.app.ui.theme.PageSurface as DarkSurface
 import com.sitecam.app.ui.theme.EngineeringYellow
 import com.sitecam.app.ui.theme.ErrorRed
 import com.sitecam.app.ui.theme.SuccessGreen
-import com.sitecam.app.ui.theme.TextPrimaryDark
-import com.sitecam.app.ui.theme.TextSecondaryDark
+import com.sitecam.app.ui.theme.PageText as TextPrimaryDark
+import com.sitecam.app.ui.theme.PageMuted as TextSecondaryDark
 import com.sitecam.app.ui.theme.WarningYellow
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -105,8 +111,10 @@ fun ProjectListScreen(
     viewModel: ProjectViewModel,
     onNavigateBack: () -> Unit,
     onNavigateToGallery: (Long) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    galleryPane: @Composable (Long, () -> Unit) -> Unit = { _, _ -> }
 ) {
+    var browsingId by rememberSaveable { mutableStateOf<Long?>(null) }
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsState()
     var editor by remember { mutableStateOf<ProjectEntity?>(null) }
@@ -127,6 +135,26 @@ fun ProjectListScreen(
             viewModel.exportProjectsFolder(context, folderIds, uri, folderOptions)
         }
         folderIds = emptySet()
+    }
+    // Android 10/11+ needs a system request before media this install does not
+    // own can be deleted; the request may recreate the activity, so the ids of
+    // the project being deleted are kept for the approved retry.
+    var pendingProjectDeleteIds by rememberSaveable { mutableStateOf<List<Long>>(emptyList()) }
+    val projectDeleteConsent = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            pendingProjectDeleteIds.forEach { viewModel.retryProjectDeletionAfterConsent(it) }
+        } else {
+            Toast.makeText(context, "已取消删除", Toast.LENGTH_LONG).show()
+        }
+        pendingProjectDeleteIds = emptyList()
+    }
+
+    LaunchedEffect(viewModel) {
+        viewModel.deleteConsentEvent.collect { consent ->
+            projectDeleteConsent.launch(
+                androidx.activity.result.IntentSenderRequest.Builder(consent.intentSender).build()
+            )
+        }
     }
 
     LaunchedEffect(viewModel) {
@@ -164,13 +192,16 @@ fun ProjectListScreen(
         }
     }
 
+    BackHandler(enabled = browsingId != null && !batchMode) { browsingId = null }
     BackHandler(enabled = batchMode) {
         viewModel.clearSelection()
         batchMode = false
     }
 
+    AdaptivePaneLayout(modifier, showSecondary = browsingId != null,
+        primaryMinWidth = 360f, primary = { _ ->
     Scaffold(
-        modifier = modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         containerColor = DarkBackground,
         contentWindowInsets = WindowInsets.safeDrawing,
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -391,7 +422,7 @@ fun ProjectListScreen(
                         Text("批量管理", color = TextPrimaryDark, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.size(8.dp))
                         Text(
-                            "已选 ${state.checkedIds.size} 项 · 全选作用于当前筛选",
+                            "已选 ${state.checkedIds.size} 项",
                             color = TextSecondaryDark,
                             fontSize = 12.sp,
                             modifier = Modifier.weight(1f),
@@ -539,361 +570,52 @@ fun ProjectListScreen(
                     val project = row.project
                     var menu by remember(project.id) { mutableStateOf(false) }
                     Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 128.dp)
-                            .combinedClickable(
-                                onClick = {
-                                    if (batchMode) viewModel.toggleChecked(project.id)
-                                    else onNavigateToGallery(project.id)
-                                },
-                                onLongClick = {
-                                    batchMode = true
-                                    viewModel.toggleChecked(project.id)
-                                }
-                            ),
+                        modifier = Modifier.fillMaxWidth().combinedClickable(
+                            onClick = { if (batchMode) viewModel.toggleChecked(project.id) else browsingId = project.id },
+                            onLongClick = { batchMode = true; viewModel.toggleChecked(project.id) }),
                         shape = RoundedCornerShape(14.dp),
-                        border = BorderStroke(1.dp, DarkBorder),
-                        colors = CardDefaults.cardColors(containerColor = DarkCard),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                        border = BorderStroke(if (project.id in state.checkedIds) 2.dp else 1.dp,
+                            if (project.id in state.checkedIds) EngineeringYellow else DarkBorder),
+                        colors = CardDefaults.cardColors(containerColor = DarkCard)
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 128.dp)
-                                .padding(horizontal = 10.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (batchMode) {
-                                Checkbox(
-                                    checked = project.id in state.checkedIds,
-                                    onCheckedChange = { viewModel.toggleChecked(project.id) },
-                                    colors = androidx.compose.material3.CheckboxDefaults.colors(
-                                        checkedColor = EngineeringYellow,
-                                        checkmarkColor = Color.Black,
-                                        uncheckedColor = TextSecondaryDark
-                                    ),
-                                    modifier = Modifier.size(48.dp)
-                                )
+                        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (batchMode) Checkbox(project.id in state.checkedIds, { viewModel.toggleChecked(project.id) })
+                                Text(project.name, color = TextPrimaryDark, fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                if (row.isSelected) ProjectPill("当前", EngineeringYellow)
+                                if (project.isCaptureLocked) Icon(Icons.Default.Lock, "已锁定拍摄", tint = EngineeringYellow, modifier = Modifier.padding(start = 6.dp).size(18.dp))
+                                if (project.isArchived) Icon(Icons.Default.Archive, "已归档", tint = TextSecondaryDark, modifier = Modifier.padding(start = 6.dp).size(18.dp))
                             }
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    // The 48dp MoreVert hit area leaves 16dp below its 16dp text.
-                                    // Add that space above the normal-mode column so centering moves
-                                    // the visible content down about 8dp and balances both card edges.
-                                    .padding(top = if (batchMode) 0.dp else 16.dp),
-                                verticalArrangement = Arrangement.spacedBy(1.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = project.name,
-                                        color = TextPrimaryDark,
-                                        fontSize = 16.sp,
-                                        lineHeight = 20.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f, fill = !row.isSelected)
-                                    )
-                                    if (row.isSelected) {
-                                        Spacer(Modifier.width(6.dp))
-                                        CurrentProjectBadge()
-                                    }
-                                    if (project.isCaptureLocked) {
-                                        Icon(
-                                            imageVector = Icons.Default.Lock,
-                                            contentDescription = "已锁定拍摄",
-                                            tint = WarningYellow,
-                                            modifier = Modifier
-                                                .padding(start = 4.dp)
-                                                .size(17.dp)
-                                        )
-                                    }
-                                    if (project.isArchived) {
-                                        Icon(
-                                            imageVector = Icons.Default.Archive,
-                                            contentDescription = "已归档",
-                                            tint = TextSecondaryDark,
-                                            modifier = Modifier
-                                                .padding(start = 4.dp)
-                                                .size(17.dp)
-                                        )
-                                    }
-                                }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    ProjectPill(
-                                        text = project.categoryName.ifBlank { "未分类" },
-                                        tint = EngineeringYellow
-                                    )
-                                    if (project.routeName.isNotBlank()) {
-                                        Spacer(Modifier.size(4.dp))
-                                        Text(
-                                            text = "线路 · ${project.routeName}",
-                                            color = TextSecondaryDark,
-                                            fontSize = 11.sp,
-                                            lineHeight = 14.sp,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.CalendarMonth,
-                                        contentDescription = "拍摄日期",
-                                        tint = EngineeringYellow,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Spacer(Modifier.size(4.dp))
-                                    Text(
-                                        text = row.statistics.dateLabel(),
-                                        color = TextSecondaryDark,
-                                        fontSize = 12.sp,
-                                        lineHeight = 16.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    ProjectCountSummary(
-                                        photos = row.statistics.photos,
-                                        videos = row.statistics.videos,
-                                        issues = row.statistics.issues,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    if (!batchMode) {
-                                        Box {
-                                            IconButton(
-                                                onClick = { menu = true },
-                                                enabled = !state.isExporting,
-                                                modifier = Modifier.size(48.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.MoreVert,
-                                                    contentDescription = "更多工程操作",
-                                                    tint = TextSecondaryDark,
-                                                    modifier = Modifier.size(20.dp)
-                                                )
-                                            }
-                                            DropdownMenu(
-                                                expanded = menu,
-                                                onDismissRequest = { menu = false },
-                                                containerColor = DarkCard
-                                            ) {
-                                                if (!row.isSelected) {
-                                                    DropdownMenuItem(
-                                                        enabled = !state.isExporting,
-                                                        text = {
-                                                            MoreMenuText("设为拍摄工程", "将后续拍摄保存到此工程")
-                                                        },
-                                                        leadingIcon = {
-                                                            Icon(Icons.Default.Folder, contentDescription = null)
-                                                        },
-                                                        onClick = {
-                                                            menu = false
-                                                            viewModel.selectProject(project.id)
-                                                        }
-                                                    )
-                                                }
-                                                DropdownMenuItem(
-                                                    text = {
-                                                        MoreMenuText(
-                                                            if (project.isCaptureLocked) "解锁拍摄" else "锁定拍摄",
-                                                            if (project.isCaptureLocked) "允许这个工程继续拍摄录像" else "暂停这个工程继续拍摄录像"
-                                                        )
-                                                    },
-                                                    leadingIcon = {
-                                                        Icon(Icons.Default.Lock, contentDescription = null)
-                                                    },
-                                                    onClick = {
-                                                        menu = false
-                                                        viewModel.batchChange(setOf(project.id), locked = !project.isCaptureLocked)
-                                                    }
-                                                )
-                                                DropdownMenuItem(
-                                                    text = {
-                                                        MoreMenuText(
-                                                            if (project.isArchived) "恢复工程" else "归档工程",
-                                                            if (project.isArchived) "放回进行中的工程包" else "暂时收起这个工程包"
-                                                        )
-                                                    },
-                                                    leadingIcon = {
-                                                        Icon(Icons.Default.Archive, contentDescription = null)
-                                                    },
-                                                    onClick = {
-                                                        menu = false
-                                                        viewModel.batchChange(setOf(project.id), archived = !project.isArchived)
-                                                    }
-                                                )
-                                                DropdownMenuItem(
-                                                    text = {
-                                                        MoreMenuText("删除工程", "删除前请先导出需要留档的照片和视频", ErrorRed)
-                                                    },
-                                                    leadingIcon = {
-                                                        Icon(Icons.Default.Delete, contentDescription = null, tint = ErrorRed)
-                                                    },
-                                                    onClick = {
-                                                        menu = false
-                                                        deleteIds = setOf(project.id)
-                                                    }
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                                if (!batchMode) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(2.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        TextButton(
-                                            onClick = {
-                                                viewModel.batchChange(
-                                                    setOf(project.id),
-                                                    locked = !project.isCaptureLocked
-                                                )
-                                            },
-                                            enabled = !state.isExporting,
-                                            modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                                            contentPadding = PaddingValues(horizontal = 2.dp),
-                                            colors = ButtonDefaults.textButtonColors(
-                                                contentColor = if (project.isCaptureLocked) WarningYellow else TextSecondaryDark
-                                            )
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Lock,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(15.dp)
-                                            )
-                                            Spacer(Modifier.size(2.dp))
-                                            Text(
-                                                if (project.isCaptureLocked) "解锁拍摄" else "锁定拍摄",
-                                                fontSize = 11.sp,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                        TextButton(
-                                            onClick = {
-                                                viewModel.batchChange(
-                                                    setOf(project.id),
-                                                    archived = !project.isArchived
-                                                )
-                                            },
-                                            enabled = !state.isExporting,
-                                            modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                                            contentPadding = PaddingValues(horizontal = 2.dp),
-                                            colors = ButtonDefaults.textButtonColors(contentColor = TextSecondaryDark)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Archive,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(15.dp)
-                                            )
-                                            Spacer(Modifier.size(2.dp))
-                                            Text(
-                                                if (project.isArchived) "恢复工程" else "归档工程",
-                                                fontSize = 11.sp,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                            if (!batchMode) {
-                                VerticalDivider(
-                                    modifier = Modifier
-                                        .height(88.dp)
-                                        .padding(vertical = 4.dp),
-                                    thickness = 1.dp,
-                                    color = DarkBorder.copy(alpha = 0.65f)
-                                )
-                                // Adaptive width instead of a fixed 82dp. The buttons must size to
-                                // their own label (no fillMaxWidth) so the column grows with the
-                                // scaled text rather than squeezing four CJK glyphs into 82dp.
-                                Column(
-                                    modifier = Modifier.widthIn(min = 82.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    TextButton(
-                                        onClick = {
-                                            if (row.isSelected) onNavigateBack()
-                                            else viewModel.selectProject(project.id)
-                                        },
+                            Text(listOf(project.categoryName.ifBlank { "未分类" }, project.routeName).filter { it.isNotBlank() }.joinToString(" · "),
+                                color = TextSecondaryDark, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            ProjectCountSummary(row.statistics.photos, row.statistics.videos, row.statistics.issues)
+                            if (project.isArchived) Text(row.statistics.dateLabel(), color = TextSecondaryDark, fontSize = 12.sp)
+                            run {
+                                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    if (!batchMode) androidx.compose.material3.Button(
+                                        onClick = { if (row.isSelected) onNavigateBack() else viewModel.selectProject(project.id) },
                                         enabled = !state.isExporting && !state.isSwitchingProject,
-                                        modifier = Modifier.heightIn(min = 48.dp),
-                                        contentPadding = PaddingValues(horizontal = 2.dp),
-                                        colors = ButtonDefaults.textButtonColors(
-                                            contentColor = EngineeringYellow,
-                                            disabledContentColor = TextSecondaryDark.copy(alpha = 0.45f)
-                                        )
-                                    ) {
-                                        Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(17.dp))
-                                        Spacer(Modifier.size(2.dp))
-                                        Text(
-                                            when {
-                                                row.isSelected -> "返回相机"
-                                                state.switchingProjectId == project.id -> "切换中…"
-                                                else -> "切换"
-                                            },
-                                            fontSize = 12.sp,
-                                            lineHeight = 16.sp,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
+                                        contentPadding = PaddingValues(horizontal = 12.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = EngineeringYellow, contentColor = Color.Black),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) { Icon(Icons.Default.PhotoCamera, null, Modifier.size(18.dp)); Spacer(Modifier.width(5.dp)); Text("去拍摄", fontSize = 13.sp) }
+                                    TextButton(onClick = { editor = project }, enabled = !state.isExporting, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                                        Icon(Icons.Default.Edit, null, Modifier.size(18.dp), tint = TextPrimaryDark); Spacer(Modifier.width(5.dp)); Text("编辑", color = TextPrimaryDark, fontSize = 13.sp)
                                     }
-                                    TextButton(
-                                        onClick = { editor = project },
-                                        enabled = !state.isExporting,
-                                        modifier = Modifier.heightIn(min = 48.dp),
-                                        contentPadding = PaddingValues(horizontal = 2.dp),
-                                        colors = ButtonDefaults.textButtonColors(
-                                            contentColor = TextSecondaryDark,
-                                            disabledContentColor = TextSecondaryDark.copy(alpha = 0.45f)
-                                        )
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Edit,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(17.dp)
-                                        )
-                                        Spacer(Modifier.size(2.dp))
-                                        Text("编辑", fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    TextButton(onClick = { exportIds = setOf(project.id) }, enabled = !state.isExporting, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                                        Icon(Icons.Default.Share, null, Modifier.size(18.dp), tint = TextPrimaryDark); Spacer(Modifier.width(5.dp)); Text("导出", color = TextPrimaryDark, fontSize = 13.sp)
                                     }
-                                    TextButton(
-                                        onClick = { exportIds = setOf(project.id) },
-                                        enabled = !state.isExporting,
-                                        modifier = Modifier.heightIn(min = 48.dp),
-                                        contentPadding = PaddingValues(horizontal = 2.dp),
-                                        colors = ButtonDefaults.textButtonColors(
-                                            contentColor = EngineeringYellow,
-                                            disabledContentColor = EngineeringYellow.copy(alpha = 0.45f)
-                                        )
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Share,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(17.dp)
-                                        )
-                                        Spacer(Modifier.size(2.dp))
-                                        Text("导出", fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    if (!batchMode) Box {
+                                        IconButton(onClick = { menu = true }, enabled = !state.isExporting) { Icon(Icons.Default.MoreVert, "更多工程操作", tint = TextPrimaryDark) }
+                                        DropdownMenu(menu, { menu = false }, containerColor = DarkCard) {
+                                            DropdownMenuItem(text = { Text(if (project.isCaptureLocked) "解锁拍摄" else "锁定拍摄") }, leadingIcon = { Icon(Icons.Default.Lock, null) },
+                                                onClick = { menu = false; viewModel.batchChange(setOf(project.id), locked = !project.isCaptureLocked) })
+                                            DropdownMenuItem(text = { Text(if (project.isArchived) "恢复工程" else "归档工程") }, leadingIcon = { Icon(Icons.Default.Archive, null) },
+                                                onClick = { menu = false; viewModel.batchChange(setOf(project.id), archived = !project.isArchived) })
+                                            DropdownMenuItem(text = { Text("删除工程", color = ErrorRed) }, leadingIcon = { Icon(Icons.Default.Delete, null, tint = ErrorRed) },
+                                                onClick = { menu = false; deleteIds = setOf(project.id) })
+                                        }
                                     }
                                 }
                             }
@@ -903,6 +625,14 @@ fun ProjectListScreen(
             }
         }
     }
+
+    }, secondary = {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            val projectId = browsingId
+            if (projectId != null) galleryPane(projectId) { browsingId = null }
+            else Text("选择工程查看资料", color = TextSecondaryDark)
+        }
+    })
 
     if (create || editor != null) {
         ProjectEditor(
@@ -965,6 +695,7 @@ fun ProjectListScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        pendingProjectDeleteIds = deleteIds.toList()
                         viewModel.deleteProjects(deleteIds)
                         deleteIds = emptySet()
                     },
@@ -1017,7 +748,6 @@ private fun EmptyProjectsState() {
             Icon(Icons.Default.Folder, contentDescription = null, tint = EngineeringYellow, modifier = Modifier.size(34.dp))
             Spacer(Modifier.height(10.dp))
             Text("没有符合条件的工程包", color = TextPrimaryDark, fontWeight = FontWeight.Bold)
-            Text("可以新建工程，或调整搜索和筛选条件", color = TextSecondaryDark, fontSize = 12.sp)
         }
     }
 }
@@ -1099,7 +829,6 @@ private fun ProjectCount(label: String, value: Int) {
 private fun MoreMenuText(title: String, description: String, titleColor: Color = TextPrimaryDark) {
     Column {
         Text(title, color = titleColor, fontSize = 14.sp, lineHeight = 18.sp)
-        Text(description, color = TextSecondaryDark, fontSize = 11.sp, lineHeight = 14.sp)
     }
 }
 

@@ -1,3 +1,9 @@
+export const PAGE_BG: Resource = $r('app.color.page_bg');
+export const PAGE_CARD: Resource = $r('app.color.card_bg');
+export const PAGE_RAISED:Resource=$r('app.color.card_raised');
+export const PAGE_CARD_RAISED: Resource = $r('app.color.card_raised');
+export const PAGE_TEXT: Resource = $r('app.color.text_primary');
+export const PAGE_MUTED: Resource = $r('app.color.text_secondary');
 /** Small reusable native controls shared by every SiteCam page. */
 export const SITE_BG: string = '#121212';
 export const SITE_CARD: string = '#1E1E1E';

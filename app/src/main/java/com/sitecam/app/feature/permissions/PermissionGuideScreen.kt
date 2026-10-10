@@ -22,15 +22,20 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.sitecam.app.feature.onboarding.OnboardingPreferences
 import com.sitecam.app.ui.theme.*
+import com.sitecam.app.ui.theme.PageBackground as DarkBackground
+import com.sitecam.app.ui.theme.PageCard as DarkCard
+import com.sitecam.app.ui.theme.PageText as TextPrimaryDark
+import com.sitecam.app.ui.theme.PageMuted as TextSecondaryDark
 import kotlinx.coroutines.launch
 
 @Composable
 fun PermissionGuideScreen(
     preferences: OnboardingPreferences,
     requestedPermissions: Set<String>,
-    onInteractionStarted: () -> Unit,
+    onInteractionStarted: () -> Unit = {},
     onContinue: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    management: Boolean = false
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -41,6 +46,7 @@ fun PermissionGuideScreen(
     // Session-only. A permission that already looks "permanently denied" gets one system dialog
     // retry first; only a second failure sends the user to the settings page. Deliberately not
     // persisted: a new session (or a system permission auto-reset) must be allowed to retry again.
+    var retriedItems by remember { mutableStateOf(emptySet<String>()) }
     var retriedBlockedInSession by remember { mutableStateOf(false) }
     // Permissions handed to the launcher but not yet answered. Kept out of the persisted
     // "requested" set until the result callback proves the dialog actually ran.
@@ -102,18 +108,27 @@ fun PermissionGuideScreen(
         }
     }
 
+    fun requestItem(ids: List<String>, needsSettings: Boolean) {
+        if(needsSettings && ids.all { it in retriedItems }) openSettings()
+        else { retriedItems = retriedItems + ids; launchPermissionRequest(ids) }
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = DarkBackground,
         contentWindowInsets = WindowInsets.safeDrawing
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text("开始前，一次设置好权限", fontSize = 25.sp, fontWeight = FontWeight.Bold, color = TextPrimaryDark)
-            Text("系统会依次询问。定位和麦克风都可不允许，之后仍能拍照、整理和导出资料。", color = TextSecondaryDark)
-            PermissionCard("相机", "用于拍照和录像。不开启也能浏览、管理已有工程资料。", access.camera, access.cameraNeedsSettings)
+        Box(Modifier.fillMaxSize().padding(padding), contentAlignment = androidx.compose.ui.Alignment.TopCenter) {
+        Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().fillMaxHeight().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            if(management) TextButton(onClick = onContinue) { Text("‹ 返回") }
+            Text(if(management) "权限设置" else "开始前，一次设置好权限", fontSize = 25.sp, fontWeight = FontWeight.Bold, color = TextPrimaryDark)
+            if(!management) Text("系统会依次询问。定位和麦克风都可不允许，之后仍能拍照、整理和导出资料。", color = TextSecondaryDark)
+            PermissionCard("相机", "用于拍照和录像。不开启也能浏览、管理已有工程资料。", access.camera, access.cameraNeedsSettings, action = if(management && !access.camera) ({ requestItem(listOf(android.Manifest.permission.CAMERA), access.cameraNeedsSettings) }) else null)
             PermissionCard("位置 · 可选", "用于水印中的现场地点。允许大致位置也可以；不开启时照片不含定位。", access.location, access.locationNeedsSettings,
-                if (access.coarseLocation && !access.fineLocation) "已允许大致位置" else null)
-            PermissionCard("麦克风 · 可选", "用于录制视频声音。不开启时可以录制无声视频。", access.microphone, access.microphoneNeedsSettings)
+                if (access.coarseLocation && !access.fineLocation) "已允许大致位置" else null,
+                action = if(management && !access.location) ({ requestItem(listOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION), access.locationNeedsSettings) }) else null)
+            PermissionCard("麦克风 · 可选", "用于录制视频声音。不开启时可以录制无声视频。", access.microphone, access.microphoneNeedsSettings, action = if(management && !access.microphone) ({ requestItem(listOf(android.Manifest.permission.RECORD_AUDIO), access.microphoneNeedsSettings) }) else null)
+            if(!management) {
             if (hasRequested) {
                 Text(if (access.allGranted) "所需权限已就绪，可以开始使用。" else "授权结果已更新。未开启的项目可稍后补充，不会再次自动弹出申请。", color = EngineeringYellow)
             }
@@ -140,7 +155,7 @@ fun PermissionGuideScreen(
                         else -> onContinue()
                     }
                 }, enabled = !inFlight, modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = EngineeringYellow, contentColor = DarkBackground)
+                colors = ButtonDefaults.buttonColors(containerColor = EngineeringYellow, contentColor = androidx.compose.ui.graphics.Color.Black)
             ) {
                 Text(when {
                     inFlight -> "请完成系统权限询问…"
@@ -154,17 +169,19 @@ fun PermissionGuideScreen(
                 OutlinedButton(onClick = ::openSettings, enabled = !inFlight, modifier = Modifier.fillMaxWidth()) { Text("去系统设置补充权限") }
             }
             TextButton(onClick = onContinue, enabled = !inFlight, modifier = Modifier.fillMaxWidth()) { Text(if (hasRequested) "稍后补充，先管理资料" else "暂时跳过") }
-            Text("不会申请后台定位、通知或存储权限。系统相册默认关闭，需要时再到设置开启。", color = TextSecondaryDark, fontSize = 12.sp)
+            }
+        }
         }
     }
 }
 
 @Composable
-private fun PermissionCard(title: String, description: String, granted: Boolean, needsSettings: Boolean, grantedLabel: String? = null) {
+private fun PermissionCard(title: String, description: String, granted: Boolean, needsSettings: Boolean, grantedLabel: String? = null, action: (() -> Unit)? = null) {
     Card(colors = CardDefaults.cardColors(containerColor = DarkCard), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, color = TextPrimaryDark, fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Text(description, color = TextSecondaryDark, fontSize = 14.sp)
+            action?.let { TextButton(onClick = it) { Text(if(needsSettings) "重新申请 / 去设置" else "开启") } }
             Text(when { granted -> grantedLabel ?: "已允许"; needsSettings -> "未开启 · 需前往系统设置"; else -> "未开启" }, color = if (granted) SuccessGreen else EngineeringYellow, fontSize = 13.sp)
         }
     }

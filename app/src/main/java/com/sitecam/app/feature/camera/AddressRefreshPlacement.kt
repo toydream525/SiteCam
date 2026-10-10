@@ -16,6 +16,28 @@ enum class AddressRefreshCorner {
     OUTSIDE_PREVIEW
 }
 
+/** Place a photo-overlaid zoom rail near the shutter without covering a card or project entry. */
+fun floatingZoomRect(canvasWidth: Float, canvasHeight: Float, railWidth: Float, railHeight: Float,
+    protectedRects: List<RectF>, margin: Float = 12f, gap: Float = 8f): RectF? {
+    val left = canvasWidth - margin - railWidth
+    if (left < margin || canvasHeight < margin * 2 + 48f) return null
+    var spaces = listOf(margin to canvasHeight - margin)
+    for (rect in protectedRects) {
+        if (rect.right + gap <= left || rect.left - gap >= canvasWidth - margin) continue
+        spaces = spaces.flatMap { (top, bottom) ->
+            listOf(top to minOf(bottom, rect.top - gap), maxOf(top, rect.bottom + gap) to bottom)
+                .filter { (start, end) -> end - start >= 48f }
+        }
+    }
+    val target = (canvasHeight - railHeight) / 2f
+    val space = spaces.minByOrNull { (top, bottom) ->
+        kotlin.math.abs(target.coerceIn(top, maxOf(top, bottom - railHeight)) - target)
+    } ?: return null
+    val height = minOf(railHeight, space.second - space.first)
+    val top = ((canvasHeight - height) / 2f).coerceIn(space.first, space.second - height)
+    return RectF(left, top, left + railWidth, top + height)
+}
+
 /**
  * Pick a preview edge that does not cover the watermark card.  The preview
  * itself is already laid out away from the camera shelves and shutter dock;
@@ -29,7 +51,8 @@ fun chooseAddressRefreshCorner(
     chipHeight: Float,
     watermarkRect: RectF?,
     margin: Float = 12f,
-    gap: Float = 8f
+    gap: Float = 8f,
+    reservedRects: List<RectF> = emptyList()
 ): AddressRefreshCorner {
     val width = canvasWidth.coerceAtLeast(1f)
     val height = canvasHeight.coerceAtLeast(1f)
@@ -58,7 +81,7 @@ fun chooseAddressRefreshCorner(
         AddressRefreshCorner.OUTSIDE_PREVIEW -> RectF()
     }
 
-    val protected = watermarkRect?.let { RectF(it).apply { inset(-gap, -gap) } }
+    val protected = (listOfNotNull(watermarkRect) + reservedRects).map { RectF(it).apply { inset(-gap, -gap) } }
     fun overlapArea(a: RectF, b: RectF): Float {
         val left = maxOf(a.left, b.left)
         val top = maxOf(a.top, b.top)
@@ -72,7 +95,7 @@ fun chooseAddressRefreshCorner(
     // without claiming that a full-frame watermark can be safely covered.
     return candidates.firstOrNull { corner ->
         val rect = rectFor(corner)
-        protected?.let { card -> overlapArea(rect, card) == 0f } ?: true
+        protected.all { card -> overlapArea(rect, card) == 0f }
     } ?: AddressRefreshCorner.OUTSIDE_PREVIEW
 }
 

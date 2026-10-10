@@ -1,0 +1,12 @@
+{
+  "source": "../15-first-launch-steps-v2.png",
+  "sourceWidth": 1640,
+  "sourceHeight": 959,
+  "coordinateSpace": "source pixels",
+  "steps": [
+    { "id": "project", "left": 12, "top": 116, "width": 386, "height": 445 },
+    { "id": "capture", "left": 422, "top": 116, "width": 386, "height": 445 },
+    { "id": "media", "left": 832, "top": 116, "width": 386, "height": 445 },
+    { "id": "archive", "left": 1242, "top": 116, "width": 386, "height": 445 }
+  ]
+}

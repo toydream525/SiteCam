@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
@@ -26,6 +27,10 @@ sealed interface PhotoDetailEvent {
     data class Share(val item: MediaItemEntity) : PhotoDetailEvent
     data object Deleted : PhotoDetailEvent
     data class RetryCompleted(val cleanupWarning: Boolean) : PhotoDetailEvent
+    data class PendingDeleteConsent(
+        val intentSender: android.content.IntentSender,
+        val item: MediaItemEntity
+    ) : PhotoDetailEvent
     data class Error(val message: String) : PhotoDetailEvent
 }
 
@@ -50,7 +55,17 @@ class PhotoDetailViewModel(
                 .onFailure { _events.emit(PhotoDetailEvent.Error(it.message ?: "保存问题失败")) }
         }
     }
-    fun removeIssue() { viewModelScope.launch { appContainer.database.issueDao().removeIssueAndUnmarkMedia(mediaId) } }
+    fun removeIssue() {
+        viewModelScope.launch {
+            try {
+                appContainer.database.issueDao().removeIssueAndUnmarkMedia(mediaId)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (e: Exception) {
+                _events.emit(PhotoDetailEvent.Error(e.message ?: "删除问题失败"))
+            }
+        }
+    }
 
     private val _isRetrying = kotlinx.coroutines.flow.MutableStateFlow(false)
     val isRetrying: kotlinx.coroutines.flow.StateFlow<Boolean> = _isRetrying.asStateFlow()
@@ -65,19 +80,35 @@ class PhotoDetailViewModel(
         }
     }
 
-    fun delete() {
+    fun delete() = deleteItem(mediaItem.value)
+
+    /** Re-runs the deletion once the system granted the delete request. */
+    fun retryDeleteAfterConsent(item: MediaItemEntity) = deleteItem(item)
+
+    private fun deleteItem(item: MediaItemEntity?) {
         viewModelScope.launch {
-            val item = mediaItem.value
             if (item == null) {
                 _events.emit(PhotoDetailEvent.Error("媒体记录不存在"))
                 return@launch
             }
-            val result = appContainer.mediaDeletionCoordinator.delete(item)
-            if (!result.success) {
-                _events.emit(PhotoDetailEvent.Error(result.message ?: "媒体删除失败，已保留工程索引"))
-                return@launch
+            try {
+                val result = appContainer.mediaDeletionCoordinator.delete(item)
+                val consent = result.pendingConsent
+                if (consent != null) {
+                    // Nothing was removed from the index, so the same item is retried after approval.
+                    _events.emit(PhotoDetailEvent.PendingDeleteConsent(consent.intentSender, item))
+                    return@launch
+                }
+                if (!result.success) {
+                    _events.emit(PhotoDetailEvent.Error(result.message ?: "媒体删除失败，已保留工程索引"))
+                    return@launch
+                }
+                _events.emit(PhotoDetailEvent.Deleted)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (e: Exception) {
+                _events.emit(PhotoDetailEvent.Error(e.message ?: "媒体删除失败，已保留工程索引"))
             }
-            _events.emit(PhotoDetailEvent.Deleted)
         }
     }
 
@@ -106,8 +137,7 @@ class PhotoDetailViewModel(
                 } ?: throw IllegalStateException("原视频不存在，无法重试")
 
                 val project = appContainer.database.projectDao().getProjectById(item.projectId)
-                val snapshot = WatermarkSnapshotCodec.decode(item.watermarkSnapshotJson)
-                val data = snapshot ?: WatermarkData(
+                val fallbackData = WatermarkData(
                     projectName = project?.name ?: "默认工程",
                     categoryName = project?.categoryName ?: "建筑",
                     captureTimestamp = item.captureTimestamp,
@@ -116,13 +146,24 @@ class PhotoDetailViewModel(
                     altitude = item.altitude,
                     addressText = item.addressText
                 )
+                val data = when (val decoded = WatermarkSnapshotCodec.decodeResult(item.watermarkSnapshotJson)) {
+                    is WatermarkSnapshotCodec.DecodeResult.Success -> decoded.data
+                    is WatermarkSnapshotCodec.DecodeResult.Unavailable -> {
+                        // Retrying with the default template silently changes the
+                        // stamp the video was recorded with, so say so.
+                        _events.emit(PhotoDetailEvent.Error("水印模板信息不可用，已按默认样式重试"))
+                        fallbackData
+                    }
+                    WatermarkSnapshotCodec.DecodeResult.Missing -> fallbackData
+                }
                 appContainer.videoWatermarkTranscoder.transcode(input, output, data)
                 val saved = appContainer.mediaStoreManager.saveVideoToMediaStore(
                     tempVideoFile = output,
                     fileName = item.fileName,
                     projectName = project?.name ?: "默认工程",
                     timestamp = item.captureTimestamp,
-                    saveToSystemGallery = Uri.parse(item.contentUri).authority == android.provider.MediaStore.AUTHORITY
+                    saveToSystemGallery = data.saveToSystemGallery
+                        ?: (Uri.parse(item.contentUri).authority == android.provider.MediaStore.AUTHORITY)
                 )
                 newUri = saved.uri
                 try {
@@ -139,19 +180,21 @@ class PhotoDetailViewModel(
                         )
                     )
                 } catch (dbError: Exception) {
-                    appContainer.mediaStoreManager.deleteMediaUri(saved.uri)
+                    runCatching { appContainer.mediaStoreManager.deleteMediaUri(saved.uri) }
                     newUri = null
                     throw dbError
                 }
                 newUri = null
                 val oldDelete = appContainer.mediaStoreManager.deleteMediaUriDetailed(Uri.parse(item.contentUri))
                 _events.emit(PhotoDetailEvent.RetryCompleted(cleanupWarning = oldDelete == com.sitecam.app.core.media.MediaDeleteOutcome.FAILED))
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (e: Exception) {
-                newUri?.let { appContainer.mediaStoreManager.deleteMediaUri(it) }
+                newUri?.let { uri -> runCatching { appContainer.mediaStoreManager.deleteMediaUri(uri) } }
                 _events.emit(PhotoDetailEvent.Error("视频水印重试失败: ${e.message ?: "未知错误"}"))
             } finally {
-                input.delete()
-                output.delete()
+                runCatching { input.delete() }
+                runCatching { output.delete() }
                 _isRetrying.value = false
             }
             }

@@ -1,5 +1,21 @@
 # 更新日志
 
+## v0.4.0 — 2026-10-10
+
+- 大版本更新：全面优化折叠屏外屏、内屏展开及平板全景使用体验；手机竖屏与横屏拍摄均保留舒适的快门握持留白，减少误触。
+- 进出二级页面（设置、工程包）时预览画面平稳过渡，避免晃动，水印与文字内容完整显示不截断。
+- 变焦体验更顺畅稳定，支持多焦段顺滑切换，切换后保持选定倍率。
+- 现场无网络时持续保留有效卫星坐标，支持手动修改地点，联网后自动解析地址。
+- 水印智能自适应排版，大字号或多行文字下自动紧凑排列，取景画面更清爽。
+- 新增四款不同风格的桌面应用图标（可在设置中切换）；首次使用指引升级为全新大字图解说明。
+- 优化工程列表与相册浏览排版，工程资料整理与导出更便捷。
+
+### 下载资产
+
+- Android：[Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.0/SiteCam-0.4.0-Android-Release.apk) · [Debug APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.0/SiteCam-0.4.0-Android-Debug.apk)
+- HarmonyOS：[Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.4.0/SiteCam-0.4.0-HarmonyOS-Release-Unsigned.hap)（需自行签名后安装）
+- 说明：鸿蒙版已上架华为应用市场，可搜索“SiteCam工程水印相机”下载，商店新版本以审核进度为准。
+
 ## v0.3.6 — 2026-10-01
 
 - 修复切换水印后地址丢失，以及定位轻微变化时地址持续不可用的问题。

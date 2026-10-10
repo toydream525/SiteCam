@@ -51,13 +51,24 @@ function build(ctx: DrawingContext,w: number,h: number,snap: Snapshot,scale: num
   const light=['ENGINEERING_BLUE','CONSTRUCTION_TABLE','ACCEPTANCE'].includes(id),legacy=['CLASSIC','MINIMAL','INFO_BOARD'].includes(id);
   const fontScale=cfg.fontScale>=.5&&cfg.fontScale<=2.2?cfg.fontScale:1; const base=Math.max(.45,Math.min(w,h)/1080)*fontScale*scale;
   const pad=22*base,gap=(legacy?14:7)*base,size=(legacy?26:30)*base;
-  const cardW=Math.max(pad*3,Math.min(w-margin*2,Math.min(w,h)*(light?.82:.9))),inner=Math.max(.001,cardW-pad*2);
+  const fields=resolveFields(snap);
+  const title=id==='INFO_BOARD'?'工程施工现场留档记录':id==='CONSTRUCTION_TABLE'?'施工记录':id==='INSPECTION'?'巡检记录':id==='ACCEPTANCE'?'工程验收 · 现场记录':'';
+  const inkWidth=(text:string,font:number,bold:boolean=false):number=>{ctx.font=`${bold?'bold':'normal'} ${font}px sans-serif`;let width=0;for(const part of text.split('\n'))width=Math.max(width,ctx.measureText(part).width);return width;};
+  let naturalWidth=title?inkWidth(title,id==='INFO_BOARD'?32*base:size*1.12,true):0;
+  for(let i=0;i<fields.length;i++){
+    const f=fields[i],blue=id==='ENGINEERING_BLUE'&&(f.key==='project'||f.key==='time'),big=id==='TIME_LOCATION'&&f.key==='time',highlight=id==='CLASSIC'&&i===0,font=highlight?34*base:size*(big?1.75:blue?1.12:1);
+    let fieldWidth=0;
+    if(blue)fieldWidth=inkWidth((snap.presentationVersion===2?f.label+': ':'')+f.value,font,true);
+    else if(light){const fraction=id==='ACCEPTANCE'?.32:.27;fieldWidth=Math.max((inkWidth(f.label,size,true)+gap)/fraction,(inkWidth(f.value,size)+gap)/(1-fraction));}
+    else if(id==='MINIMAL'||id==='TIME_LOCATION')fieldWidth=Math.max(inkWidth(f.value,font,big),(snap.presentationVersion===2||!['project','category','time','address','gps','user'].includes(f.key))?inkWidth(f.label,size*.85,true):0);
+    else fieldWidth=inkWidth(f.label+': ',font,true)+inkWidth(f.value,font,highlight);
+    naturalWidth=Math.max(naturalWidth,fieldWidth);
+  }
+  const cardW=Math.max(pad*3,Math.min(w-margin*2,Math.min(w,h)*(light?.82:.9),naturalWidth+pad*2+1)),inner=Math.max(.001,cardW-pad*2);
   const r=new Layout();r.w=cardW;r.background=light?'#F5F8FB':(id==='MINIMAL'?'#18232C':'#16212B');r.accent=id==='ENGINEERING_BLUE'?'#1262AE':id==='CONSTRUCTION_TABLE'?'#455F78':id==='INSPECTION'?'#168D80':id==='ACCEPTANCE'?'#173C68':'#FFB300';
   const fg=light?'#172D42':'#FFFFFF',label=light?'#315776':'#CFD8DC';let y=pad;let header=0;
-  const title=id==='INFO_BOARD'?'工程施工现场留档记录':id==='CONSTRUCTION_TABLE'?'施工记录':id==='INSPECTION'?'巡检记录':id==='ACCEPTANCE'?'工程验收 · 现场记录':'';
   const add=(text: string,x: number,top: number,maxW: number,font: number,color: string,bold: boolean,key: string,role: string): number=>{ctx.font=`${bold?'bold':'normal'} ${font}px sans-serif`;let cursor=top;for(const part of wrapText(ctx,text,Math.max(.001,maxW))){const mt=ctx.measureText(part||'国');const asc=Math.max(mt.fontBoundingBoxAscent||0,mt.actualBoundingBoxAscent||0,font*.9);const desc=Math.max(mt.fontBoundingBoxDescent||0,mt.actualBoundingBoxDescent||0,font*.25);const l=new InkLine();l.text=part;l.x=x;l.y=cursor+asc;l.width=mt.width;l.size=font;l.color=color;l.bold=bold;l.key=key;l.role=role;l.ascent=asc;l.descent=desc;r.lines.push(l);cursor+=asc+desc+gap;}return cursor;};
   if(title){y=add(title,pad,y,inner,id==='INFO_BOARD'?32*base:size*1.12,id==='INFO_BOARD'?'#17212A':'#FFFFFF',true,'','heading')+pad*.5;header=y;y+=pad*.5;}
-  const fields=resolveFields(snap);
   for(let i=0;i<fields.length;i++){const f=fields[i],rowTop=y,blue=id==='ENGINEERING_BLUE'&&(f.key==='project'||f.key==='time'),big=id==='TIME_LOCATION'&&f.key==='time',highlight=id==='CLASSIC'&&i===0,font=highlight?34*base:size*(big?1.75:blue?1.12:1);
     if(blue){if(snap.presentationVersion===2){const top=y;y=add(f.label+': '+f.value,pad,y,inner,font,'#FFFFFF',true,f.key,'value');const bg=new InkRect();bg.x=pad-gap;bg.y=top-gap/2;bg.w=inner+gap*2;bg.h=y-top+gap/2;bg.color=r.accent;r.rects.push(bg);}else{y=add(f.value,pad,y,inner,font,'#FFFFFF',true,f.key,'value');header=y+gap;}}
     else if(light){const lw=inner*(id==='ACCEPTANCE'?.32:.27),a=add(f.label,pad,y,lw-gap,size,label,true,f.key,'label'),b=add(f.value,pad+lw+gap,y,inner-lw-gap,size,fg,false,f.key,'value');y=Math.max(a,b);line(r,pad+lw,rowTop-gap/2,Math.max(base,.2),y-(rowTop-gap/2),'#C0CEDA');}

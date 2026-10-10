@@ -1,60 +1,19 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 package com.sitecam.app.feature.watermark
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -62,411 +21,131 @@ import androidx.compose.ui.unit.sp
 import com.sitecam.app.core.database.entity.WatermarkFieldEntity
 import com.sitecam.app.core.watermark.model.WatermarkStyleCatalog
 import com.sitecam.app.core.watermark.renderer.WatermarkPreviewCanvas
-import com.sitecam.app.ui.theme.DarkBackground
-import com.sitecam.app.ui.theme.DarkCard
 import com.sitecam.app.ui.theme.EngineeringYellow
-import com.sitecam.app.ui.theme.ErrorRed
-import com.sitecam.app.ui.theme.TextPrimaryDark
-import com.sitecam.app.ui.theme.TextSecondaryDark
-import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WatermarkCustomizationScreen(
-    viewModel: WatermarkEditorViewModel,
-    onNavigateBack: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val uiState by viewModel.uiState.collectAsState()
-    var showAddFieldDialog by remember { mutableStateOf(false) }
-    var editingField by remember { mutableStateOf<WatermarkFieldEntity?>(null) }
-    var showStylePicker by remember { mutableStateOf(false) }
-
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = DarkBackground,
-        contentWindowInsets = WindowInsets.safeDrawing,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "水印样式与字段定制",
-                        color = TextPrimaryDark,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 17.sp
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
-                            tint = Color.White
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = DarkBackground
-                )
-            )
+fun WatermarkCustomizationScreen(viewModel: WatermarkEditorViewModel, onNavigateBack: () -> Unit, modifier: Modifier = Modifier) {
+    val state by viewModel.uiState.collectAsState()
+    val messageContext = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(viewModel) {
+        viewModel.messages.collect { message ->
+            android.widget.Toast.makeText(messageContext, message, android.widget.Toast.LENGTH_SHORT).show()
         }
-    ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            // 1. Live Preview Section
-            item {
-                Text(
-                    text = "实时效果预览",
-                    color = TextSecondaryDark,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E2830))
-                ) {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        WatermarkPreviewCanvas(
-                            watermarkData = uiState.previewData,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                val currentStyle = WatermarkStyleCatalog.resolve(uiState.template?.styleType)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("当前样式", color = TextSecondaryDark, fontSize = 12.sp)
-                        Text(
-                            text = currentStyle.name,
-                            color = EngineeringYellow,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    TextButton(
-                        onClick = { showStylePicker = true },
-                        colors = ButtonDefaults.textButtonColors(contentColor = EngineeringYellow)
-                    ) {
-                        Text("更换样式")
-                    }
-                }
+    }
+    var tab by rememberSaveable { mutableStateOf("内容") }
+    var adding by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<WatermarkFieldEntity?>(null) }
+    var styles by remember { mutableStateOf(false) }
+    @Composable fun preview(modifier: Modifier) {
+        Surface(modifier, shape = RoundedCornerShape(16.dp), color = Color(0xFF1E2830)) {
+            WatermarkVisualPreview(state.previewData, Modifier.fillMaxSize())
+        }
+    }
+    @Composable fun controls(modifier: Modifier) {
+        Column(modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("内容", "字段", "外观").forEach { label -> FilterChip(tab == label, { tab = label }, label = { Text(label) }) }
             }
-
-            // 2. Styling Controls (Size, Opacity, Position)
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = DarkCard)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "样式调整",
-                            color = TextPrimaryDark,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // Font size scale slider
-                        val scale = uiState.template?.fontSizeScale ?: 1.0f
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text("字号缩放比例", color = TextSecondaryDark, fontSize = 13.sp)
-                            Text(String.format(Locale.US, "%.1f×", scale), color = EngineeringYellow, fontSize = 13.sp)
-                        }
-                        Slider(
-                            value = scale,
-                            onValueChange = { viewModel.updateFontSizeScale(it) },
-                            valueRange = 0.6f..2.0f,
-                            steps = 13,
-                            colors = SliderDefaults.colors(
-                                thumbColor = EngineeringYellow,
-                                activeTrackColor = EngineeringYellow
-                            )
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Opacity slider
-                        val opacity = uiState.template?.opacity ?: 0.85f
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text("背景卡片不透明度", color = TextSecondaryDark, fontSize = 13.sp)
-                            Text("${(opacity * 100).toInt()}%", color = EngineeringYellow, fontSize = 13.sp)
-                        }
-                        Slider(
-                            value = opacity,
-                            onValueChange = { viewModel.updateOpacity(it) },
-                            valueRange = 0.3f..1.0f,
-                            steps = 6,
-                            colors = SliderDefaults.colors(
-                                thumbColor = EngineeringYellow,
-                                activeTrackColor = EngineeringYellow
-                            )
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Position selector
-                        Text("水印位置", color = TextSecondaryDark, fontSize = 13.sp)
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            val currentPos = uiState.template?.position ?: "BOTTOM_LEFT"
-                            listOf(
-                                "BOTTOM_LEFT" to "左下角",
-                                "BOTTOM_RIGHT" to "右下角",
-                                "TOP_LEFT" to "左上角",
-                                "TOP_RIGHT" to "右上角"
-                            ).forEach { (posKey, posLabel) ->
-                                FilterChip(
-                                    selected = currentPos == posKey,
-                                    onClick = { viewModel.updatePosition(posKey) },
-                                    label = { Text(posLabel, fontSize = 11.sp) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = EngineeringYellow,
-                                        selectedLabelColor = Color.Black,
-                                        containerColor = Color.Black.copy(alpha = 0.3f),
-                                        labelColor = TextPrimaryDark
-                                    )
-                                )
+            when(tab) {
+                "内容" -> {
+                    state.fields.forEach { field ->
+                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                OutlinedTextField(field.defaultValue, { viewModel.updateFieldValue(field, it) }, label = { Text(field.label) },
+                                    modifier = Modifier.weight(1f), enabled = field.isEnabled, minLines = 1, maxLines = 3)
+                                Switch(field.isEnabled, { viewModel.toggleField(field) })
                             }
                         }
                     }
-                }
-            }
-
-            // 3. Fields Management Header
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "水印字段管理与排序",
-                        color = TextSecondaryDark,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    TextButton(onClick = { viewModel.restoreFieldPresentation() }) {
-                        Text("恢复默认", color = EngineeringYellow, fontSize = 12.sp)
-                    }
-                    Button(
-                        onClick = { showAddFieldDialog = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = EngineeringYellow),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
-                        Text("新增字段", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        TextButton(onClick = { adding = true }) { Icon(Icons.Default.Add, null); Text("新增字段") }
+                        TextButton(onClick = { tab = "字段" }) { Text("管理字段") }
                     }
                 }
-            }
-
-            // 4. Fields List
-            itemsIndexed(uiState.fields, key = { _, item -> item.id }) { index, field ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (field.isEnabled) DarkCard else DarkCard.copy(alpha = 0.5f)
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = field.label,
-                                color = if (field.isEnabled) TextPrimaryDark else TextSecondaryDark,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            if (field.defaultValue.isNotBlank()) {
-                                Text(
-                                    text = "默认: ${field.defaultValue}",
-                                    color = TextSecondaryDark,
-                                    fontSize = 12.sp
-                                )
-                            }
-                        }
-
-                        // Action Controls (Up, Down, Edit, Toggle)
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            if (index > 0) {
-                                IconButton(
-                                    onClick = { viewModel.moveFieldUp(index) },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(Icons.Default.ArrowUpward, contentDescription = "上移", tint = Color.White, modifier = Modifier.size(16.dp))
+                "字段" -> {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        TextButton(onClick = viewModel::restoreFieldPresentation) { Icon(Icons.Default.RestartAlt, null); Text("恢复默认") }
+                        TextButton(onClick = { adding = true }) { Icon(Icons.Default.Add, null); Text("新增字段") }
+                    }
+                    state.fields.forEachIndexed { index, field ->
+                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                            Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(field.label, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                                    IconButton(onClick = { editing = field }) { Icon(Icons.Default.Edit, "编辑 ${field.label}") }
+                                    Switch(field.isEnabled, { viewModel.toggleField(field) })
+                                }
+                                Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                                    IconButton(onClick = { viewModel.moveFieldUp(index) }, enabled = index > 0) { Icon(Icons.Default.ArrowUpward, "上移 ${field.label}") }
+                                    IconButton(onClick = { viewModel.moveFieldDown(index) }, enabled = index < state.fields.lastIndex) { Icon(Icons.Default.ArrowDownward, "下移 ${field.label}") }
+                                    if (field.fieldKey.startsWith("CUSTOM_")) IconButton(onClick = { viewModel.deleteField(field) }) { Icon(Icons.Default.Delete, "删除 ${field.label}", tint = MaterialTheme.colorScheme.error) }
                                 }
                             }
-                            if (index < uiState.fields.size - 1) {
-                                IconButton(
-                                    onClick = { viewModel.moveFieldDown(index) },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(Icons.Default.ArrowDownward, contentDescription = "下移", tint = Color.White, modifier = Modifier.size(16.dp))
-                                }
-                            }
-                            IconButton(
-                                onClick = { editingField = field },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(Icons.Default.Edit, contentDescription = "编辑", tint = EngineeringYellow, modifier = Modifier.size(16.dp))
-                            }
-                            if (field.fieldKey.startsWith("CUSTOM_")) {
-                                IconButton(
-                                    onClick = { viewModel.deleteField(field) },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(Icons.Default.Delete, contentDescription = "删除", tint = ErrorRed, modifier = Modifier.size(16.dp))
-                                }
-                            }
-
-                            Switch(
-                                checked = field.isEnabled,
-                                onCheckedChange = { viewModel.toggleField(field) },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = EngineeringYellow,
-                                    checkedTrackColor = EngineeringYellow.copy(alpha = 0.5f)
-                                )
-                            )
                         }
                     }
                 }
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(24.dp))
+                "外观" -> {
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                        TextButton(onClick = { styles = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp)) {
+                            Text("水印样式", Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface)
+                            Text(WatermarkStyleCatalog.resolve(state.template?.styleType).name, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    WatermarkControl("字号", "%.1f×".format(state.template?.fontSizeScale ?: 1f)) {
+                        Slider(state.template?.fontSizeScale ?: 1f, viewModel::updateFontSizeScale, valueRange = .6f..2f, steps = 13)
+                    }
+                    WatermarkControl("不透明度", "${((state.template?.opacity ?: .85f) * 100).toInt()}%") {
+                        Slider(state.template?.opacity ?: .85f, viewModel::updateOpacity, valueRange = .3f..1f, steps = 6)
+                    }
+                    WatermarkControl("位置", "") {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("TOP_LEFT" to "左上", "TOP_RIGHT" to "右上", "BOTTOM_LEFT" to "左下", "BOTTOM_RIGHT" to "右下").forEach { (key,label) ->
+                                FilterChip(state.template?.position == key, { viewModel.updatePosition(key) }, label = { Text(label) })
+                            }
+                        }
+                    }
+                }
             }
         }
     }
-
-    if (showStylePicker) {
-        WatermarkStylePickerDialog(
-            currentStyleId = uiState.template?.styleType ?: "CLASSIC",
-            previewData = uiState.previewData,
-            onDismiss = { showStylePicker = false },
-            onConfirm = { styleId ->
-                viewModel.updateStyleType(styleId)
-                showStylePicker = false
+    Scaffold(modifier.fillMaxSize(), containerColor = MaterialTheme.colorScheme.background, contentWindowInsets = WindowInsets.safeDrawing,
+        topBar = { TopAppBar(title = { Text("水印编辑", fontWeight = FontWeight.Bold) }, navigationIcon = {
+            IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
+        }, actions = { TextButton(onClick = onNavigateBack) { Text("完成") } },
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)) }) { padding ->
+        BoxWithConstraints(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
+            val previewHeight = (maxHeight * .32f).coerceIn(100.dp, 240.dp)
+            if (maxWidth >= 840.dp) Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                preview(Modifier.weight(1f).fillMaxHeight())
+                controls(Modifier.width(360.dp).fillMaxHeight())
+            } else Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                preview(Modifier.fillMaxWidth().height(previewHeight))
+                controls(Modifier.weight(1f).fillMaxWidth())
             }
-        )
+        }
     }
-
-    // Add Custom Field Dialog
-    if (showAddFieldDialog) {
-        var newLabel by remember { mutableStateOf("") }
-
-        AlertDialog(
-            onDismissRequest = { showAddFieldDialog = false },
-            containerColor = DarkCard,
-            title = { Text("新增工程水印字段", color = TextPrimaryDark, fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = newLabel,
-                        onValueChange = { newLabel = it },
-                        label = { Text("字段名称（如：标段 / 监理单位）") },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = EngineeringYellow),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (newLabel.isNotBlank()) {
-                            viewModel.addCustomField(newLabel)
-                            showAddFieldDialog = false
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = EngineeringYellow)
-                ) {
-                    Text("添加", color = Color.Black, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddFieldDialog = false }) {
-                    Text("取消", color = TextSecondaryDark)
+    if(styles) WatermarkStylePickerDialog(state.template?.styleType ?: "CLASSIC", state.previewData,
+        onDismiss = { styles = false }, onConfirm = { viewModel.updateStyleType(it); styles = false })
+    if(adding || editing != null) {
+        var label by remember(editing, adding) { mutableStateOf(editing?.label ?: "") }
+        ModalBottomSheet(onDismissRequest = { adding = false; editing = null }) {
+            Column(Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text(if(adding) "新增字段" else "编辑字段", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                OutlinedTextField(label, { label = it }, label = { Text("字段名称") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedButton(onClick = { adding = false; editing = null }, modifier = Modifier.weight(1f)) { Text("取消") }
+                    Button(onClick = { if(adding) viewModel.addCustomField(label.trim()) else editing?.let { viewModel.updateField(it, label.trim()) }; adding = false; editing = null },
+                        enabled = label.isNotBlank(), modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(contentColor = Color.Black)) { Text(if(adding) "添加" else "保存") }
                 }
             }
-        )
+        }
     }
-
-    // Edit Field Dialog
-    editingField?.let { field ->
-        var editLabel by remember(field) { mutableStateOf(field.label) }
-
-        AlertDialog(
-            onDismissRequest = { editingField = null },
-            containerColor = DarkCard,
-            title = { Text("编辑水印字段", color = TextPrimaryDark, fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = editLabel,
-                        onValueChange = { editLabel = it },
-                        label = { Text("字段标签") },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = EngineeringYellow),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (editLabel.isNotBlank()) {
-                            viewModel.updateField(field, editLabel)
-                            editingField = null
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = EngineeringYellow)
-                ) {
-                    Text("保存", color = Color.Black, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { editingField = null }) {
-                    Text("取消", color = TextSecondaryDark)
-                }
-            }
-        )
+}
+@Composable private fun WatermarkControl(title: String, value: String, content: @Composable ColumnScope.() -> Unit) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth()) { Text(title, Modifier.weight(1f), fontWeight = FontWeight.Bold); Text(value) }
+            content()
+        }
     }
 }

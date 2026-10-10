@@ -2,6 +2,7 @@ package com.sitecam.app.core.media
 
 import android.content.ContentValues
 import android.content.Context
+import android.content.IntentSender
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
@@ -30,7 +31,27 @@ data class SavedMediaResult(
 
 enum class MediaDeleteOutcome { DELETED, ALREADY_MISSING, FAILED }
 
+/**
+ * A deletion denied without a consent request cannot be retried, while a
+ * consent request must be shown to the user before anything is deleted.
+ * [ConsentRequired] therefore stays distinct from [MediaDeleteOutcome.FAILED],
+ * whose callers release the local index as a final state.
+ */
+sealed interface MediaDeletionOutcome {
+    data object Deleted : MediaDeletionOutcome
+    data object AlreadyMissing : MediaDeletionOutcome
+    data class ConsentRequired(val intentSender: IntentSender) : MediaDeletionOutcome
+    data object Failed : MediaDeletionOutcome
+}
+
+/** Why a provider refused to delete; only a permission refusal is recoverable. */
+private enum class RefusalReason { PERMISSION }
+
 class MediaStoreManager(private val context: Context) {
+
+    // The refusal is consumed by the very next query for that URI, so no
+    // authorization dialog can be offered for an unrelated later delete.
+    private val lastRefusal = java.util.concurrent.ConcurrentHashMap<Uri, RefusalReason>()
 
     suspend fun savePhotoToMediaStore(
         bitmap: Bitmap,
@@ -98,7 +119,11 @@ class MediaStoreManager(private val context: Context) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 contentValues.clear()
                 contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
-                resolver.update(imageUri, contentValues, null, null)
+                // An update that touches no row leaves the photo invisible in
+                // the gallery, so it must fail the save instead of reporting it.
+                check(resolver.update(imageUri, contentValues, null, null) > 0) {
+                    "照片未能完成发布"
+                }
             }
 
             SavedMediaResult(
@@ -177,10 +202,12 @@ class MediaStoreManager(private val context: Context) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 contentValues.clear()
                 contentValues.put(MediaStore.Video.Media.IS_PENDING, 0)
-                resolver.update(videoUri, contentValues, null, null)
+                // A zero-row update would leave the recording pending and
+                // invisible to the system gallery while the DB says READY.
+                check(resolver.update(videoUri, contentValues, null, null) > 0) {
+                    "录像未能完成发布"
+                }
             }
-
-            tempVideoFile.delete()
 
             SavedMediaResult(
                 uri = videoUri,
@@ -217,25 +244,100 @@ class MediaStoreManager(private val context: Context) {
         }
     }
 
-    suspend fun deleteMediaUriDetailed(uri: Uri): MediaDeleteOutcome = withContext(Dispatchers.IO) {
-        val resolver = context.contentResolver
-        try {
-            if (resolver.delete(uri, null, null) > 0) return@withContext MediaDeleteOutcome.DELETED
-            // FileProvider and vendor MediaStore providers do not all expose
-            // the `_id` projection. Probe readability after a zero-count
-            // delete so app-private API 26-28 fallback files are handled too.
-            val stillReadable = runCatching {
-                resolver.openInputStream(uri)?.use { true } ?: false
-            }.getOrDefault(false)
-            if (stillReadable) MediaDeleteOutcome.FAILED else MediaDeleteOutcome.ALREADY_MISSING
-        } catch (_: Exception) {
-            MediaDeleteOutcome.FAILED
+    /** Probe a finished recording before exposing it as a retryable original. */
+    fun inspectRecordedVideo(file: File): VideoMetadata {
+        require(file.isFile && file.length() > 0) { "录像没有有效画面" }
+        val metadata = readVideoMetadata(file)
+        require(metadata.width > 0 && metadata.height > 0) { "无法读取录像尺寸" }
+        // API 26 has no scaled frame decoder: getFrameAtTime would allocate a
+        // full-size bitmap (~33 MB for 4K) just to validate the recording, so
+        // the decoded width/height above stay the size check there.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(file.absolutePath)
+                val frame = retriever.getScaledFrameAtTime(
+                    0L,
+                    MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+                    64,
+                    64
+                )
+                requireNotNull(frame) { "录像没有可读取的画面" }.recycle()
+            } finally { retriever.release() }
         }
+        return metadata
+    }
+
+    suspend fun deleteMediaUriDetailed(uri: Uri): MediaDeleteOutcome = when (val outcome = deleteMediaOutcome(uri)) {
+        is MediaDeletionOutcome.AlreadyMissing -> MediaDeleteOutcome.ALREADY_MISSING
+        MediaDeletionOutcome.Deleted -> MediaDeleteOutcome.DELETED
+        // A denied or unavailable consent request leaves the local index in place.
+        else -> MediaDeleteOutcome.FAILED
     }
 
     /** Missing content is safe to clean from the local index. */
     suspend fun deleteMediaUri(uri: Uri): Boolean =
         deleteMediaUriDetailed(uri) != MediaDeleteOutcome.FAILED
+
+    suspend fun deleteMediaOutcome(uri: Uri): MediaDeletionOutcome = withContext(Dispatchers.IO) {
+        val resolver = context.contentResolver
+        try {
+            if (resolver.delete(uri, null, null) > 0) return@withContext MediaDeletionOutcome.Deleted
+            mediaDeletionFallback(uri)
+        } catch (error: SecurityException) {
+            // On Android 11+ the provider refuses outright, so the authorization
+            // the system is willing to grant replaces the raw failure.
+            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.Q) {
+                lastRefusal[uri] = RefusalReason.PERMISSION
+                requestDeleteConsent(listOf(uri))?.let { return@withContext MediaDeletionOutcome.ConsentRequired(it) }
+            }
+            resolveDeleteConsent(error) ?: mediaDeletionFallback(uri)
+        }
+    }
+
+    /**
+     * Android 11+ rejects deleting another app's media until the user approves a
+     * system dialog, so the caller must show the request before retrying.
+     */
+    suspend fun requestDeleteConsent(uris: List<Uri>): IntentSender? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || uris.isEmpty()) return null
+        return runCatching { MediaStore.createDeleteRequest(context.contentResolver, uris).intentSender }
+            .getOrNull()
+    }
+
+    /**
+     * Reports the authorization a refused delete still needs, so a caller that
+     * only sees [MediaDeleteOutcome.FAILED] can still ask the user.  Only
+     * callers that already know the delete was refused may use this: it is
+     * queried after a failed `resolver.delete` on the same URI.
+     */
+    suspend fun authorizationRequiredFor(uri: Uri): MediaDeletionOutcome? {
+        // Only a permission refusal can be resolved by the system dialog; any
+        // other refusal reason stays final.
+        if (lastRefusal.remove(uri) != RefusalReason.PERMISSION) return null
+        return requestDeleteConsent(listOf(uri))?.let { MediaDeletionOutcome.ConsentRequired(it) }
+    }
+
+    private fun resolveDeleteConsent(error: SecurityException): MediaDeletionOutcome? {
+        // API 26-28 have no recoverable media permission: touching the
+        // RecoverableSecurityException class outside the Q guard would fail to
+        // load on those devices.
+        if (Build.VERSION.SDK_INT != Build.VERSION_CODES.Q) return null
+        @Suppress("DEPRECATION")
+        val sender = (error as? android.app.RecoverableSecurityException)?.userAction?.actionIntent?.intentSender
+        return sender?.let { MediaDeletionOutcome.ConsentRequired(it) }
+    }
+
+    private suspend fun mediaDeletionFallback(uri: Uri): MediaDeletionOutcome {
+        // FileProvider and vendor MediaStore providers do not all expose
+        // the `_id` projection. Probe readability after a zero-count
+        // delete so app-private API 26-28 fallback files are handled too.
+        val stillReadable = runCatching {
+            context.contentResolver.openInputStream(uri)?.use { true } ?: false
+        }.getOrDefault(false)
+        if (stillReadable) return MediaDeletionOutcome.Failed
+        return MediaDeletionOutcome.AlreadyMissing
+    }
 
     private fun resolveDisplayName(uri: Uri, fallback: String): String {
         return context.contentResolver.query(
@@ -299,7 +401,6 @@ class MediaStoreManager(private val context: Context) {
             FileInputStream(tempVideoFile).use { input ->
                 FileOutputStream(file).use { output -> input.copyTo(output) }
             }
-            tempVideoFile.delete()
             return SavedMediaResult(
                 uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file),
                 fileName = file.name,
@@ -316,7 +417,7 @@ class MediaStoreManager(private val context: Context) {
     }
 }
 
-private data class VideoMetadata(
+data class VideoMetadata(
     val width: Int,
     val height: Int,
     val durationMs: Long,

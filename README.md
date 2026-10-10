@@ -12,15 +12,15 @@
 
 **免费 · 开源 · 无广告**
 
-[⬇️ 下载安卓版 Release（推荐）](https://github.com/toydream525/SiteCam/releases/download/v0.3.6/SiteCam-0.3.6-Android-Release.apk)　
-[🌸 下载鸿蒙原生版](https://github.com/toydream525/SiteCam/releases/download/v0.3.6/SiteCam-0.3.6-HarmonyOS-Release-Unsigned.hap)　
+[⬇️ 下载安卓版 Release（推荐）](https://github.com/toydream525/SiteCam/releases/download/v0.4.0/SiteCam-0.4.0-Android-Release.apk)　
+[🌸 下载鸿蒙原生版](https://github.com/toydream525/SiteCam/releases/download/v0.4.0/SiteCam-0.4.0-HarmonyOS-Release-Unsigned.hap)　
 [🌐 官网](https://yuriaqua.com/sitecam/)　
 [📖 使用说明](docs/USER_GUIDE.md)　
 [💬 反馈问题](https://github.com/toydream525/SiteCam/issues)
 
 </div>
 
-当前公开版本为 **v0.3.6**。默认下载 Android Release，推荐日常自用安装。
+当前公开版本为 **v0.4.0（大版本更新）**。默认下载 Android Release，推荐日常自用安装。
 
 ---
 
@@ -59,8 +59,8 @@
 
 | 你的设备 | 当前状态 | 下载 |
 | --- | --- | --- |
-| 🤖 安卓手机 | **v0.3.6，可安装使用**，支持 Android 8.0 及以上 | [Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.3.6/SiteCam-0.3.6-Android-Release.apk) |
-| 🌸 鸿蒙手机 / 平板 | **v0.3.6 原生版**，Release HAP 需自行签名后安装 | [Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.3.6/SiteCam-0.3.6-HarmonyOS-Release-Unsigned.hap) · [签名与安装说明](harmonyos/README.md) |
+| 🤖 安卓手机 | **v0.4.0，可安装使用**，支持 Android 8.0 及以上 | [Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.0/SiteCam-0.4.0-Android-Release.apk) |
+| 🌸 鸿蒙手机 / 平板 | **v0.4.0 原生版**，Release HAP 需自行签名后安装 | [Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.4.0/SiteCam-0.4.0-HarmonyOS-Release-Unsigned.hap) · [签名与安装说明](harmonyos/README.md) |
 | 🍎 iPhone / iPad | 开发中，暂无安装包 | — |
 
 **鸿蒙版说明：** 鸿蒙版不申请应用联网权限；具体地址由系统服务提供，系统服务可能使用网络。完全断网时可能无法自动获取具体地址，可手动填写。Release HAP 未签名，需自行签名后安装。鸿蒙版已上架华为应用市场，可搜索“SiteCam工程水印相机”下载；商店新版本以审核进度为准。
@@ -76,7 +76,7 @@
 
 ## 🆕 最近更新
 
-**v0.3.6：修复切换水印和定位变化时地址不显示的问题；简化地址刷新按钮，补充定位重新授权提示，并新增相机控件外观选项。**
+**v0.4.0：大版本更新。全面优化折叠屏与平板多形态适配；手机横竖屏拍摄均增加舒适握持留白；相机变焦更顺畅，二级页面进出平稳无跳动；现场无网持续保留坐标并支持手动修改地点；水印自适应紧凑排版；全新四款应用图标与新版使用指引。**
 
 支持拍照加水印、按工程整理照片与视频、标注问题和导出资料。
 

@@ -1,0 +1,7 @@
+10-03 23:45:29.178  3206  3669 D Recorder: Sending VideoRecordEvent Start
+10-03 23:46:15.368  3206  3669 D Recorder: Sending VideoRecordEvent Finalize
+10-03 23:48:18.993  3206  3669 D Recorder: Video source has transitioned to state: INACTIVE
+10-03 23:49:29.608  3206  3317 D Recorder: Sending VideoRecordEvent Start
+10-03 23:49:49.819  3206  3317 D Recorder: Video source has transitioned to state: INACTIVE
+10-03 23:49:54.366  3206  3317 D Recorder: Sending VideoRecordEvent Finalize [error: ERROR_SOURCE_INACTIVE]
+10-03 23:51:07.999  3206  3317 D Recorder: Video source has transitioned to state: INACTIVE

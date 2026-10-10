@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -25,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -40,11 +44,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.sitecam.app.ui.theme.DarkBackground
-import com.sitecam.app.ui.theme.DarkCard
+import com.sitecam.app.ui.theme.PageBackground as DarkBackground
+import com.sitecam.app.ui.theme.PageCard as DarkCard
 import com.sitecam.app.ui.theme.EngineeringYellow
-import com.sitecam.app.ui.theme.TextPrimaryDark
-import com.sitecam.app.ui.theme.TextSecondaryDark
+import com.sitecam.app.ui.theme.PageText as TextPrimaryDark
+import com.sitecam.app.ui.theme.PageMuted as TextSecondaryDark
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,7 +92,7 @@ fun HelpScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "使用技巧与教程",
+                        text = "使用指南",
                         color = TextPrimaryDark,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
@@ -145,121 +149,35 @@ fun HelpScreen(
                 val guideSections = sections.orEmpty()
                 val selected = guideSections.getOrNull(selectedSection)
                     ?: guideSections.firstOrNull()
-                if (showTableOfContents) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(paddingValues)
-                            .verticalScroll(tableOfContentsScrollState)
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(
-                            text = "目录",
-                            color = TextPrimaryDark,
-                            fontSize = 21.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        guideSections.forEachIndexed { index, section ->
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        selectedSection = index
-                                        showTableOfContents = false
-                                    },
-                                shape = RoundedCornerShape(12.dp),
-                                colors = CardDefaults.cardColors(containerColor = DarkCard)
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 13.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "${index + 1}",
-                                        color = EngineeringYellow,
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = section.title,
-                                        color = TextPrimaryDark,
-                                        fontSize = 16.sp,
-                                        modifier = Modifier.padding(start = 12.dp)
-                                    )
+                androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().padding(paddingValues)) {
+                    val wide = maxWidth >= 840.dp
+                    androidx.activity.compose.BackHandler(!wide && !showTableOfContents) { showTableOfContents = true }
+                    @Composable fun directory(pane:Modifier) {
+                        Column(pane.verticalScroll(tableOfContentsScrollState).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("章节目录", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimaryDark)
+                            guideSections.forEachIndexed { index, section ->
+                                Card(Modifier.fillMaxWidth().clickable { selectedSection = index; showTableOfContents = false }, colors = CardDefaults.cardColors(containerColor = DarkCard)) {
+                                    Text("${index + 1}  ${section.title}", Modifier.padding(16.dp), color = if(index == selectedSection) EngineeringYellow else TextPrimaryDark, fontSize = 16.sp)
                                 }
                             }
+                            OutlinedButton(onClick = onReplayOnboarding, modifier = Modifier.fillMaxWidth()) { Text("重新查看功能指引") }
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedButton(
-                            onClick = onReplayOnboarding,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(text = "重新查看功能指引", fontSize = 16.sp)
-                        }
-                        Text(
-                            text = "指南内容随应用离线提供，现场没有网络也可以查看。",
-                            color = TextSecondaryDark,
-                            fontSize = 14.sp,
-                            lineHeight = 21.sp
-                        )
                     }
-                } else {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(paddingValues)
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = { showTableOfContents = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(text = "返回目录", fontSize = 16.sp)
-                        }
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f)
-                                .verticalScroll(chapterScrollState),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
+                    @Composable fun chapter(pane:Modifier) {
+                        androidx.compose.foundation.layout.Box(pane, contentAlignment = Alignment.TopCenter) {
+                        Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().fillMaxHeight().verticalScroll(chapterScrollState).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            if(!wide) TextButton(onClick = { showTableOfContents = true }) { Text("‹ 返回目录") }
                             selected?.let { section ->
-                                Text(
-                                    text = section.title,
-                                    color = EngineeringYellow,
-                                    fontSize = 24.sp,
-                                    lineHeight = 32.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                section.lines.forEach { line ->
-                                    Text(
-                                        text = line,
-                                        color = TextPrimaryDark,
-                                        fontSize = 17.sp,
-                                        lineHeight = 27.sp,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
+                                Text(section.title, color = EngineeringYellow, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                                section.lines.forEach { line -> Text(line, color = TextPrimaryDark, fontSize = 17.sp, lineHeight = 27.sp, modifier = Modifier.fillMaxWidth()) }
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            OutlinedButton(
-                                onClick = onReplayOnboarding,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(text = "重新查看功能指引", fontSize = 16.sp)
-                            }
-                            Text(
-                                text = "指南内容随应用离线提供，现场没有网络也可以查看。",
-                                color = TextSecondaryDark,
-                                fontSize = 14.sp,
-                                lineHeight = 21.sp
-                            )
+                        }
                         }
                     }
+                    if(wide) Row(Modifier.fillMaxSize()) {
+                        directory(Modifier.width(320.dp).fillMaxHeight())
+                        chapter(Modifier.weight(1f).fillMaxHeight())
+                    } else if(showTableOfContents) directory(Modifier.fillMaxSize()) else chapter(Modifier.fillMaxSize())
                 }
             }
         }

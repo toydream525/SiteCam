@@ -1,5 +1,8 @@
+import { ordinaryPhoneGrip } from '../../../../main/ets/core/DeviceLayoutProfile';
 import { screenFamily,largeScreenScheme,smallCoverScreen,compactPhonePortrait } from '../../../../main/ets/core/DeviceLayoutProfile';
 import { FoldCoverControls } from '../../../../main/ets/pages/components/FoldCoverControls';
+import { WatermarkWidthChecks } from '../WatermarkWidthChecks';
+import { CoreRepairChecks } from '../CoreRepairChecks';
 import { WatermarkUpgradeChecks } from '../WatermarkUpgradeChecks';
 import { checkVideoFrames } from '../VideoOutputChecks';
 import { cameraLayout, captureDegrees, windowOrientationTarget, usesInnerScreen, rightCameraDock } from '../../../../main/ets/core/CameraLayout';
@@ -22,7 +25,7 @@ import { LocationServiceChecks } from '../LocationServiceChecks';
 import { PermissionGuideChecks } from '../PermissionGuideChecks';
 import { AddressRefreshPlacementChecks } from '../AddressRefreshPlacementChecks';
 import { ProjectPanelGeometryChecks } from '../ProjectPanelGeometryChecks';
-import { buildReferenceZoomPresets, buildZoomPresets, isNearestZoomPreset, isValidZoomRatio, lensRoleForCameraType, lensRoleFromPublicFacts, nearbyZoomPointFocalLength, referenceZoomFactor, referenceZoomFromSession, sessionZoomFromReference, zoomPresetLabel } from '../../../../main/ets/core/CameraCapability';
+import { CameraLensCapability, buildReferenceZoomPresets, buildSessionZoomPresets, buildZoomPresets, isNearestZoomPreset, isValidZoomRatio, lensRoleForCameraType, lensRoleFromPublicFacts, nativeLensForZoom, nearbyZoomPointFocalLength, referenceZoomFactor, referenceZoomFromSession, sessionZoomFromReference, zoomPresetLabel } from '../../../../main/ets/core/CameraCapability';
 class Result {name: string='';pass: boolean=false;message: string='';}
 function gpsDms(value: string): number { const p=value.split(',').map((v:string)=>Number(v.trim())); if(p.length!==3||p.some((v:number)=>!Number.isFinite(v)))throw new Error('GPS EXIF不是DMS格式'); return p[0]+p[1]/60+p[2]/3600; }
 @Entry @Component
@@ -38,8 +41,11 @@ struct Verification {
  private ctx: common.UIAbilityContext=getContext(this) as common.UIAbilityContext;
  private async check(name: string,run: ()=>Promise<void>): Promise<void>{const r=new Result();r.name=name;try{await run();r.pass=true;}catch(e){r.message=(e as Error).message;}this.results=this.results.concat(r);if(this.finished){const report=fs.openSync(this.ctx.filesDir+'/verification.json',fs.OpenMode.CREATE|fs.OpenMode.READ_WRITE|fs.OpenMode.TRUNC);fs.writeSync(report.fd,JSON.stringify(this.results,null,2));fs.closeSync(report);}console.info('SITECAM_TEST '+JSON.stringify(r));}
  private assert(value: boolean,message: string): void {if(!value)throw new Error(message);}
- async aboutToAppear(): Promise<void> {console.info('SITECAM_FOLDERCAP '+canIUse('SystemCapability.FileManagement.UserFileService.FolderSelection'));const files=new MediaService(this.ctx);const project=new Project();project.name='鸿蒙验收工程';project.address='这是用于验证长地址自动换行的完整现场位置，北段雨水管施工现场三号检查井旁，最后一行必须完整显示';const settings=new Settings();const snap=captureSnapshot(project,settings,null);
+ async aboutToAppear(): Promise<void> {if(AppStorage.get<boolean>('watermarkWidthOnly')){for(const style of STYLES)await this.check('内容宽度与字段边界 '+style.id,async()=>WatermarkWidthChecks.forStyle(style.id));const report=fs.openSync(this.ctx.filesDir+'/watermark-width-verification.json',fs.OpenMode.CREATE|fs.OpenMode.READ_WRITE|fs.OpenMode.TRUNC);fs.writeSync(report.fd,JSON.stringify(this.results,null,2));fs.closeSync(report);this.finished=true;return;}console.info('SITECAM_FOLDERCAP '+canIUse('SystemCapability.FileManagement.UserFileService.FolderSelection'));const files=new MediaService(this.ctx);const project=new Project();project.name='鸿蒙验收工程';project.address='这是用于验证长地址自动换行的完整现场位置，北段雨水管施工现场三号检查井旁，最后一行必须完整显示';const settings=new Settings();const snap=captureSnapshot(project,settings,null);
   await this.check('0.2.10标签排序与旧快照',async()=>WatermarkUpgradeChecks.presentation(this.ctx));
+  await this.check('设置保存顺序与重开恢复',async()=>CoreRepairChecks.settingsOrderAndReopen(this.ctx));
+  await this.check('视频快照元数据与旧手工地址',async()=>CoreRepairChecks.videoMetadataAndLegacyAddress(this.ctx));
+  await this.check('删除失败回滚与中断恢复',async()=>CoreRepairChecks.deletionRollbackAndRecovery(this.ctx));
   await this.check('0.2.10恢复默认保留内容',async()=>WatermarkUpgradeChecks.reset());
   await this.check('0.2.10当前模板同步持久化',async()=>WatermarkUpgradeChecks.reopen(this.ctx));
   await this.check('定位新鲜度及快照隔离',async()=>{const f=new Fix();f.timestamp=Date.now()-600000;const s=captureSnapshot(project,settings,f);this.assert(s.locationStatus==='STALE','旧定位被当作实时定位');settings.watermark.style='INFO_BOARD';this.assert(s.watermark.style==='CLASSIC','快照受后续设置影响');this.assert(resolveFields(s).some(v=>v.value.includes('旧定位')),'未显示旧定位标识');});
@@ -51,27 +57,21 @@ struct Verification {
   await this.check('权限引导未申请时不跳系统设置',async()=>{PermissionGuideChecks.check();});
   await this.check('地址刷新按钮避让水印边界',async()=>AddressRefreshPlacementChecks.check());
   await this.check('工程切换面板窗口边界',async()=>ProjectPanelGeometryChecks.check());
-  await this.check('小折叠阔折叠阔直屏方案隔离',async()=>{
-    this.assert(screenFamily('Pocket 2',true,2,3,104,104)==='SMALL'&&smallCoverScreen('SMALL',true,3),'小外屏未简化');
-    this.assert(!largeScreenScheme('SMALL',true,1)&&!smallCoverScreen('SMALL',true,2),'小折叠内屏误用大屏或外屏方案');
-    this.assert(screenFamily('Pura X',true,2,3,327,327)==='WIDE'&&!smallCoverScreen('WIDE',true,3)&&largeScreenScheme('WIDE',true,2)&&largeScreenScheme('WIDE',true,1),'阔折叠内外屏方案错误');
-    this.assert(screenFamily('Pura X View',false,0,0,440,744)==='WIDE'&&largeScreenScheme('WIDE',false,0),'阔直屏未延用内屏方案');
-    this.assert(screenFamily('',false,0,0,800,360)==='REGULAR'&&!largeScreenScheme('REGULAR',false,0),'普通横屏手机误用阔直屏方案');
-    this.assert(!largeScreenScheme('REGULAR',true,2)&&largeScreenScheme('REGULAR',true,1),'普通折叠内外屏误判');
-    this.assert(largeScreenScheme('REGULAR',false,0,'tablet'),'平板未统一使用内屏方案');
+  await this.check('当前窗口容量不依赖机型',async()=>{
+    for(const name of ['Pocket 2','Pura X','Pura X View','']){this.assert(screenFamily(name,true,1,2,390,720)==='REGULAR','机型影响窄窗布局');this.assert(screenFamily(name,false,0,0,900,600)==='WIDE','宽窗容量未启用');}
+    this.assert(!largeScreenScheme('REGULAR',false,0,'tablet'),'平板窄窗误用双栏');
+    this.assert(smallCoverScreen(screenFamily('',false,0,0,180,180),false,0),'小窗口容量未识别');
   });
-  await this.check('普通直屏手机竖屏倍率紧凑居中',async()=>{
-    this.assert(compactPhonePortrait('REGULAR',false,'phone',390,720),'普通直屏手机竖屏未启用紧凑倍率栏');
-    this.assert(!compactPhonePortrait('REGULAR',false,'phone',720,390),'普通直屏手机横屏误用紧凑倍率栏');
-    this.assert(!compactPhonePortrait('WIDE',false,'phone',440,744),'阔直屏不应改用普通手机倍率栏');
-    this.assert(!compactPhonePortrait('REGULAR',true,'phone',390,720),'折叠内外屏不应改用普通手机倍率栏');
-    this.assert(!compactPhonePortrait('REGULAR',false,'tablet',390,720),'平板不应改用普通手机倍率栏');
+  await this.check('竖屏倍率依当前窗口',async()=>{
+    for(const kind of ['phone','tablet'])for(const foldable of [true,false]){this.assert(compactPhonePortrait('REGULAR',foldable,kind,390,720),'竖窗倍率未收敛');this.assert(!compactPhonePortrait('WIDE',foldable,kind,720,390),'横窗误用竖窗倍率');}
   });
   await this.check('公开镜头能力与动态倍率入口',async()=>{
-    const presets=buildZoomPresets(.54,5,[.54,.6,3.2]);
-    this.assert(presets.includes(.54)&&presets.includes(1)&&presets.includes(2)&&!presets.includes(.5),'真实广角下界或常用倍率缺失');
-    this.assert(presets.length===3&&!presets.includes(.6)&&!presets.includes(3.2),'zoomPoint被误当快捷物理镜头');
-    this.assert(presets.filter((value:number)=>Math.abs(value-.54)<.08).length===1,'临近广角倍率入口重叠');
+    const presets=buildZoomPresets(.54,5,[.54,1,3.2]);
+    this.assert(presets.includes(.54)&&presets.includes(1)&&presets.includes(3.2)&&!presets.includes(2),'原生倍率遗漏或加入了固定数字倍率');
+    this.assert(presets.length===3&&!presets.includes(.5),'未公开倍率被误当快捷物理镜头');
+    this.assert(buildZoomPresets(.54,5,[]).length===0,'单靠数字范围伪造了镜头入口');
+    this.assert(buildSessionZoomPresets(.54,10,1,[5.5,2]).join(',')==='0.54,1,2,5.5','会话快捷倍率未保留实际范围和公开倍率点');
+    this.assert(buildSessionZoomPresets(1,10).join(',')==='1'&&buildSessionZoomPresets(1,10,1,[7400103,20]).join(',')==='1','会话快捷倍率混入虚构档位或错误码');
     this.assert(isNearestZoomPreset(.54,.54,presets)&&!isNearestZoomPreset(.54,.6,presets),'倍率选中态重叠');
     this.assert(lensRoleForCameraType(2)==='ULTRA_WIDE'&&lensRoleForCameraType(3)==='TELEPHOTO','公开相机类型未识别');
     this.assert(lensRoleFromPublicFacts(0,[13])==='ULTRA_WIDE'&&lensRoleFromPublicFacts(0,[77])==='TELEPHOTO'&&lensRoleFromPublicFacts(0,[])==='UNKNOWN'&&lensRoleFromPublicFacts(0,[13,25])==='UNKNOWN','未公开物理焦距被误判为镜头角色');
@@ -82,14 +82,40 @@ struct Verification {
     this.assert(sessionZoomFromReference(1,teleFactor,1,10)===1&&referenceZoomFromSession(10,teleFactor)===32,'参考倍率钳制或反向映射错误');
     const telePresets=buildReferenceZoomPresets(1,5,teleFactor,[],true);
     this.assert(telePresets.includes(3.2)&&telePresets.filter((value:number)=>value===3.2).length===1&&!telePresets.includes(1),'独立长焦仍显示会话1倍或重复入口');
-    const onePresets=buildZoomPresets(1,10,[]);
+    const onePresets=buildZoomPresets(1,10,[1,1]);
     this.assert(onePresets.filter((value:number)=>value===1).length===1,'最小倍率为1时产生重复入口');
     this.assert(isValidZoomRatio(.54,.54,10)&&!isValidZoomRatio(7400103,1,10)&&!isValidZoomRatio(11,.54,10),'倍率读回未拒绝错误码或越界值');
+    const lenses:CameraLensCapability[]=[];
+    for(const factor of [.54,1,3.2]){const lens=new CameraLensCapability();lens.cameraPosition=1;lens.referenceZoomMapped=true;lens.referenceZoomFactor=factor;lens.photoOutputCandidate=true;lens.videoOutputCandidate=true;lenses.push(lens);}
+    this.assert(nativeLensForZoom(lenses,1,3.2,false)===2&&nativeLensForZoom(lenses,2,1.8,false)===1&&nativeLensForZoom(lenses,1,.7,false)===0,'全局倍率未切换到可调用的原生镜头');
+    lenses[2].videoOutputCandidate=false;
+    this.assert(nativeLensForZoom(lenses,1,3.2,true)===1,'录像模式选中了无录像输出的镜头');
+    lenses[0].cameraPosition=2;
+    this.assert(nativeLensForZoom(lenses,1,.7,false)===1,'变焦切到了另一朝向');
+    lenses[1].logical=true;
+    this.assert(nativeLensForZoom(lenses,1,3.2,false)===2,'逻辑会话没有切到公开可绑定的原生长焦');
+    lenses[2].appAccessible=false;
+    this.assert(nativeLensForZoom(lenses,1,3.2,false)===1,'无法绑定的逻辑成员被当作可调用镜头');
   });
   await this.check('小外屏与上下悬停按钮边界',async()=>{for(const size of this.coverSizes){const l=cameraLayout(size[0],size[1],3/4,false,-1,0,true);this.assert(l.side&&!l.hover&&l.toolbarHeight===0,'小外屏未使用右侧简化栏');this.assert(l.controlsWidth>=44&&l.controlsHeight===size[1]&&l.controlsX+l.controlsWidth===size[0]&&l.previewX+l.previewWidth<=l.controlsX+.1,'外屏控件越界或遮挡取景');}const h=cameraLayout(364,861,3/4,true,425,10);this.assert(h.hover&&h.previewY+h.previewHeight<425&&h.controlsY>=435,'小折叠悬停未避让折痕');});
   await this.check('折叠内外屏与三折状态识别',async()=>{this.assert(!usesInnerScreen(false,1)&&!usesInnerScreen(true,0)&&!usesInnerScreen(true,2),'直屏或外屏误用大屏方案');for(const status of [1,3,11,12,13,21,22,23])this.assert(usesInnerScreen(true,status),'内屏状态遗漏 '+status);});
-  await this.check('方屏与一物理像素临界方向',async()=>{for(const density of [1,2,3,3.5]){this.assert(rightCameraDock(600,600,density)&&rightCameraDock(600,600+1/density,density),'方屏或一像素边界未靠右');this.assert(!rightCameraDock(600,600+2/density,density),'竖屏误用右栏');const l=cameraLayout(600,600,3/4,false,-1,0,false,density);this.assert(l.side&&l.controlsY===0&&l.controlsHeight===600,'方屏快门区域不居中');}});
-  await this.check('横屏与Android三区规划一致',async()=>{for(const size of [[800,360],[900,450],[1107,720],[1280,800],[711,799],[840,1200],[800,800],[360,800]]){const landscape=size[0]>=size[1];const l=cameraLayout(size[0],size[1],landscape?4/3:3/4);this.assert(l.side===landscape,'横屏误判 '+size);if(landscape){this.assert(l.toolbarWidth===102&&l.toolbarHeight===size[1],'左栏不是Android的102vp');this.assert(l.previewX===102&&l.controlsY===0,'仍然占用横屏顶部空间');this.assert(l.controlsX===l.previewX+l.previewWidth&&l.controlsWidth>=160,'取景与右侧拍摄区不连续');this.assert(Math.abs(l.previewWidth/l.previewHeight-4/3)<.001,'横屏取景比例错误');}}});
+  await this.check('方屏与一物理像素临界方向',async()=>{for(const density of [1,2,3,3.5]){this.assert(rightCameraDock(600,600,density)&&rightCameraDock(600,600+1/density,density),'方屏或一像素边界未靠右');this.assert(!rightCameraDock(600,600+2/density,density),'竖屏误用右栏');const l=cameraLayout(600,600,3/4,false,-1,0,false,density);this.assert(l.side&&l.controlsY===l.toolbarHeight&&l.controlsHeight===600-l.toolbarHeight,'方屏快门区域不居中');}});
+  await this.check('横屏与Android三区规划一致',async()=>{for(const size of [[800,360],[900,450],[1107,720],[1280,800],[711,799],[840,1200],[800,800],[360,800]]){const landscape=size[0]>=size[1];const l=cameraLayout(size[0],size[1],landscape?4/3:3/4);this.assert(l.side===landscape,'横屏误判 '+size);if(landscape){this.assert(l.toolbarWidth>=l.previewWidth&&l.toolbarHeight<=104,'顶部工具未贴取景');this.assert(l.previewX>=0&&l.controlsY===l.toolbarHeight,'横屏控件位置错误');this.assert(l.controlsX>=l.previewX+l.previewWidth-1&&l.controlsWidth>=148,'取景与右侧拍摄区相交');this.assert(Math.abs(l.previewWidth/l.previewHeight-4/3)<.001,'横屏取景比例错误');}}});
+  await this.check('已确认平板横屏无顶栏整行和手机握持留白',async()=>{for(const fontScale of [1,1.5,2]){const l=cameraLayout(1280,800,4/3,false,-1,0,false,2,[],fontScale,false,0,true);this.assert(l.immersivePhoneLandscape&&l.toolbarWidth===56&&l.toolbarHeight===800&&l.controlsY===0,'平板未采用确认图的左工具和右侧同轴栏');this.assert(Math.abs(l.controlsX-l.previewX-l.previewWidth)<.001&&Math.abs(l.controlsX+l.controlsWidth-1280)<.001&&l.previewY<32,'平板出现额外握持空白或顶部整行');}});
+  await this.check('普通长条手机握持留白',async()=>{
+    this.assert(ordinaryPhoneGrip(false,'phone',390,844)&&ordinaryPhoneGrip(false,'phone',844,390),'普通长条手机握持条件缺失');
+    this.assert(!ordinaryPhoneGrip(true,'phone',390,844)&&!ordinaryPhoneGrip(false,'tablet',390,844)&&!ordinaryPhoneGrip(false,'phone',600,700),'平板折叠或方窗误套手机握持留白');
+    const phone=cameraLayout(390,844,3/4,false,-1,0,false,1,[],1,true),regular=cameraLayout(390,844,3/4);
+    this.assert(phone.controlsHeight>=44+44+82+8+72&&phone.controlsHeight-regular.controlsHeight>=64,'普通手机自然内容与底部握持区未完整保留');
+    const large=cameraLayout(390,844,3/4,false,-1,0,false,1,[],2,true,310);
+    this.assert(large.controlsHeight>=310&&large.controlsY+large.controlsHeight===844,'大字自然控件高度挤掉握持留白');
+    this.assert(Math.abs(large.previewWidth/large.previewHeight-3/4)<.001&&large.previewY+large.previewHeight<=large.controlsY+.1,'大字预算改变取景比例或遮挡拍摄区');
+    const tablet=cameraLayout(840,1200,3/4,false,-1,0,false,1,[],2,false,310);
+    this.assert(tablet.controlsHeight===cameraLayout(840,1200,3/4).controlsHeight,'平板误套手机自然内容握持预算');
+    const horizontal=cameraLayout(844,390,4/3,false,-1,0,false,1,[],1,true);
+    this.assert(horizontal.controlsX+horizontal.controlsWidth<=844-48&&horizontal.previewY>=horizontal.toolbarHeight,'普通横屏握持区或顶部导航间隔缺失');
+    this.assert(Math.abs(horizontal.previewWidth/horizontal.previewHeight-4/3)<.001,'增加握持区改变了取景比例');
+  });
   await this.check('手机横屏与悬停布局边界',async()=>{for(const size of [[360,800],[412,915],[599,800],[600,800],[839,800],[840,800],[1280,800],[360,400]]){for(const ratio of [3/4,4/3]){const l=cameraLayout(size[0],size[1],ratio);this.assert(l.previewX>=0&&l.previewY>=0&&l.previewX+l.previewWidth<=size[0]+1&&l.previewY+l.previewHeight<=size[1]+1,'取景超出窗口');this.assert(Math.abs(l.previewWidth/l.previewHeight-ratio)<.001,'取景拉伸');this.assert(l.controlsX+l.controlsWidth<=size[0]+1&&l.controlsY+l.controlsHeight<=size[1]+1,'按钮超出窗口');}}const h=cameraLayout(800,1000,4/3,true,490,20);this.assert(h.hover&&h.previewY+h.previewHeight<=484&&h.controlsY>=540,'悬停折痕避让失败');const invalid=cameraLayout(360,800,3/4,true,-1,0);this.assert(!invalid.hover,'未知折痕不应启用悬停');});
   await this.check('三向拍摄及倒置保持',async()=>{this.assert(captureDegrees('AUTO',180,90)===90&&captureDegrees('AUTO',180,270)===270,'倒置翻转');this.assert(captureDegrees('LEFT',0,0)===90&&captureDegrees('RIGHT',0,0)===270&&captureDegrees('PORTRAIT',90,90)===0,'固定方向错误');this.assert(windowOrientationTarget('AUTO',true)==='LOCKED','自动拍摄未冻结当前UI方向');this.assert(windowOrientationTarget('AUTO',false)==='AUTO_ROTATION_RESTRICTED','自动方向恢复未沿用原策略');this.assert(windowOrientationTarget('PORTRAIT',true)==='PORTRAIT'&&windowOrientationTarget('LEFT',true)==='LANDSCAPE'&&windowOrientationTarget('RIGHT',true)==='LANDSCAPE_INVERTED','固定方向映射错误');});
   await this.check('日期筛选规则',async()=>{DateRangeDialogChecks.check();});

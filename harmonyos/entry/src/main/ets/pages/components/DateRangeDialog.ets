@@ -1,4 +1,4 @@
-import { SITE_ACCENT, SITE_CARD, SITE_MUTED, SITE_TEXT } from './UiPrimitives';
+import { SITE_ACCENT, PAGE_CARD as SITE_CARD, PAGE_MUTED as SITE_MUTED, PAGE_TEXT as SITE_TEXT } from './UiPrimitives';
 
 /** Expanded inclusive range used by the gallery date filter. */
 export class DateRangeValue {
@@ -88,6 +88,14 @@ export struct DateRangeDialog {
     this.month = now.getMonth() + 1;
     this.start = this.initialStart;
     this.end = this.initialEnd;
+    if(this.initialStart||this.initialEnd){
+      this.mode='RANGE';
+      if(validDate(this.initialStart)){const p=parts(this.initialStart);this.year=p[0];this.month=p[1];
+        if(this.initialEnd===this.initialStart)this.mode='DAY';
+        else if(this.initialStart===first(String(this.year))&&this.initialEnd===last(String(this.year)))this.mode='YEAR';
+        else{const month=this.initialStart.substring(0,7);if(this.initialStart===first(month)&&this.initialEnd===last(month))this.mode='MONTH';}
+      }
+    }
   }
 
   private apply(): void {
@@ -116,33 +124,31 @@ export struct DateRangeDialog {
   build() {
     Scroll(){Column({ space: 10 }) {
       Text('拍摄日期筛选').fontSize(20).fontWeight(FontWeight.Bold).fontColor(SITE_TEXT);
-      Row({ space: 5 }) {
+      Flex({wrap:FlexWrap.Wrap}) {
         ForEach(['YEAR','MONTH','DAY','RANGE','TEXT'], (value: string) => {
-          Button(this.modeLabel(value)).fontSize(12).height(32).layoutWeight(1)
+          Button(this.modeLabel(value)).fontSize(14).constraintSize({minHeight:44}).margin(3)
             .fontColor(this.mode === value ? '#231A00' : SITE_TEXT)
-            .backgroundColor(this.mode === value ? SITE_ACCENT : '#303030')
+            .backgroundColor(this.mode === value ? SITE_ACCENT : $r('app.color.card_raised'))
             .onClick(() => { this.mode = value; this.error = ''; });
         }, (value: string) => value);
       }.width('100%');
       if (this.mode === 'YEAR' || this.mode === 'MONTH') {
         Row({ space: 8 }) {
-          Button('上一年').fontSize(12).layoutWeight(1).backgroundColor('#303030').fontColor(SITE_TEXT).onClick(() => { this.year--; });
+          Button('上一年').fontSize(12).layoutWeight(1).backgroundColor($r('app.color.card_raised')).fontColor(SITE_TEXT).onClick(() => { this.year--; });
           Text(String(this.year) + '年').fontSize(17).fontWeight(FontWeight.Bold).fontColor(SITE_TEXT).layoutWeight(1).textAlign(TextAlign.Center);
-          Button('下一年').fontSize(12).layoutWeight(1).backgroundColor('#303030').fontColor(SITE_TEXT).onClick(() => { this.year++; });
+          Button('下一年').fontSize(12).layoutWeight(1).backgroundColor($r('app.color.card_raised')).fontColor(SITE_TEXT).onClick(() => { this.year++; });
         }.width('100%');
         if (this.mode === 'MONTH') {
           GridRow({ columns: 4, gutter: 6 }) {
             ForEach([1,2,3,4,5,6,7,8,9,10,11,12], (value: number) => {
-              GridCol() { Button(String(value) + '月').width('100%').height(32).fontSize(12).fontColor(this.month === value ? '#231A00' : SITE_TEXT).backgroundColor(this.month === value ? SITE_ACCENT : '#303030').onClick(() => { this.month = value; }); }
+              GridCol() { Button(String(value) + '月').width('100%').height(32).fontSize(12).fontColor(this.month === value ? '#231A00' : SITE_TEXT).backgroundColor(this.month === value ? SITE_ACCENT : $r('app.color.card_raised')).onClick(() => { this.month = value; }); }
             }, (value: number) => String(value));
           }.width('100%');
         }
       } else {
-        Text(this.mode === 'RANGE' ? '输入起止日期，结束日期包含当天' : '输入年份 2026、月份 2026-09 或日期 2026-09-08。结束留空表示同一周期')
-          .fontSize(12).fontColor(SITE_MUTED);
-        TextInput({ text: this.start, placeholder: this.mode === 'DAY' ? '日期 YYYY-MM-DD' : '开始：YYYY / YYYY-MM / YYYY-MM-DD' }).fontColor('#FFFFFF').placeholderColor('#B0BEC5').backgroundColor('#303030').caretColor('#FFB300').borderRadius(10)
-          .fontColor(SITE_TEXT).backgroundColor('#303030').onChange((value: string) => { this.start = value; this.error = ''; });
-        if (this.mode !== 'DAY') TextInput({ text: this.end, placeholder: '结束（可留空）' }).fontColor('#FFFFFF').placeholderColor('#B0BEC5').backgroundColor('#303030').caretColor('#FFB300').borderRadius(10).fontColor(SITE_TEXT).backgroundColor('#303030').onChange((value: string) => { this.end = value; this.error = ''; });
+        TextInput({ text: this.start, placeholder: this.mode === 'DAY' ? '日期 YYYY-MM-DD' : '开始：YYYY / YYYY-MM / YYYY-MM-DD' }).fontColor($r('app.color.text_primary')).placeholderColor($r('app.color.text_secondary')).backgroundColor($r('app.color.card_raised')).caretColor('#FFB300').borderRadius(10)
+          .fontColor(SITE_TEXT).backgroundColor($r('app.color.card_raised')).onChange((value: string) => { this.start = value; this.error = ''; });
+        if (this.mode !== 'DAY') TextInput({ text: this.end, placeholder: '结束（可留空）' }).fontColor($r('app.color.text_primary')).placeholderColor($r('app.color.text_secondary')).backgroundColor($r('app.color.card_raised')).caretColor('#FFB300').borderRadius(10).fontColor(SITE_TEXT).backgroundColor($r('app.color.card_raised')).onChange((value: string) => { this.end = value; this.error = ''; });
         if (this.error.length > 0) Text(this.error).fontSize(12).fontColor('#F44336');
       }
       Row({ space: 12 }) {

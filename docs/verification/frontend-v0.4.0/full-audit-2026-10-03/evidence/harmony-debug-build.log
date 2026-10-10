@@ -1,0 +1,894 @@
+> hvigor [32mUP-TO-DATE :entry:default@PreBuild...  [39m
+> hvigor [32mFinished :entry:default@CreateModuleInfo... after 1 ms [39m
+> hvigor [32mUP-TO-DATE :entry:default@GenerateMetadata...  [39m
+> hvigor [32mFinished :entry:default@ConfigureCmake... after 4 ms [39m
+> hvigor [32mUP-TO-DATE :entry:default@MergeProfile...  [39m
+> hvigor [32mUP-TO-DATE :entry:default@CreateBuildProfile...  [39m
+> hvigor [32mFinished :entry:default@PreCheckSyscap... after 1 ms [39m
+> hvigor [32mFinished :entry:default@GeneratePkgContextInfo... after 4 ms [39m
+> hvigor [32mUP-TO-DATE :entry:default@GeneratePkgSdkInfo...  [39m
+> hvigor [32mFinished :entry:default@ProcessIntegratedHsp... after 1 ms [39m
+> hvigor [32mFinished :entry:default@BuildNativeWithCmake... after 4 ms [39m
+> hvigor [32mUP-TO-DATE :entry:default@MakePackInfo...  [39m
+> hvigor [32mFinished :entry:default@SyscapTransform... after 12 ms [39m
+> hvigor [32mUP-TO-DATE :entry:default@ProcessProfile...  [39m
+> hvigor [32mUP-TO-DATE :entry:default@ProcessRouterMap...  [39m
+> hvigor [32mUP-TO-DATE :entry:default@ProcessShareConfig...  [39m
+> hvigor [32mFinished :entry:default@ProcessStartupConfig... after 1 ms [39m
+> hvigor [32mFinished :entry:default@BuildNativeWithNinja... after 30 ms [39m
+> hvigor [32mUP-TO-DATE :entry:default@ProcessResource...  [39m
+> hvigor [32mUP-TO-DATE :entry:default@GenerateLoaderJson...  [39m
+> hvigor [32mUP-TO-DATE :entry:default@ProcessLibs...  [39m
+> hvigor [32mFinished :entry:default@CompileResource... after 308 ms [39m
+> hvigor [32mUP-TO-DATE :entry:default@DoNativeStrip...  [39m
+> hvigor [33mWARN: [33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/WindowEnvironment.ets:63:22
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/WindowEnvironment.ets:66:15
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/WindowEnvironment.ets:69:32
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/WindowEnvironment.ets:72:9
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/WindowEnvironment.ets:75:13
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/WindowEnvironment.ets:76:13
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/WindowEnvironment.ets:81:15
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/WindowEnvironment.ets:84:13
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/WindowEnvironment.ets:85:13
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/WindowEnvironment.ets:100:24
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/WindowEnvironment.ets:100:60
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/WindowEnvironment.ets:100:93
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/WindowEnvironment.ets:101:25
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/entryability/EntryAbility.ets:6:59
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/entryability/EntryAbility.ets:14:11
+ This API is unavailable to phone, tablet.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/entryability/EntryAbility.ets:19:13
+ This API is unavailable to phone, tablet.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/entryability/EntryAbility.ets:23:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/components/FoldCoverControls.ets:17:46
+ The 'fill' API is supported since SDK version 26.0.0. However, the current compatible SDK version is 5.0.0(12).
+ It is recommended to use apiAvailable to safeguard API compatibility.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:13:33
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:14:33
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:15:35
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:17:19
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:18:19
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:29:114
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:29:464
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:29:502
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:29:617
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:29:658
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:39:55
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:39:118
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:41:29
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:41:545
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:41:1371
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:43:421
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:43:521
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:45:103
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:47:101
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:48:62
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:48:154
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:48:212
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:49:78
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:49:148
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:49:201
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:51:780
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:51:1389
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:52:95
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:53:188
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:54:94
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:55:169
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:55:461
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:56:55
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:56:381
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:59:57
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:59:770
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:60:50
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:60:846
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:61:59
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:61:442
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:62:298
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:62:396
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:63:83
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:63:169
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:63:493
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:64:98
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:64:146
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:64:241
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:64:602
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:65:60
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:65:750
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:66:104
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:66:157
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:66:258
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:66:518
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:67:73
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:67:185
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:67:399
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:68:194
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:68:304
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:69:74
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:69:226
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:69:904
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:69:956
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:70:408
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:70:519
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:71:76
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:72:85
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:72:218
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:72:538
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:73:260
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:73:368
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:74:79
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:74:174
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:74:303
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:74:1108
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:77:46
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:78:75
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:78:661
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:78:927
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:79:88
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:79:161
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:79:218
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:79:312
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:79:704
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:79:736
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:79:757
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:79:839
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:79:871
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:79:891
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:79:980
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:79:1012
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/Store.ets:79:1035
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:215:48
+ The 'isLogicalCamera' API is supported since SDK version 24. However, the current compatible SDK version is 5.0.0(12).
+ It is recommended to use apiAvailable to safeguard API compatibility.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:338:533
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:338:624
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:343:32
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:343:128
+ The system capacity of this api 'media' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:343:134
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:344:58
+ The system capacity of this api 'media' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:344:130
+ The system capacity of this api 'media' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:344:199
+ The system capacity of this api 'media' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:345:37
+ The system capacity of this api 'media' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:345:164
+ The system capacity of this api 'media' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:346:27
+ To use this API, you need to apply for the permissions: ohos.permission.MICROPHONE
+This permission is required only if audio recording is involved. [since 12]
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:346:27
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:346:64
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:346:110
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:348:451
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:348:491
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:352:31
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:352:149
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:352:230
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:352:375
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:352:403
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:352:438
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:352:490
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:352:540
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:352:582
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:352:658
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:352:721
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:352:1327
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:356:141
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:356:378
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:357:70
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:439:54
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:439:273
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:439:334
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:536:116
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:536:144
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:537:134
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/CameraService.ets:548:34
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ShutterSoundService.ets:74:24
+ The system capacity of this api 'media' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ShutterSoundService.ets:74:30
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ShutterSoundService.ets:78:14
+ The system capacity of this api 'audio' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ImageProcessor.ets:31:79
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ImageProcessor.ets:32:79
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ImageProcessor.ets:32:210
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ImageProcessor.ets:32:301
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ImageProcessor.ets:39:198
+ 'packing' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ImageProcessor.ets:40:155
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ImageProcessor.ets:40:226
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ImageProcessor.ets:40:288
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ImageProcessor.ets:40:363
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ImageProcessor.ets:40:448
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ImageProcessor.ets:40:539
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ImageProcessor.ets:40:626
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ImageProcessor.ets:45:59
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ImageProcessor.ets:45:85
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/MediaService.ets:20:10
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/MediaService.ets:20:58
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/MediaService.ets:23:27
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/MediaService.ets:27:34
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/MediaService.ets:28:54
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/MediaService.ets:28:113
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/MediaService.ets:28:163
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/MediaService.ets:28:210
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/MediaService.ets:28:243
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/MediaService.ets:29:27
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/MediaService.ets:42:50
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/MediaService.ets:42:92
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/MediaService.ets:47:12
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/MediaService.ets:51:22
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/LocationService.ets:186:57
+ The system capacity of this api 'geoLocationManager' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/LocationService.ets:292:12
+ The system capacity of this api 'geoLocationManager' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/LocationService.ets:293:23
+ The system capacity of this api 'geoLocationManager' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/LocationService.ets:333:17
+ The system capacity of this api 'geoLocationManager' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/LocationService.ets:334:23
+ The system capacity of this api 'geoLocationManager' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/LocationService.ets:335:23
+ The system capacity of this api 'geoLocationManager' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/LocationService.ets:612:7
+ The system capacity of this api 'geoLocationManager' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/LocationService.ets:613:19
+ The system capacity of this api 'geoLocationManager' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/LocationService.ets:614:19
+ The system capacity of this api 'geoLocationManager' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/LocationService.ets:620:7
+ The system capacity of this api 'geoLocationManager' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/LocationService.ets:622:7
+ The system capacity of this api 'geoLocationManager' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/LocationService.ets:628:15
+ The system capacity of this api 'geoLocationManager' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/LocationService.ets:631:15
+ The system capacity of this api 'geoLocationManager' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/LocationService.ets:634:15
+ The system capacity of this api 'geoLocationManager' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/LocationService.ets:667:11
+ The system capacity of this api 'geoLocationManager' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/LocationService.ets:668:11
+ The system capacity of this api 'geoLocationManager' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/LocationService.ets:669:11
+ The system capacity of this api 'geoLocationManager' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExternalLinkService.ets:5:17
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExportService.ets:22:156
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExportService.ets:25:245
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExportService.ets:26:86
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExportService.ets:26:299
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExportService.ets:26:355
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExportService.ets:26:404
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExportService.ets:26:450
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExportService.ets:26:481
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExportService.ets:26:511
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExportService.ets:26:536
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExportService.ets:28:23
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExportService.ets:34:107
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExportService.ets:34:127
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExportService.ets:34:157
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExportService.ets:34:187
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExportService.ets:45:83
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExportService.ets:45:167
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExportService.ets:45:203
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExportService.ets:46:113
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExportService.ets:48:194
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExportService.ets:49:111
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExportService.ets:49:242
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExportService.ets:49:254
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/ExportService.ets:49:278
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/VideoInspection.ets:12:25
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/VideoInspection.ets:15:23
+ The system capacity of this api 'media' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/VideoInspection.ets:15:29
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/VideoInspection.ets:16:61
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/VideoInspection.ets:17:34
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/VideoInspection.ets:24:35
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/core/VideoInspection.ets:24:63
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/components/WatermarkView.ets:22:36
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/components/WatermarkView.ets:27:116
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/components/WatermarkView.ets:27:150
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/components/WatermarkEditingPreview.ets:31:132
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/components/WatermarkEditingPreview.ets:31:179
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/components/SiteCamEasterEggDialog.ets:25:41
+ The 'fill' API is supported since SDK version 26.0.0. However, the current compatible SDK version is 5.0.0(12).
+ It is recommended to use apiAvailable to safeguard API compatibility.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:194:44
+ 'getContext' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:293:30
+ 'AlertDialog' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:293:42
+ 'show' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:302:52
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:302:52
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:303:405
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:320:461
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:320:618
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:345:582
+ 'AlertDialog' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:345:594
+ 'show' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:347:113
+ The 'maxFontScale' API is supported since SDK version 18. However, the current compatible SDK version is 5.0.0(12).
+ It is recommended to use apiAvailable to safeguard API compatibility.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:476:86
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:476:225
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:477:40
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:478:45
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:479:48
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:480:106
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:489:24
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:492:47
+ 'AlertDialog' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:492:59
+ 'show' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:493:246
+ This API is unavailable to phone, tablet.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:599:203
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:662:60
+ 'show' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:664:147
+ 'AlertDialog' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:664:159
+ 'show' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:665:42
+ 'AlertDialog' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:665:54
+ 'show' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:672:38
+ 'AlertDialog' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:672:50
+ 'show' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:674:33
+ 'AlertDialog' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:674:45
+ 'show' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:678:46
+ 'AlertDialog' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:678:58
+ 'show' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:680:363
+ 'AlertDialog' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:680:375
+ 'show' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:682:51
+ 'AlertDialog' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:682:63
+ 'show' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:790:45
+ The 'fill' API is supported since SDK version 26.0.0. However, the current compatible SDK version is 5.0.0(12).
+ It is recommended to use apiAvailable to safeguard API compatibility.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:791:45
+ The 'fill' API is supported since SDK version 26.0.0. However, the current compatible SDK version is 5.0.0(12).
+ It is recommended to use apiAvailable to safeguard API compatibility.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:793:50
+ The 'fill' API is supported since SDK version 26.0.0. However, the current compatible SDK version is 5.0.0(12).
+ It is recommended to use apiAvailable to safeguard API compatibility.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:849:104
+ The 'fill' API is supported since SDK version 26.0.0. However, the current compatible SDK version is 5.0.0(12).
+ It is recommended to use apiAvailable to safeguard API compatibility.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:849:208
+ The 'fill' API is supported since SDK version 26.0.0. However, the current compatible SDK version is 5.0.0(12).
+ It is recommended to use apiAvailable to safeguard API compatibility.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:849:451
+ The 'fill' API is supported since SDK version 26.0.0. However, the current compatible SDK version is 5.0.0(12).
+ It is recommended to use apiAvailable to safeguard API compatibility.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:882:242
+ The 'maxFontScale' API is supported since SDK version 18. However, the current compatible SDK version is 5.0.0(12).
+ It is recommended to use apiAvailable to safeguard API compatibility.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /Users/ninja/Library/Caches/SiteCamHarmonyBuild/entry/src/main/ets/pages/Index.ets:944:1024
+ The 'setAlternateIcon' API is supported since SDK version 26.0.0. However, the current compatible SDK version is 5.0.0(12).
+ It is recommended to use apiAvailable to safeguard API compatibility.
+[39m[39m
+[39m
+> hvigor [32mFinished :entry:default@CompileArkTS... after 1 s 623 ms [39m
+> hvigor [32mFinished :entry:default@BuildJS... after 1 ms [39m
+> hvigor [32mUP-TO-DATE :entry:default@CacheNativeLibs...  [39m
+> hvigor [32mFinished :entry:default@GeneratePkgModuleJson... after 1 ms [39m
+> hvigor [32mFinished :entry:default@ProcessCompiledResources... after 1 ms [39m
+> hvigor [32mFinished :entry:default@PackageHap... after 248 ms [39m
+> hvigor [32mFinished :entry:default@PackingCheck... after 2 ms [39m
+> hvigor [33mWARN: No signingConfig found for product default[39m
+> hvigor [32mFinished :entry:default@SignHap... after 1 ms [39m
+> hvigor [32mFinished :entry:default@CollectDebugSymbol... after 1 ms [39m
+> hvigor [32mFinished :entry:assembleHap... after 1 ms [39m
+> hvigor [32mBUILD SUCCESSFUL in 2 s 950 ms [39m
+
+33 tasks in total: 19 executed, 14 up-to-date

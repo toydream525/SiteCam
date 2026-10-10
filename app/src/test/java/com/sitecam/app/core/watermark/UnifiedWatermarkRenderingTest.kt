@@ -9,6 +9,7 @@ import com.sitecam.app.core.watermark.engine.watermarkPaint
 import com.sitecam.app.core.watermark.model.*
 import com.sitecam.app.core.watermark.renderer.WatermarkBitmapRenderer
 import com.sitecam.app.core.watermark.renderer.WatermarkCanvasPainter
+import com.sitecam.app.core.watermark.renderer.watermarkPreviewLayout
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
@@ -31,8 +32,17 @@ class UnifiedWatermarkRenderingTest {
 
     private fun assertComplete(data: WatermarkData, width: Int, height: Int) {
         val layout=WatermarkLayoutEngine.calculateLayout(width.toFloat(),height.toFloat(),data)
-        assertTrue(layout.cardRect.left>=0); assertTrue(layout.cardRect.top>=-.01f)
-        assertTrue(layout.cardRect.right<=width+.01f); assertTrue(layout.cardRect.bottom<=height+.01f)
+        // A pathological template renders at the readability floor and is
+        // clipped by the canvas instead of shrinking to an invisible size, so
+        // canvas containment is asserted only while the layout actually fits.
+        val fitsInside=layout.cardRect.width()<=width+.01f&&layout.cardRect.height()<=height+.01f
+        if(fitsInside) {
+            assertTrue(layout.cardRect.left>=0); assertTrue(layout.cardRect.top>=-.01f)
+            assertTrue(layout.cardRect.right<=width+.01f); assertTrue(layout.cardRect.bottom<=height+.01f)
+        } else {
+            assertTrue(layout.cardRect.right>0f&&layout.cardRect.bottom>0f)
+            assertTrue(layout.cardRect.left<width&&layout.cardRect.top<height)
+        }
         for(line in layout.lines) {
             val vp=watermarkPaint(line.textSize,line.textColor,line.isBold)
             val lp=watermarkPaint(line.textSize,line.labelColor,true)
@@ -113,4 +123,47 @@ class UnifiedWatermarkRenderingTest {
         assertTrue(a.sameAs(b));assertEquals("OLDER_UNKNOWN_STYLE",unknown.styleType)
         a.recycle();b.recycle()
     }
+    @Test fun contentSizedPlatesKeepShortLongAndSwitchedFieldsInsideAllStyles() {
+        val short = sample.copy(projectName="工程甲",addressText="一区",customFields=emptyList(),
+            enabledSystemFields=setOf(BuiltInWatermarkFieldKeys.PROJECT_NAME,BuiltInWatermarkFieldKeys.ADDRESS))
+        for(style in WatermarkStyleCatalog.styles) for((w,h) in listOf(1280 to 960,960 to 1280,960 to 540,240 to 180))
+            for(font in listOf(.6f,1f,2f)) for(position in listOf("BOTTOM_LEFT","TOP_RIGHT")) {
+                val data=short.copy(styleType=style.id,fontSizeScale=font,position=position)
+                val small=WatermarkLayoutEngine.calculateLayout(w.toFloat(),h.toFloat(),data)
+                val large=WatermarkLayoutEngine.calculateLayout(w.toFloat(),h.toFloat(),data.copy(
+                    projectName="工程甲".repeat(12),addressText="一区现场地址".repeat(18)))
+                assertComplete(data,w,h)
+                assertComplete(data.copy(projectName="工程甲".repeat(12),addressText="一区现场地址".repeat(18)),w,h)
+                assertTrue("natural width ${style.id}",small.cardRect.width()<=large.cardRect.width()+.1f)
+                val onlyProject=WatermarkLayoutEngine.calculateLayout(w.toFloat(),h.toFloat(),data.copy(
+                    enabledSystemFields=setOf(BuiltInWatermarkFieldKeys.PROJECT_NAME)))
+                assertFalse(onlyProject.lines.any { it.fieldKey==BuiltInWatermarkFieldKeys.ADDRESS })
+            }
+        for(style in listOf("CLASSIC","MINIMAL","TIME_LOCATION")) {
+            val data=short.copy(styleType=style,fontSizeScale=1f)
+            val layout=WatermarkLayoutEngine.calculateLayout(1280f,960f,data)
+            assertTrue("short plate retains empty width $style",layout.cardRect.width()<960f*.75f)
+            val multiline=WatermarkLayoutEngine.calculateLayout(1280f,960f,data.copy(addressText="一区\n二区"))
+            val single=WatermarkLayoutEngine.calculateLayout(1280f,960f,data.copy(addressText="一区二区"))
+            assertTrue(multiline.cardRect.width()<=single.cardRect.width()+.1f)
+            val rendered=multiline.lines.filter { it.fieldKey==BuiltInWatermarkFieldKeys.ADDRESS && it.contentRole=="value" }.joinToString(""){it.value}
+            assertEquals("一区二区",rendered)
+        }
+    }
+
+    @Test fun smallLiveViewportsKeepTheSavedFrameProportions() {
+        for(style in WatermarkStyleCatalog.styles) for(font in listOf(.6f,2f)) {
+            val data=sample.copy(styleType=style.id,fontSizeScale=font)
+            val reference=WatermarkLayoutEngine.calculateLayout(1080f,1440f,data)
+            for(width in listOf(120f,240f,360f)) {
+                val preview=watermarkPreviewLayout(width,width*4/3,data)
+                val scale=width/1080f
+                assertEquals(reference.cardRect.width()*scale,preview.cardRect.width(),.1f)
+                assertEquals(reference.cardRect.height()*scale,preview.cardRect.height(),.1f)
+                assertEquals(reference.lines.first().textSize*scale,preview.lines.first().textSize,.1f)
+                assertEquals(reference.lines.map { it.label+it.value },preview.lines.map { it.label+it.value })
+            }
+        }
+    }
+
 }
