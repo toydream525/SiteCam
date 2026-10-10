@@ -60,10 +60,10 @@
 | 你的设备 | 当前状态 | 下载 |
 | --- | --- | --- |
 | 🤖 安卓手机 | **v0.4.0，可安装使用**，支持 Android 8.0 及以上 | [Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.0/SiteCam-0.4.0-Android-Release.apk) |
-| 🌸 鸿蒙手机 / 平板 | **v0.4.0 原生版，已上架华为应用市场** | [华为应用市场搜索“SiteCam工程水印相机”下载（推荐）](https://yuriaqua.com/sitecam/#download) · [Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.4.0/SiteCam-0.4.0-HarmonyOS-Release-Unsigned.hap) · [签名说明](harmonyos/README.md) |
+| 🌸 鸿蒙手机 / 平板 | **v0.4.0 原生版，已上架华为应用市场** | [华为应用市场直接下载（一键拉起）](appmarket://details?id=com.sitecam.app) · [Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.4.0/SiteCam-0.4.0-HarmonyOS-Release-Unsigned.hap) · [签名说明](harmonyos/README.md) |
 | 🍎 iPhone / iPad | 开发中，暂无安装包 | — |
 
-**鸿蒙版说明：** 鸿蒙原生版已正式上架华为应用市场！华为手机及平板用户推荐直接在华为应用市场搜索“SiteCam工程水印相机”下载安装，无需自行签名。侧载测试用户可使用公开的未签名 Release HAP，需自行签名后安装。鸿蒙版不申请应用联网权限；具体地址由系统服务提供，系统服务可能使用网络，断网时可手动填写地点。
+**鸿蒙版说明：** 鸿蒙原生版已正式上架华为应用市场！华为手机及平板用户可点击 [华为应用市场直接下载](appmarket://details?id=com.sitecam.app)（手机端直接唤起华为应用市场详情页）或在应用市场搜索“SiteCam工程水印相机”一键下载安装，无需自行签名。侧载测试用户可使用公开的未签名 Release HAP，需自行签名后安装。鸿蒙版不申请应用联网权限；具体地址由系统服务提供，系统服务可能使用网络，断网时可手动填写地点。
 
 
 

@@ -13,7 +13,7 @@
 ### 下载资产
 
 - Android：[Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.0/SiteCam-0.4.0-Android-Release.apk) · [Debug APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.0/SiteCam-0.4.0-Android-Debug.apk)
-- HarmonyOS：**已正式上架华为应用市场**，华为设备推荐在应用市场直接搜索“SiteCam工程水印相机”一键安装与更新；侧载测试可下载 [Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.4.0/SiteCam-0.4.0-HarmonyOS-Release-Unsigned.hap)（需自行签名）。
+- HarmonyOS：**已正式上架华为应用市场**，华为设备推荐点击 [华为应用市场直接下载](appmarket://details?id=com.sitecam.app) 或在应用市场直接搜索“SiteCam工程水印相机”一键安装与更新；侧载测试可下载 [Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.4.0/SiteCam-0.4.0-HarmonyOS-Release-Unsigned.hap)（需自行签名）。
 
 ## v0.3.6 — 2026-10-01
 
