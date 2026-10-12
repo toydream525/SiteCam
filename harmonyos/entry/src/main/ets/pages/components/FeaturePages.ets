@@ -50,7 +50,7 @@ export struct GalleryFilterBar {
           SiteChip({ label: label, selected: this.active === label, onSelect: () => this.onPick(label) });
         }, (label: string) => label);
       }
-    }.scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).width('100%');
+    }.edgeEffect(EdgeEffect.Spring).scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).width('100%');
   }
 }
 

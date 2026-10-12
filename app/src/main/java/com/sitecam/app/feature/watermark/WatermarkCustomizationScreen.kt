@@ -94,6 +94,13 @@ fun WatermarkCustomizationScreen(viewModel: WatermarkEditorViewModel, onNavigate
                     WatermarkControl("字号", "%.1f×".format(state.template?.fontSizeScale ?: 1f)) {
                         Slider(state.template?.fontSizeScale ?: 1f, viewModel::updateFontSizeScale, valueRange = .6f..2f, steps = 13)
                     }
+                    WatermarkControl("水印宽度", "${kotlin.math.round((state.template?.widthRatio ?: .6f) * 100).toInt()}%") {
+                        Slider(state.template?.widthRatio ?: .6f, viewModel::updateWidthRatio, valueRange = .3f..0.9f, steps = 11)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("30%", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("90%", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                     WatermarkControl("不透明度", "${((state.template?.opacity ?: .85f) * 100).toInt()}%") {
                         Slider(state.template?.opacity ?: .85f, viewModel::updateOpacity, valueRange = .3f..1f, steps = 6)
                     }

@@ -1148,6 +1148,9 @@ fun CameraScreen(
                 onScaleChange = { scale ->
                     viewModel.updateTemplateFontSize(scale)
                 },
+                onWidthChange = { ratio ->
+                    viewModel.updateTemplateWidth(ratio)
+                },
                 onOpacityChange = { opacity ->
                     viewModel.updateTemplateOpacity(opacity)
                 },

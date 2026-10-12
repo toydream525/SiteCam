@@ -10,3 +10,6 @@ val PageCard: Color @Composable get() = MaterialTheme.colorScheme.surface
 val PageBorder: Color @Composable get() = MaterialTheme.colorScheme.outline
 val PageText: Color @Composable get() = MaterialTheme.colorScheme.onSurface
 val PageMuted: Color @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
+
+/** Accent for text and icons; deep amber on light surfaces, brand yellow on dark ones. */
+val AccentText: Color @Composable get() = LocalAccentText.current

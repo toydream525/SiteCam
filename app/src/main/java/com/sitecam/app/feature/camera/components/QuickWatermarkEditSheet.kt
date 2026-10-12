@@ -86,6 +86,7 @@ fun QuickWatermarkEditSheet(
     onFieldToggle: (fieldId: Long, enabled: Boolean) -> Unit,
     onStyleChange: (styleType: String) -> Unit,
     onScaleChange: (scale: Float) -> Unit,
+    onWidthChange: (ratio: Float) -> Unit,
     onOpacityChange: (opacity: Float) -> Unit,
     onAddField: (label: String, defaultValue: String) -> Unit,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -129,6 +130,8 @@ fun QuickWatermarkEditSheet(
                     item { TextButton(onClick = { showStylePicker = true }) { Text("${currentStyle.name} ›", color = EngineeringYellow) } }
                     item { Text("字号 ${String.format(Locale.ROOT, "%.1f", activeTemplate?.fontSizeScale ?: 1f)}×", color = TextPrimaryDark)
                         Slider(activeTemplate?.fontSizeScale ?: 1f, onScaleChange, valueRange = .6f..2f) }
+                    item { Text("水印宽度 ${((activeTemplate?.widthRatio ?: .6f) * 100).toInt()}%", color = TextPrimaryDark)
+                        Slider(activeTemplate?.widthRatio ?: .6f, onWidthChange, valueRange = .3f..0.9f, steps = 11) }
                     item { Text("不透明度 ${((activeTemplate?.opacity ?: .85f) * 100).toInt()}%", color = TextPrimaryDark)
                         Slider(activeTemplate?.opacity ?: .85f, onOpacityChange, valueRange = .3f..1f) }
                 }

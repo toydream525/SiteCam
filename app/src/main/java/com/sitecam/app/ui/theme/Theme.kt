@@ -7,9 +7,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+
+/** Accent for text and icons; light surfaces get [AccentTextLight] instead of the brand yellow. */
+val LocalAccentText = staticCompositionLocalOf { EngineeringYellow }
 
 private val DarkColorScheme = darkColorScheme(
     primary = EngineeringYellow,
@@ -87,7 +92,10 @@ fun SiteCamTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+        typography = Typography
+    ) {
+        CompositionLocalProvider(LocalAccentText provides if (darkTheme) EngineeringYellow else AccentTextLight) {
+            content()
+        }
+    }
 }

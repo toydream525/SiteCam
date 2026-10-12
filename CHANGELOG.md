@@ -1,5 +1,17 @@
 # 更新日志
 
+## v0.4.1 — 2026-10-12
+
+- **水印宽度可调**：水印编辑的“外观”和拍摄页的“水印”面板都能直接调整水印宽度，长内容自动换行，字号不变。
+- **开场指引更好用**：折叠内屏等大窗口下改为左图右操作，平板竖屏与手机居中铺满。
+- **显示更清晰**：浅色模式下强调文字对比度提升，底部按钮避开系统导航条。
+- **操作更顺**：滚动到边界有回弹，页面切换采用淡入淡出。
+
+### 下载资产
+
+- Android：[Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.1/SiteCam-0.4.1-Android-Release.apk) · [Debug APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.1/SiteCam-0.4.1-Android-Debug.apk)
+- HarmonyOS：**已正式上架华为应用市场**，华为设备推荐点击 [华为应用市场直接下载](appmarket://details?id=com.sitecam.app) 或在应用市场直接搜索“SiteCam工程水印相机”一键安装与更新；侧载测试可下载 [Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.4.1/SiteCam-0.4.1-HarmonyOS-Release-Unsigned.hap)（需自行签名）。
+
 ## v0.4.0 — 2026-10-10
 
 - **全形态设备适配**：优化折叠屏与平板体验，横竖屏拍摄均增加防误触握持留白。

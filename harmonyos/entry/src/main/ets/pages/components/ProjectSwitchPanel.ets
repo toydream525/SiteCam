@@ -71,7 +71,7 @@ export struct ProjectSwitchPanel {
           Button('新建工程').width('100%').height(42).fontSize(13).fontColor('#231A00').backgroundColor(SITE_ACCENT)
             .enabled(this.switchingId === 0).onClick(() => this.onCreate());
         }.width('100%').padding(12);
-      }.width(this.panelWidth).height(this.panelHeight).scrollBar(BarState.Off)
+      }.edgeEffect(EdgeEffect.Spring).width(this.panelWidth).height(this.panelHeight).scrollBar(BarState.Off)
         .constraintSize({ maxWidth: this.panelWidth, maxHeight: this.panelHeight }).backgroundColor('#171717').borderRadius(16);
     } else {
       Column({ space: 10 }) {
@@ -106,7 +106,7 @@ export struct ProjectSwitchPanel {
               }, (project: Project) => project.id.toString());
             }
           }.width('100%');
-        }.width('100%').layoutWeight(1).constraintSize({ minHeight: 56 }).align(Alignment.Top).scrollBar(BarState.Off);
+        }.edgeEffect(EdgeEffect.Spring).width('100%').layoutWeight(1).constraintSize({ minHeight: 56 }).align(Alignment.Top).scrollBar(BarState.Off);
         if (this.switchingId !== 0) {
           Text('切换中，请稍候…').fontSize(13).fontColor(SITE_ACCENT).width('100%');
         }

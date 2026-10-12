@@ -31,6 +31,6 @@ export struct QuickIssueDialog {
       TextInput({ text: this.notes, placeholder: '问题原因 / 整改要求 / 备注' }).fontColor($r('app.color.text_primary')).placeholderColor($r('app.color.text_secondary')).backgroundColor($r('app.color.card_raised')).caretColor('#FFB300').borderRadius(10).onChange(v=>this.notes=v).fontColor(SITE_TEXT).backgroundColor($r('app.color.card_raised')).maxLines(3).height(86);
       if(this.error)Text(this.error).fontSize(14).fontColor('#D32F2F').width('100%');
       Flex({wrap:FlexWrap.Wrap,justifyContent:FlexAlign.End}) { if(this.existingTitle){Button('取消问题').fontColor('#F44336').backgroundColor(Color.Transparent).enabled(!this.pending).onClick(()=>this.submit(true));}Button('取消').fontColor(SITE_MUTED).backgroundColor(Color.Transparent).enabled(!this.pending).onClick(()=>this.controller.close());Button('保存问题记录').enabled(!this.pending).fontColor('#231A00').backgroundColor(SITE_ACCENT).onClick(()=>this.submit()); }.width('100%');
-    }.padding(18).backgroundColor(SITE_CARD).borderRadius(14).width('100%');}.width('92%').constraintSize({maxWidth:560,maxHeight:this.maxHeight}).align(Alignment.Top).scrollBar(BarState.Off);
+    }.padding(18).backgroundColor(SITE_CARD).borderRadius(14).width('100%');}.edgeEffect(EdgeEffect.Spring).width('92%').constraintSize({maxWidth:560,maxHeight:this.maxHeight}).align(Alignment.Top).scrollBar(BarState.Off);
   }
 }

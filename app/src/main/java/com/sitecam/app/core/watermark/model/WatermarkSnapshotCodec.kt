@@ -14,7 +14,7 @@ object WatermarkSnapshotCodec {
     // Version 1 snapshots predate the opt-in elevation row. Keep the version
     // boundary explicit so a legacy snapshot can never gain that row merely
     // because the current build knows about it.
-    private const val VERSION = 3
+    private const val VERSION = 4
     private const val ELEVATION_VERSION = 2
     // Values outside these bounds cannot come from the editor and make the
     // stamp unreadable or blank, so a damaged snapshot is pulled back in.
@@ -54,6 +54,7 @@ object WatermarkSnapshotCodec {
         // org.json rejects NaN/Infinity, and a failed encode after the photo
         // reached MediaStore would leave an orphan file, so fall back here.
         putFinite("fontSizeScale", data.fontSizeScale.toDouble(), DEFAULT_FONT_SIZE_SCALE)
+        data.widthRatio?.let { putFinite("widthRatio", it.toDouble(), 0.6) }
         putFinite("opacity", data.opacity.toDouble(), DEFAULT_OPACITY)
         put("marginDp", data.marginDp)
         put("position", data.position)
@@ -143,6 +144,9 @@ object WatermarkSnapshotCodec {
                 styleType = root.optString("styleType", "CLASSIC"),
                 fontSizeScale = root.optDouble("fontSizeScale", DEFAULT_FONT_SIZE_SCALE).toFloat()
                     .takeIf { it.isFinite() } ?: DEFAULT_FONT_SIZE_SCALE.toFloat(),
+                widthRatio = if (root.has("widthRatio") && !root.isNull("widthRatio")) {
+                    root.optDouble("widthRatio", 0.6).toFloat().let { if (it.isFinite()) it.coerceIn(.3f, .9f) else .6f }
+                } else null,
                 opacity = root.optDouble("opacity", DEFAULT_OPACITY).toFloat()
                     .takeIf { it.isFinite() }?.coerceIn(0f,1f) ?: DEFAULT_OPACITY.toFloat(),
                 marginDp = root.optInt("marginDp", 16).coerceIn(MARGIN_DP_MIN, MARGIN_DP_MAX),

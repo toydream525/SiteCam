@@ -72,6 +72,7 @@ class WatermarkEditorViewModel(
             fieldOrder = resolvedFields.fieldOrder,
             styleType = template?.styleType ?: "CLASSIC",
             fontSizeScale = template?.fontSizeScale ?: 1.0f,
+            widthRatio = template?.widthRatio ?: 0.6f,
             opacity = template?.opacity ?: 0.85f,
             marginDp = template?.marginDp ?: 16,
             position = template?.position ?: "BOTTOM_LEFT"
@@ -116,6 +117,11 @@ class WatermarkEditorViewModel(
     fun updateFontSizeScale(scale: Float) {
         val id = _template.value?.id ?: return
         appContainer.watermarkTemplateMutations.fontSize(id, scale)
+    }
+
+    fun updateWidthRatio(ratio: Float) {
+        val id = _template.value?.id ?: return
+        appContainer.watermarkTemplateMutations.width(id, ratio)
     }
 
     fun updateOpacity(opacity: Float) {

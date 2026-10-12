@@ -21,6 +21,14 @@ val DarkBorder = Color(0xFF383838)
  */
 val Letterbox = Color(0xFF000000)
 
+/**
+ * Accent for text and icons on light surfaces.
+ *
+ * The brand yellow only clears the text contrast requirement on dark surfaces, so light
+ * management pages use this deep amber instead; both platforms share the same value.
+ */
+val AccentTextLight = Color(0xFF8F5C00)
+
 val LightBackground = Color(0xFFF5F5F5)
 val LightSurface = Color(0xFFFFFFFF)
 val LightCard = Color(0xFFF0F0F0)

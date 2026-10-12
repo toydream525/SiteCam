@@ -35,6 +35,8 @@ data class WatermarkData(
     val styleType: String = "CLASSIC", // CLASSIC, MINIMAL, INFO_BOARD
     val fontSizeScale: Float = 1.0f,
     val opacity: Float = 0.85f,
+    /** Null preserves the width limit of historical capture snapshots. */
+    val widthRatio: Float? = 0.6f,
     val marginDp: Int = 16,
     val position: String = "BOTTOM_LEFT", // BOTTOM_LEFT, BOTTOM_RIGHT, TOP_LEFT, TOP_RIGHT
     /** Null keeps the historical behavior of snapshots that did not freeze a zone. */

@@ -28,12 +28,12 @@ export struct ProjectEditorDialog {
       Text(this.project.id ? '编辑工程包' : '新建工程包').fontSize(20).fontWeight(FontWeight.Bold).fontColor(SITE_TEXT);
       this.field('工程名称',this.name,(v: string)=>this.name=v);
       this.field('线路名称（可选）',this.route,(v: string)=>this.route=v);
-      Scroll(){Row({ space: 6 }) { ForEach(this.categories,(value: string)=>{Button(value).fontSize(12).fontColor(this.category===value?'#231A00':SITE_TEXT).backgroundColor(this.category===value?SITE_ACCENT:$r('app.color.card_raised')).onClick(()=>this.category=value);},(value: string)=>value); }}.scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).width('100%');
+      Scroll(){Row({ space: 6 }) { ForEach(this.categories,(value: string)=>{Button(value).fontSize(12).fontColor(this.category===value?'#231A00':SITE_TEXT).backgroundColor(this.category===value?SITE_ACCENT:$r('app.color.card_raised')).onClick(()=>this.category=value);},(value: string)=>value); }}.edgeEffect(EdgeEffect.Spring).scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).width('100%');
       this.field(this.offlineMode?'工程地点（手动填写，可选）':'工程地点（可选）',this.address,(v: string)=>this.address=v);
       TextArea({text:this.notes,placeholder:'工程备注（可选）'}).fontColor($r('app.color.text_primary')).placeholderColor($r('app.color.text_secondary')).backgroundColor($r('app.color.card_raised')).caretColor('#FFB300').borderRadius(10).height(72).fontColor(SITE_TEXT).backgroundColor($r('app.color.card_raised')).width('100%').onChange((v:string)=>this.notes=v);
       if(this.error)Text(this.error).fontSize(14).fontColor('#D32F2F').width('100%');
       Row({ space: 12 }) { Button('取消').enabled(!this.pending).fontColor(SITE_MUTED).backgroundColor(Color.Transparent).onClick(()=>{this.controller.close();this.onCancel();});Button('保存').enabled(!this.pending&&!!this.name.trim()).fontColor('#231A00').backgroundColor(SITE_ACCENT).onClick(()=>this.submit()); }.width('100%').justifyContent(FlexAlign.End);
     }.padding(18).backgroundColor(SITE_CARD).borderRadius(14).width('90%');
-    }.width('100%').constraintSize({maxWidth:600,maxHeight:'90%'}).align(Alignment.Top).scrollBar(BarState.Off);
+    }.edgeEffect(EdgeEffect.Spring).width('100%').constraintSize({maxWidth:600,maxHeight:'90%'}).align(Alignment.Top).scrollBar(BarState.Off);
   }
 }

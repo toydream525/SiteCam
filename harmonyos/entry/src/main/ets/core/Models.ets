@@ -78,6 +78,7 @@ export function usableAltitude(altitude: number, altitudeAccuracy: number | unde
 export class Watermark {
   style: string = 'CLASSIC';
   fontScale: number = 1;
+  widthRatio: number = .6;
   opacity: number = 0.85;
   marginDp: number = 16;
   position: string = 'BOTTOM_LEFT';
@@ -87,6 +88,7 @@ export class Watermark {
 export class WatermarkTemplate {
   id: number=0;name: string='默认模板';config: string='';updated: number=Date.now();
   styleType: string = 'CLASSIC'; fontSizeScale: number = 1; opacity: number = .85;
+  widthRatio: number = .6;
   marginDp: number = 16; position: string = 'BOTTOM_LEFT'; isDefault: boolean = false;
 }
 export class WatermarkField {
@@ -245,6 +247,7 @@ export function resetWatermarkFields(source: Watermark): Watermark {
  */
 export function migrateWatermarkFields(source: Watermark): Watermark {
   const out=JSON.parse(JSON.stringify(source)) as Watermark;
+  if(out.widthRatio===undefined)out.widthRatio=.6;
   const defaults=new Watermark().fields;
   if(!Array.isArray(out.fields)) {out.fields=JSON.parse(JSON.stringify(defaults)) as Field[];for(const f of out.fields)if(f.key==='elevation')f.enabled=false;return out;}
   const fields=out.fields as Field[];

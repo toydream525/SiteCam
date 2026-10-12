@@ -77,24 +77,14 @@ struct Index {
   @State pageOrigin: string='camera';
   @State galleryOrigin: string='camera';
   @State navDirection: string='forward';
-  private readonly forwardTransition: TransitionEffect = TransitionEffect.asymmetric(
-    TransitionEffect.OPACITY.combine(TransitionEffect.translate({ x: '20%' }))
-      .animation({ curve: curves.springMotion(0.35, 0.9) }),
-    TransitionEffect.OPACITY.combine(TransitionEffect.translate({ x: '-20%' }))
-      .animation({ curve: curves.springMotion(0.35, 0.9) })
-  );
-  private readonly backwardTransition: TransitionEffect = TransitionEffect.asymmetric(
-    TransitionEffect.OPACITY.combine(TransitionEffect.translate({ x: '-20%' }))
-      .animation({ curve: curves.springMotion(0.35, 0.9) }),
-    TransitionEffect.OPACITY.combine(TransitionEffect.translate({ x: '20%' }))
-      .animation({ curve: curves.springMotion(0.35, 0.9) })
-  );
-  private readonly modalTransition: TransitionEffect = TransitionEffect.asymmetric(
-    TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: '25%' }))
-      .animation({ curve: curves.springMotion(0.35, 0.9) }),
-    TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: '25%' }))
-      .animation({ curve: curves.springMotion(0.35, 0.9) })
-  );
+  // AppGallery UX check asks page switches to fade with a spring curve instead
+  // of sliding, so every direction shares the same opacity transition.
+  private readonly forwardTransition: TransitionEffect =
+    TransitionEffect.OPACITY.animation({ curve: curves.springMotion(0.35, 0.9) });
+  private readonly backwardTransition: TransitionEffect =
+    TransitionEffect.OPACITY.animation({ curve: curves.springMotion(0.35, 0.9) });
+  private readonly modalTransition: TransitionEffect =
+    TransitionEffect.OPACITY.animation({ curve: curves.springMotion(0.35, 0.9) });
 
   private getPageTransition(targetPage: string): TransitionEffect {
     if (targetPage === 'watermark' || targetPage === 'move' || targetPage === 'category' || this.navDirection === 'modal') {
@@ -329,7 +319,7 @@ struct Index {
   private async dialogTask(action:()=>Promise<void>):Promise<void>{if(this.busy)throw new Error('当前操作尚未完成，请稍后重试');this.busy=true;try{await action();}finally{this.busy=false;}}
   private saveSetting(change:(next:Settings)=>void):void {const operation=this.settingsQueue.catch(()=>{}).then(async():Promise<void>=>{const next=JSON.parse(JSON.stringify(this.settings)) as Settings;change(next);await this.persistSettingsSnapshot(next);this.settings=next;});this.settingsQueue=operation.catch((e:Error)=>{this.settings=JSON.parse(JSON.stringify(store.settings)) as Settings;this.notify(e.message||'设置保存失败，请重试');});}
   private notify(text: string): void {promptAction.showToast({message:text,duration:3000,bottom:'120vp'});}
-  private async copyDiagnostics(): Promise<void> {const cameraInfo=this.camera?`\n闪光：${this.camera.flashDiagnostics}\n倍率：${this.camera.zoomRatio}×（范围 ${this.camera.zoomMin}–${this.camera.zoomMax}，候选 ${this.camera.zoomPresets.join(',')}）`:'';const text=`设备：${deviceInfo.productModel||'未知'}\nSDK：${deviceInfo.sdkApiVersion}\n版本：v0.4.0${cameraInfo}`;const board=pasteboard.getSystemPasteboard();await board.setData(pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN,text));this.notify('诊断信息已复制');}
+  private async copyDiagnostics(): Promise<void> {const cameraInfo=this.camera?`\n闪光：${this.camera.flashDiagnostics}\n倍率：${this.camera.zoomRatio}×（范围 ${this.camera.zoomMin}–${this.camera.zoomMax}，候选 ${this.camera.zoomPresets.join(',')}）`:'';const text=`设备：${deviceInfo.productModel||'未知'}\nSDK：${deviceInfo.sdkApiVersion}\n版本：v0.4.1${cameraInfo}`;const board=pasteboard.getSystemPasteboard();await board.setData(pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN,text));this.notify('诊断信息已复制');}
   private async openExternal(url: string): Promise<void> {try{await openExternalLink(this.context,url);}catch(e){this.notify(OFFLINE_BUILD?'纯离线版不支持打开外部网页':'暂时无法打开外部页面，请检查网络后重试');}}
   private async copyProjectLink(): Promise<void> {try{const board=pasteboard.getSystemPasteboard();await board.setData(pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN,'https://github.com/toydream525/SiteCam'));this.notify('项目链接已复制');}catch(e){this.notify('复制失败，请重试');}}
   private openSiteCamEasterEgg(): void {this.easterEggDialog=new CustomDialogController({customStyle:true,alignment:DialogAlignment.Center,builder:SiteCamEasterEggDialog({onOpenStar:()=>this.task(async()=>this.openExternal('https://github.com/toydream525/SiteCam')),onOpenIssue:()=>this.task(async()=>this.openExternal('https://github.com/toydream525/SiteCam/issues')),onCopyProject:()=>this.task(async()=>this.copyProjectLink()),onOpenWebsite:()=>this.task(async()=>this.openExternal('https://yuriaqua.com/sitecam/'))})});this.easterEggDialog!.open();}
@@ -720,7 +710,7 @@ struct Index {
   @Builder
   orientationChoice(value:string){Button(){Column({space:6}){Image($r('app.media.ic_orientation')).width(22).height(26).rotate({angle:value==='LEFT'?90:value==='RIGHT'?270:0}).fillColor(this.settings.orientation===value?SITE_ACCENT:SITE_TEXT);Text(value==='AUTO'?'自动':value==='PORTRAIT'?'竖屏':value==='LEFT'?'左横屏':'右横屏').fontSize(14).fontColor(this.settings.orientation===value?SITE_ACCENT:SITE_TEXT);}.width('100%');}.layoutWeight(1).height(Math.max(72,28+48*this.fontScale)).padding(6).borderRadius(10).border({width:this.settings.orientation===value?1:0,color:SITE_ACCENT}).backgroundColor('#202020').onClick(()=>this.selectOrientation(value));}
   @Builder
-  orientationMenu(){Scroll(){Column({space:6}){Row({space:6}){this.orientationChoice('AUTO');this.orientationChoice('PORTRAIT');}.width('100%');Row({space:6}){this.orientationChoice('LEFT');this.orientationChoice('RIGHT');}.width('100%');}.padding(8).width(this.orientationMenuWidth());}.constraintSize({maxHeight:Math.max(96,this.windowHeight-80)}).scrollBar(BarState.Off);}
+  orientationMenu(){Scroll(){Column({space:6}){Row({space:6}){this.orientationChoice('AUTO');this.orientationChoice('PORTRAIT');}.width('100%');Row({space:6}){this.orientationChoice('LEFT');this.orientationChoice('RIGHT');}.width('100%');}.padding(8).width(this.orientationMenuWidth());}.edgeEffect(EdgeEffect.Spring).constraintSize({maxHeight:Math.max(96,this.windowHeight-80)}).scrollBar(BarState.Off);}
 
   private async toggleVideo(): Promise<void> {
     if(this.recording){await this.stopVideo();return;}
@@ -842,7 +832,7 @@ Column({space:2}){Text(title).fontSize(22).fontWeight(FontWeight.Bold).fontColor
   @Builder
   projectEditPage() {this.header(this.draft.id?'编辑工程':'新建工程','projects');Scroll(){Column({space:14}){this.field('工程名称',this.draft.name,v=>this.draft.name=v);this.field('线路（可选）',this.draft.route,v=>this.draft.route=v);this.field('类别',this.draft.category,v=>this.draft.category=v);this.field('地点',this.draft.address,v=>this.draft.address=v);this.field('备注',this.draft.notes,v=>this.draft.notes=v);Row(){Text('锁定工程，禁止继续拍摄').fontColor($r('app.color.text_primary')).layoutWeight(1);Toggle({type:ToggleType.Switch,isOn:this.draft.locked}).selectedColor('#FFB300').onChange(v=>this.draft.locked=v);}
 Row(){Text('归档').fontColor($r('app.color.text_primary')).layoutWeight(1);Toggle({type:ToggleType.Switch,isOn:this.draft.archived}).selectedColor('#FFB300').onChange(v=>this.draft.archived=v);}
-Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#352500').onClick(()=>this.task(async()=>this.saveProject()));}.width('100%').constraintSize({maxWidth:600}).padding(18);}.width('100%').scrollBar(BarState.Off).align(Alignment.Top).layoutWeight(1);}
+Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#352500').onClick(()=>this.task(async()=>this.saveProject()));}.width('100%').constraintSize({maxWidth:600}).padding(18);}.edgeEffect(EdgeEffect.Spring).width('100%').scrollBar(BarState.Off).align(Alignment.Top).layoutWeight(1);}
   private projectEntryMaxWidth():number {const g=this.cameraGeometry();if(g.immersivePhoneLandscape)return Math.max(72,Math.min(220,g.previewWidth-24));const reserved=g.toolbarHeight>60?16:(this.addressRefreshFallbackVisible()?224:172);return Math.max(72,Math.min(220,g.toolbarWidth-reserved));}
   @Builder
   projectToolbarButton(){Button(){Row({space:5}){Text(this.current().name||'选择工程').fontSize(14).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis}).fontColor(SITE_TEXT).constraintSize({maxWidth:Math.max(40,this.projectEntryMaxWidth()-42)});Image($r('app.media.ic_chevron_down')).width(18).height(18);}}.height(48).constraintSize({maxWidth:this.projectEntryMaxWidth()}).padding({left:10,right:10}).backgroundColor(this.toolbarControlBackground()).borderRadius(24).accessibilityText('工程项目：'+(this.current().name||'请选择工程')).id('camera-project').onClick(()=>this.openProjectSwitchPanel());}
@@ -855,8 +845,8 @@ Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#3525
   }.width(this.cameraGeometry().immersivePhoneLandscape?48:(this.addressRefreshFallbackVisible()?204:152)).height(this.cameraGeometry().immersivePhoneLandscape?Math.max(this.cameraGeometry().toolbarHeight,this.addressRefreshFallbackVisible()?192:144):48);}
   @Builder
   cameraToolbar(){Column(){
-    if(this.cameraGeometry().immersivePhoneLandscape){Scroll(){this.cameraToolbarActions();}.width('100%').height('100%').scrollBar(BarState.Off);}
-    else if(this.cameraGeometry().toolbarHeight>60){Row(){this.projectToolbarButton();Blank();}.width('100%');Scroll(){this.cameraToolbarActions();}.width('100%').scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off);}
+    if(this.cameraGeometry().immersivePhoneLandscape){Scroll(){this.cameraToolbarActions();}.edgeEffect(EdgeEffect.Spring).width('100%').height('100%').scrollBar(BarState.Off);}
+    else if(this.cameraGeometry().toolbarHeight>60){Row(){this.projectToolbarButton();Blank();}.width('100%');Scroll(){this.cameraToolbarActions();}.edgeEffect(EdgeEffect.Spring).width('100%').scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off);}
     else{Row(){this.projectToolbarButton();Blank();this.cameraToolbarActions();}.width('100%');}
   }.width(this.cameraGeometry().toolbarWidth).height(this.cameraGeometry().toolbarHeight).padding({left:4,right:4}).backgroundColor(Color.Black).position({x:this.cameraGeometry().toolbarX,y:this.cameraGeometry().toolbarY}).id('camera-toolbar');}
 
@@ -872,7 +862,7 @@ Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#3525
                 .enabled(this.cameraReady&&!this.captureInFlight&&!this.videoStarting)
                 .onClick(()=>this.chooseZoom(preset));
             },(preset:number)=>preset.toString());
-          }.justifyContent(FlexAlign.Center)}.scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).width('100%').height(44);
+          }.justifyContent(FlexAlign.Center)}.edgeEffect(EdgeEffect.Spring).scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).width('100%').height(44);
         }else{
           Row({space:2}) {
             ForEach(this.zoomOptions(),(preset:number)=>{
@@ -925,7 +915,7 @@ Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#3525
         const contentHeight=Math.ceil(Number(newArea.height));
         if(Number.isFinite(contentHeight)&&contentHeight>0&&Math.abs(contentHeight-this.portraitControlsContentHeight)>.5)this.portraitControlsContentHeight=contentHeight;
       });
-    }.width(this.cameraGeometry().controlsWidth).height(this.cameraGeometry().controlsHeight)
+    }.edgeEffect(EdgeEffect.Spring).width(this.cameraGeometry().controlsWidth).height(this.cameraGeometry().controlsHeight)
       .align(Alignment.Top).scrollable(ScrollDirection.Vertical).scrollBar(BarState.Off)
       .position({x:this.cameraGeometry().controlsX,y:this.cameraGeometry().controlsY}).id('camera-controls');}
   }
@@ -984,7 +974,7 @@ Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#3525
         Button(){Column({space:6}){Image($r('app.media.ic_tool_text')).width(24).height(24);Text('水印').fontSize(15).fontColor(SITE_TEXT);}}.layoutWeight(1).height(this.landscapeToolHeight()).backgroundColor(Color.Transparent).enabled(!this.recording).onClick(()=>{this.styleDraft=this.editableWatermarkDraft();this.quickSheet=true;});
         Button(){Column({space:6}){Image($r('app.media.ic_edit')).width(24).height(24);Text('记问题').fontSize(15).fontColor(this.quickIssueEnabled?SITE_ACCENT:SITE_TEXT);}}.layoutWeight(1).height(this.landscapeToolHeight()).backgroundColor(Color.Transparent).enabled(!this.recording).onClick(()=>{this.quickIssueEnabled=!this.quickIssueEnabled;});
       }.width('100%').height(this.landscapeToolHeight()).position({x:0,y:this.landscapeContentHeight()-this.landscapeToolHeight()-12});
-    }.width('100%').height(this.landscapeContentHeight());}.width(this.cameraGeometry().controlsWidth).height(this.cameraGeometry().controlsHeight).scrollBar(BarState.Off).align(Alignment.Top).backgroundColor(Color.Black).position({x:this.cameraGeometry().controlsX,y:this.cameraGeometry().controlsY}).id('camera-controls-dock');}
+    }.width('100%').height(this.landscapeContentHeight());}.edgeEffect(EdgeEffect.Spring).width(this.cameraGeometry().controlsWidth).height(this.cameraGeometry().controlsHeight).scrollBar(BarState.Off).align(Alignment.Top).backgroundColor(Color.Black).position({x:this.cameraGeometry().controlsX,y:this.cameraGeometry().controlsY}).id('camera-controls-dock');}
   }
   private landscapePanelHeight():number{return Math.max(1,(this.cameraGeometry().controlsHeight-this.landscapeShutterSize()-32)/2);}
   @Builder
@@ -1004,7 +994,7 @@ Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#3525
           .width(this.landscapeThumbnailSize()).height(this.landscapeThumbnailSize()).padding(0).backgroundColor(SITE_CARD_RAISED).borderRadius(10).id('camera-gallery-dock')
           .enabled(!this.busy&&!this.recording&&!this.videoStarting).onClick(()=>this.task(async()=>{this.filterProject=this.current().id;await this.navigate('gallery');}));
         Blank();
-      }.width('100%').height(Math.max(this.landscapePanelHeight(),Math.max(48,this.landscapeModeHeight())+this.landscapeThumbnailSize()+24+(this.floatingZoomPosition()===null&&this.zoomOptions().length?56:0)));}
+      }.width('100%').height(Math.max(this.landscapePanelHeight(),Math.max(48,this.landscapeModeHeight())+this.landscapeThumbnailSize()+24+(this.floatingZoomPosition()===null&&this.zoomOptions().length?56:0)));}.edgeEffect(EdgeEffect.Spring)
         .width(this.cameraGeometry().controlsWidth-16).height(this.landscapePanelHeight()).scrollBar(BarState.Off).align(Alignment.Top).position({x:8,y:8});
       Button(){Stack(){Circle().width(this.landscapeShutterSize()).height(this.landscapeShutterSize()).fill(Color.White);Circle().width(this.landscapeShutterSize()*.9).height(this.landscapeShutterSize()*.9).fill(Color.Black);if(this.recording){Rect().width(this.landscapeShutterSize()*.34).height(this.landscapeShutterSize()*.34).radius(6).fill('#E53935');}else{Circle().width(this.landscapeShutterSize()*.78).height(this.landscapeShutterSize()*.78).fill(this.captureMode==='video'?'#E53935':Color.White);}}}
         .width(this.landscapeShutterSize()).height(this.landscapeShutterSize()).padding(0).backgroundColor(Color.Transparent).scale({x:this.shutterScale,y:this.shutterScale}).id('camera-shutter-dock').accessibilityText(this.recording?'停止录像':'拍摄')
@@ -1020,7 +1010,7 @@ Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#3525
           Button(){Column({space:6}){Image($r('app.media.ic_tool_text')).width(24).height(24);Text('水印').fontSize(15).fontColor(SITE_TEXT);}}.layoutWeight(1).height(this.landscapeToolHeight()).padding(0).backgroundColor(Color.Transparent).enabled(!this.busy&&!this.recording&&!this.videoStarting).onClick(()=>{this.styleDraft=this.editableWatermarkDraft();this.quickSheet=true;});
           Button(){Column({space:6}){Image($r('app.media.ic_edit')).width(24).height(24);Text('记问题').fontSize(15).fontColor(this.quickIssueEnabled?SITE_ACCENT:SITE_TEXT);}}.layoutWeight(1).height(this.landscapeToolHeight()).padding(0).backgroundColor(Color.Transparent).enabled(!this.busy&&!this.recording&&!this.videoStarting).onClick(()=>{this.quickIssueEnabled=!this.quickIssueEnabled;});
         }.width('100%');
-      }.width('100%').height(Math.max(this.landscapePanelHeight(),48+this.landscapeToolHeight()+24));}
+      }.width('100%').height(Math.max(this.landscapePanelHeight(),48+this.landscapeToolHeight()+24));}.edgeEffect(EdgeEffect.Spring)
         .width(this.cameraGeometry().controlsWidth-16).height(this.landscapePanelHeight()).scrollBar(BarState.Off).align(Alignment.Top)
         .position({x:8,y:(this.cameraGeometry().controlsHeight+this.landscapeShutterSize())/2+8});
     }.width(this.cameraGeometry().controlsWidth).height(this.cameraGeometry().controlsHeight).backgroundColor(Color.Black)
@@ -1033,14 +1023,14 @@ Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#3525
         .fontColor(this.zoomPresetSelected(preset)?SITE_ACCENT:SITE_TEXT).backgroundColor(Color.Transparent)
         .border({width:this.zoomPresetSelected(preset)?1:0,color:SITE_ACCENT}).borderRadius(24)
         .enabled(this.cameraReady&&!this.captureInFlight&&!this.videoStarting&&!this.zoomSwitching).onClick(()=>this.chooseZoom(preset));
-    },(preset:number)=>preset.toString());}.width('100%');}
+    },(preset:number)=>preset.toString());}.width('100%');}.edgeEffect(EdgeEffect.Spring)
       .width(this.floatingZoomPosition()!.width).height(this.floatingZoomPosition()!.height).scrollBar(BarState.Off).align(Alignment.Top)
       .backgroundColor('#2E000000').borderRadius(24)
       .position({x:this.cameraGeometry().previewX+this.floatingZoomPosition()!.x,y:this.cameraGeometry().previewY+this.floatingZoomPosition()!.y});}
   }
   private landscapeZoomWidth():number{return Math.max(44,Math.min(220,this.cameraGeometry().controlsWidth-16,this.zoomOptions().length*44));}
   @Builder
-  landscapeZoom(){if(this.zoomOptions().length)Scroll(){Row(){ForEach(this.zoomOptions(),(preset:number)=>Button(this.zoomOptionLabel(preset)).width(44).height(48).padding(0).fontSize(14).fontColor(this.zoomPresetSelected(preset)?Color.Black:SITE_TEXT).backgroundColor(this.zoomPresetSelected(preset)?SITE_ACCENT:Color.Transparent).borderRadius(24).enabled(this.cameraReady&&!this.captureInFlight&&!this.videoStarting).onClick(()=>this.chooseZoom(preset)),(preset:number)=>preset.toString());}}.width(this.landscapeZoomWidth()).height(48).backgroundColor(this.toolbarControlBackground()).backgroundBlurStyle(this.toolbarBlurStyle(),{colorMode:ThemeColorMode.DARK}).borderRadius(24).scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off);}
+  landscapeZoom(){if(this.zoomOptions().length)Scroll(){Row(){ForEach(this.zoomOptions(),(preset:number)=>Button(this.zoomOptionLabel(preset)).width(44).height(48).padding(0).fontSize(14).fontColor(this.zoomPresetSelected(preset)?Color.Black:SITE_TEXT).backgroundColor(this.zoomPresetSelected(preset)?SITE_ACCENT:Color.Transparent).borderRadius(24).enabled(this.cameraReady&&!this.captureInFlight&&!this.videoStarting).onClick(()=>this.chooseZoom(preset)),(preset:number)=>preset.toString());}}.edgeEffect(EdgeEffect.Spring).width(this.landscapeZoomWidth()).height(48).backgroundColor(this.toolbarControlBackground()).backgroundBlurStyle(this.toolbarBlurStyle(),{colorMode:ThemeColorMode.DARK}).borderRadius(24).scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off);}
 
   @Builder
   cameraPage() {
@@ -1087,8 +1077,8 @@ Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#3525
       this.projectSwitchOverlay();
       if(this.quickSheet) {
         Rect().width('100%').height('100%').fill('#99000000').onClick(()=>{void this.closeQuickWatermark();});
-        QuickWatermarkPanel({pickerVisible:$quickPicker,addVisible:$quickAdd,panelWidth:Math.min(640,this.sheetPane().width),snapshot:this.snapshot,fields:this.styleDraft.fields,selectedStyle:this.styleDraft.style,fontScale:this.styleDraft.fontScale,wmOpacity:this.styleDraft.opacity,wmPosition:this.styleDraft.position,
-          onDismiss:()=>{void this.closeQuickWatermark();},onFieldChange:(i:number,v:string)=>{this.updateField(i,'value',v);this.persistQuickWatermark();},onFieldToggle:(i:number,v:boolean)=>{this.updateField(i,'enabled','',v);this.persistQuickWatermark();},onStyle:(v:string)=>{this.styleDraft.style=v;this.persistQuickWatermark();},onScale:(v:number)=>{this.styleDraft.fontScale=v;this.persistQuickWatermark();},onOpacity:(v:number)=>{this.styleDraft.opacity=v;this.persistQuickWatermark();},onPosition:(v:string)=>{this.styleDraft.position=v;this.persistQuickWatermark();},onAddField:(label:string)=>this.updateWatermark((draft:Watermark)=>draft.fields=draft.fields.concat(new Field('custom_'+Date.now(),label,''))),onAddFieldValue:(label:string,value:string)=>{this.updateWatermark((draft:Watermark)=>draft.fields=draft.fields.concat(new Field('custom_'+Date.now(),label,value)));this.persistQuickWatermark();}})
+        QuickWatermarkPanel({pickerVisible:$quickPicker,addVisible:$quickAdd,panelWidth:Math.min(640,this.sheetPane().width),snapshot:this.snapshot,fields:this.styleDraft.fields,selectedStyle:this.styleDraft.style,fontScale:this.styleDraft.fontScale,widthRatio:this.styleDraft.widthRatio,wmOpacity:this.styleDraft.opacity,wmPosition:this.styleDraft.position,
+          onDismiss:()=>{void this.closeQuickWatermark();},onFieldChange:(i:number,v:string)=>{this.updateField(i,'value',v);this.persistQuickWatermark();},onFieldToggle:(i:number,v:boolean)=>{this.updateField(i,'enabled','',v);this.persistQuickWatermark();},onStyle:(v:string)=>{this.styleDraft.style=v;this.persistQuickWatermark();},onScale:(v:number)=>{this.styleDraft.fontScale=v;this.persistQuickWatermark();},onWidth:(v:number)=>{this.styleDraft.widthRatio=v;this.persistQuickWatermark();},onOpacity:(v:number)=>{this.styleDraft.opacity=v;this.persistQuickWatermark();},onPosition:(v:string)=>{this.styleDraft.position=v;this.persistQuickWatermark();},onAddField:(label:string)=>this.updateWatermark((draft:Watermark)=>draft.fields=draft.fields.concat(new Field('custom_'+Date.now(),label,''))),onAddFieldValue:(label:string,value:string)=>{this.updateWatermark((draft:Watermark)=>draft.fields=draft.fields.concat(new Field('custom_'+Date.now(),label,value)));this.persistQuickWatermark();}})
           .width(Math.min(640,this.sheetPane().width)).height(this.sheetPane().height)
           .position({x:this.sheetPane().x+(this.sheetPane().width-Math.min(640,this.sheetPane().width))/2,y:this.sheetPane().y});
       }
@@ -1109,7 +1099,7 @@ Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#3525
     Scroll() {
       Column(){Flex({wrap:FlexWrap.Wrap,justifyContent:FlexAlign.Center}){Button('水平翻转').layoutWeight(1).padding(0).fontSize(12).fontColor(SITE_ACCENT).backgroundColor(Color.Transparent).onClick(()=>this.task(async()=>{this.pushEdit();this.recipe.steps=this.recipe.steps.concat(new EditStep('flipX'));await this.renderEdit();}));Button('垂直翻转').layoutWeight(1).padding(0).fontSize(12).fontColor(SITE_ACCENT).backgroundColor(Color.Transparent).onClick(()=>this.task(async()=>{this.pushEdit();this.recipe.steps=this.recipe.steps.concat(new EditStep('flipY'));await this.renderEdit();}));Button('旋转90°').layoutWeight(1).padding(0).fontSize(12).fontColor(SITE_ACCENT).backgroundColor(Color.Transparent).onClick(()=>this.task(async()=>{this.pushEdit();this.recipe.steps=this.recipe.steps.concat(new EditStep('rotate'));await this.renderEdit();}));Button('裁剪').layoutWeight(1).padding(0).fontSize(12).fontColor(SITE_ACCENT).backgroundColor(Color.Transparent).onClick(()=>this.openCropDialog());}.width('100%');Column({space:10}){GridRow({columns:this.editorSide()||this.windowWidth<380?3:6,gutter:4}){ForEach([['箭头','arrow'],['矩形','rect'],['圆形','circle'],['画笔','freehand'],['文字','text'],['马赛克','mosaic']],(tool: string[])=>{GridCol(){Button(){Column(){Image(tool[1]==='arrow'?$r('app.media.ic_tool_arrow'):tool[1]==='rect'?$r('app.media.ic_tool_rect'):tool[1]==='circle'?$r('app.media.ic_tool_circle'):tool[1]==='freehand'?$r('app.media.ic_tool_brush'):tool[1]==='text'?$r('app.media.ic_tool_text'):$r('app.media.ic_tool_mosaic')).width(24).height(24);Text(tool[0]).fontSize(10).fontColor(this.markTool===tool[1]?'#231A00':SITE_TEXT);}.width(52).height(48);}.padding(0).backgroundColor(this.markTool===tool[1]?SITE_ACCENT:SITE_CARD_RAISED).onClick(()=>{this.markTool=tool[1];this.cropMode=false;});}},(tool: string[])=>tool[1]);}
 Row({space:8}){ForEach(['#F44336','#FFB300','#FFC107','#4CAF50','#FFFFFF'],(color: string)=>{Button().width(28).height(28).backgroundColor(color).border({width:this.markColor===color?3:1,color:this.markColor===color?SITE_TEXT:SITE_MUTED}).borderRadius(14).onClick(()=>this.markColor=color);},(color: string)=>color);}.justifyContent(FlexAlign.Center);TextInput({text:this.markText,placeholder:'文字标注内容（选择文字工具）'}).fontColor('#FFFFFF').placeholderColor('#B0BEC5').backgroundColor('#303030').caretColor('#FFB300').borderRadius(10).onChange(v=>this.markText=v);}.padding(10);}
-    }
+    }.edgeEffect(EdgeEffect.Spring)
     .width(this.editorSide()?320:'100%')
     .height(this.editorSide()?'100%':Math.min(190,this.windowHeight*.42))
     .scrollable(ScrollDirection.Vertical)
@@ -1121,7 +1111,7 @@ Row({space:8}){ForEach(['#F44336','#FFB300','#FFC107','#4CAF50','#FFFFFF'],(colo
 this.editorToolsScroll();
 }.layoutWeight(1).width('100%');}.width('100%').height('100%');}
   @Builder
-  watermarkPanelPage() {WatermarkCustomizationPanel({pickerVisible:$watermarkPicker,editorVisible:$watermarkEditor,snapshot:this.snapshot,fields:this.styleDraft.fields,selectedStyle:this.styleDraft.style,fontScale:this.styleDraft.fontScale,wmOpacity:this.styleDraft.opacity,wmPosition:this.styleDraft.position,onReset:()=>{this.styleDraft=resetWatermarkFields(this.styleDraft);},onBack:()=>this.task(async()=>{await this.persistWatermarkBeforeLeave();await this.navigate(this.styleReturn,'modal');}),onFontScale:(v:number)=>this.styleDraft.fontScale=v,onOpacity:(v:number)=>this.styleDraft.opacity=v,onPosition:(v:string)=>this.styleDraft.position=v,onStyle:(v:string)=>this.styleDraft.style=v,onFieldChange:(i:number,v:string)=>this.updateField(i,'value',v),onFieldLabelChange:(i:number,v:string)=>this.updateField(i,'label',v),onFieldToggle:(i:number,v:boolean)=>this.updateField(i,'enabled','',v),onMove:(i:number,d:number)=>{const a=this.styleDraft.fields.slice();const j=i+d;if(j>=0&&j<a.length){const t=a[i];a[i]=a[j];a[j]=t;this.updateWatermark((draft:Watermark)=>draft.fields=a);}},onDelete:(i:number)=>{this.updateWatermark((draft:Watermark)=>draft.fields=draft.fields.filter((f:Field,index:number)=>index!==i));},onAddField:(label:string,value:string)=>{this.updateWatermark((draft:Watermark)=>draft.fields=draft.fields.concat(new Field('custom_'+Date.now(),label,value)));}});}
+  watermarkPanelPage() {WatermarkCustomizationPanel({pickerVisible:$watermarkPicker,editorVisible:$watermarkEditor,snapshot:this.snapshot,fields:this.styleDraft.fields,selectedStyle:this.styleDraft.style,fontScale:this.styleDraft.fontScale,widthRatio:this.styleDraft.widthRatio,wmOpacity:this.styleDraft.opacity,wmPosition:this.styleDraft.position,onReset:()=>{this.styleDraft=resetWatermarkFields(this.styleDraft);},onBack:()=>this.task(async()=>{await this.persistWatermarkBeforeLeave();await this.navigate(this.styleReturn,'modal');}),onFontScale:(v:number)=>this.styleDraft.fontScale=v,onWidthRatio:(v:number)=>this.updateWatermark((draft:Watermark)=>draft.widthRatio=v),onOpacity:(v:number)=>this.styleDraft.opacity=v,onPosition:(v:string)=>this.styleDraft.position=v,onStyle:(v:string)=>this.styleDraft.style=v,onFieldChange:(i:number,v:string)=>this.updateField(i,'value',v),onFieldLabelChange:(i:number,v:string)=>this.updateField(i,'label',v),onFieldToggle:(i:number,v:boolean)=>this.updateField(i,'enabled','',v),onMove:(i:number,d:number)=>{const a=this.styleDraft.fields.slice();const j=i+d;if(j>=0&&j<a.length){const t=a[i];a[i]=a[j];a[j]=t;this.updateWatermark((draft:Watermark)=>draft.fields=a);}},onDelete:(i:number)=>{this.updateWatermark((draft:Watermark)=>draft.fields=draft.fields.filter((f:Field,index:number)=>index!==i));},onAddField:(label:string,value:string)=>{this.updateWatermark((draft:Watermark)=>draft.fields=draft.fields.concat(new Field('custom_'+Date.now(),label,value)));}});}
   @Builder
   permissionRootPage() {PermissionGuidePageView({management:this.permissionManagement,onPermission:(id:string,needsSettings:boolean)=>this.task(async()=>{const ids:Permissions[]=id==='camera'?['ohos.permission.CAMERA']:id==='microphone'?['ohos.permission.MICROPHONE']:['ohos.permission.APPROXIMATELY_LOCATION','ohos.permission.LOCATION'];this.permissionRequesting=true;try{if(needsSettings)await this.openAppSettings(ids);else await this.permissions(true,ids);}finally{this.permissionRequesting=false;}}),permissions:this.permissionRows(),hasRequested:this.settings.systemPermissionsRequested,requesting:this.permissionRequesting,fontScale:this.fontScale,viewportHeight:this.windowHeight,onBack:()=>this.task(async()=>this.navigate(this.permissionsReturn||'camera','backward')),onRequest:()=>this.task(async()=>{this.permissionRequesting=true;try{await this.permissions(true);}finally{this.permissionRequesting=false;}}),onContinue:()=>this.task(async()=>{this.settings.permissionHandled=true;await this.persist();await this.navigate(this.permissionsReturn||'camera','backward');}),onOpenSettings:()=>this.task(async()=>this.openAppSettings())});}
   @Builder
@@ -1168,7 +1158,7 @@ Text('照片导出质量').fontColor($r('app.color.text_primary'));Select([{valu
         }else if(this.page==='category'){
           Stack(){Column(){this.header('批量分类','projects');this.field('类别',this.batchProjectCategory,v=>this.batchProjectCategory=v);Button('应用分类').onClick(()=>this.task(async()=>{await this.projectBatch('category');await this.navigate('projects','backward');}));Blank();}.width('100%').height('100%');}.width('100%').height('100%').transition(this.getPageTransition('category'));
         }else if(this.page==='move'){
-          Stack(){Column(){this.header('移动至工程','gallery');Scroll(){Column({space:10}){ForEach(this.projects,(p: Project)=>{Button(p.name).width('100%').onClick(()=>this.task(async()=>{await store.moveMedia(this.mediaSelection,p.id);this.mediaSelection=[];await this.refresh();await this.navigate('gallery','backward');}));});}.padding(16);}.scrollBar(BarState.Off).align(Alignment.Top).layoutWeight(1);}.width('100%').height('100%');}.width('100%').height('100%').transition(this.getPageTransition('move'));
+          Stack(){Column(){this.header('移动至工程','gallery');Scroll(){Column({space:10}){ForEach(this.projects,(p: Project)=>{Button(p.name).width('100%').onClick(()=>this.task(async()=>{await store.moveMedia(this.mediaSelection,p.id);this.mediaSelection=[];await this.refresh();await this.navigate('gallery','backward');}));});}.padding(16);}.edgeEffect(EdgeEffect.Spring).scrollBar(BarState.Off).align(Alignment.Top).layoutWeight(1);}.width('100%').height('100%');}.width('100%').height('100%').transition(this.getPageTransition('move'));
         }
       }
       if(this.busy&&this.video.running){

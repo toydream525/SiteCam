@@ -37,6 +37,9 @@ interface WatermarkDao {
     @Query("UPDATE watermark_templates SET fontSizeScale = :scale WHERE id = :id")
     suspend fun updateTemplateFontSize(id: Long, scale: Float)
 
+    @Query("UPDATE watermark_templates SET widthRatio = :ratio WHERE id = :id")
+    suspend fun updateTemplateWidth(id: Long, ratio: Float)
+
     @Query("UPDATE watermark_templates SET opacity = :opacity WHERE id = :id")
     suspend fun updateTemplateOpacity(id: Long, opacity: Float)
 

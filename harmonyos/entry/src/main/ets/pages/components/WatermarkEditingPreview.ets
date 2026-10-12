@@ -15,6 +15,7 @@ export struct WatermarkEditingPreview {
     const layout=layoutWatermark(this.ctx,1080,1440,this.snapshot);
     const fitSnapshot=JSON.parse(JSON.stringify(this.snapshot)) as Snapshot;
     fitSnapshot.watermark.fontScale=1;
+    fitSnapshot.watermark.widthRatio=.6;
     const fitLayout=layoutWatermark(this.ctx,1080,1440,fitSnapshot);
     this.ctx.restore();
     this.ctx.clearRect(0,0,this.canvasWidth,this.canvasHeight);

@@ -44,6 +44,6 @@ export struct SiteCamEasterEggDialog {
         Button('关闭').width('100%').height(44).fontColor(SITE_MUTED).backgroundColor(Color.Transparent)
           .onClick(() => this.controller.close());
       }.width('100%').padding(20).backgroundColor(SITE_CARD).borderRadius(18).alignItems(HorizontalAlign.Center);
-    }.width('92%').constraintSize({ maxWidth: 460, maxHeight: '90%' }).scrollBar(BarState.Off).align(Alignment.Center);
+    }.edgeEffect(EdgeEffect.Spring).width('92%').constraintSize({ maxWidth: 460, maxHeight: '90%' }).scrollBar(BarState.Off).align(Alignment.Center);
   }
 }

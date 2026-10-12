@@ -138,6 +138,7 @@ class PhotoDetailViewModel(
 
                 val project = appContainer.database.projectDao().getProjectById(item.projectId)
                 val fallbackData = WatermarkData(
+                    widthRatio = null,
                     projectName = project?.name ?: "默认工程",
                     categoryName = project?.categoryName ?: "建筑",
                     captureTimestamp = item.captureTimestamp,

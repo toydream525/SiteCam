@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sitecam.app.ui.theme.PageBackground as DarkBackground
 import com.sitecam.app.ui.theme.PageCard as DarkCard
+import com.sitecam.app.ui.theme.AccentText
 import com.sitecam.app.ui.theme.EngineeringYellow
 import com.sitecam.app.ui.theme.PageText as TextPrimaryDark
 import com.sitecam.app.ui.theme.PageMuted as TextSecondaryDark
@@ -168,7 +169,7 @@ fun HelpScreen(
                         Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().fillMaxHeight().verticalScroll(chapterScrollState).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             if(!wide) TextButton(onClick = { showTableOfContents = true }) { Text("‹ 返回目录") }
                             selected?.let { section ->
-                                Text(section.title, color = EngineeringYellow, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                                Text(section.title, color = AccentText, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                                 section.lines.forEach { line -> Text(line, color = TextPrimaryDark, fontSize = 17.sp, lineHeight = 27.sp, modifier = Modifier.fillMaxWidth()) }
                             }
                         }

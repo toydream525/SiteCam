@@ -64,7 +64,9 @@ function build(ctx: DrawingContext,w: number,h: number,snap: Snapshot,scale: num
     else fieldWidth=inkWidth(f.label+': ',font,true)+inkWidth(f.value,font,highlight);
     naturalWidth=Math.max(naturalWidth,fieldWidth);
   }
-  const cardW=Math.max(pad*3,Math.min(w-margin*2,Math.min(w,h)*(light?.82:.9),naturalWidth+pad*2+1)),inner=Math.max(.001,cardW-pad*2);
+  // Missing width in parsed media snapshots retains the historical style limit.
+  const widthRatio=cfg.widthRatio===undefined?(light?.82:.9):(Number.isFinite(cfg.widthRatio)?Math.max(.3,Math.min(.9,cfg.widthRatio)):.6);
+  const cardW=Math.max(pad*3,Math.min(w-margin*2,Math.min(w,h)*widthRatio,naturalWidth+pad*2+1)),inner=Math.max(.001,cardW-pad*2);
   const r=new Layout();r.w=cardW;r.background=light?'#F5F8FB':(id==='MINIMAL'?'#18232C':'#16212B');r.accent=id==='ENGINEERING_BLUE'?'#1262AE':id==='CONSTRUCTION_TABLE'?'#455F78':id==='INSPECTION'?'#168D80':id==='ACCEPTANCE'?'#173C68':'#FFB300';
   const fg=light?'#172D42':'#FFFFFF',label=light?'#315776':'#CFD8DC';let y=pad;let header=0;
   const add=(text: string,x: number,top: number,maxW: number,font: number,color: string,bold: boolean,key: string,role: string): number=>{ctx.font=`${bold?'bold':'normal'} ${font}px sans-serif`;let cursor=top;for(const part of wrapText(ctx,text,Math.max(.001,maxW))){const mt=ctx.measureText(part||'国');const asc=Math.max(mt.fontBoundingBoxAscent||0,mt.actualBoundingBoxAscent||0,font*.9);const desc=Math.max(mt.fontBoundingBoxDescent||0,mt.actualBoundingBoxDescent||0,font*.25);const l=new InkLine();l.text=part;l.x=x;l.y=cursor+asc;l.width=mt.width;l.size=font;l.color=color;l.bold=bold;l.key=key;l.role=role;l.ascent=asc;l.descent=desc;r.lines.push(l);cursor+=asc+desc+gap;}return cursor;};

@@ -54,6 +54,8 @@ fun OnboardingScreen(
     androidx.activity.compose.BackHandler(enabled = pageIndex > 0) { pageIndex -= 1 }
     BoxWithConstraints(modifier.fillMaxSize()) {
     val spacious = maxWidth >= 600.dp && maxHeight >= 600.dp
+    val metrics = GuideLayout.metrics(maxWidth.value, maxHeight.value)
+    val wide = metrics.wide
     val density = androidx.compose.ui.platform.LocalDensity.current
     val textMeasurer = androidx.compose.ui.text.rememberTextMeasurer()
     val singleLineTitle = page.title.replace("\n", "")
@@ -78,24 +80,18 @@ fun OnboardingScreen(
         containerColor = DarkBackground,
         contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
-            if (spacious) CenterAlignedTopAppBar(title = header, navigationIcon = back, actions = skip,
+            if (spacious || wide) CenterAlignedTopAppBar(title = header, navigationIcon = back, actions = skip,
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground))
             else TopAppBar(title = header, navigationIcon = back, actions = skip,
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground))
         },
         bottomBar = {
-            if (!spacious) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            if (!spacious && !wide) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Column(Modifier.widthIn(max = if (spacious) 348.dp else 560.dp).fillMaxWidth().navigationBarsPadding()
                     .padding(horizontal = 24.dp, vertical = 20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                        guidePages.indices.forEach { index ->
-                            Box(Modifier.padding(horizontal = 5.dp).size(if (index == pageIndex) 10.dp else 8.dp)
-                                .clip(RoundedCornerShape(50))
-                                .background(if (index == pageIndex) EngineeringYellow else TextSecondaryDark.copy(alpha = .24f)))
-                        }
-                    }
+                    GuideDots(pageIndex)
                     Button(onClick = { if (isLastPage) onFinish() else pageIndex += 1 },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), shape = RoundedCornerShape(if (spacious) 28.dp else 16.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = EngineeringYellow, contentColor = Color.Black)) {
@@ -106,8 +102,36 @@ fun OnboardingScreen(
         }
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
-            BoxWithConstraints(Modifier.widthIn(max = 640.dp).fillMaxSize()) {
-                if (spacious) {
+            BoxWithConstraints(Modifier.widthIn(max = if (wide) GuideLayout.BLOCK_MAX_DP.dp else 640.dp).fillMaxSize()) {
+                if (wide) {
+                    Row(Modifier.fillMaxSize().padding(horizontal = GuideLayout.PAGE_PADDING_DP.dp, vertical = GuideLayout.PAGE_PADDING_DP.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(GuideLayout.COLUMN_GAP_DP.dp)) {
+                        Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                            OnboardingIllustration(pageIndex, page.illustrationDescription, Modifier.fillMaxSize())
+                        }
+                        Column(Modifier.width(metrics.rightColumn.dp).fillMaxHeight(),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally) {
+                            val wideTitleFits = textMeasurer.measure(singleLineTitle,
+                                style = androidx.compose.ui.text.TextStyle(fontSize = 30.sp, fontWeight = FontWeight.Bold),
+                                maxLines = 1, softWrap = false).size.width <=
+                                with(density) { (metrics.rightColumn - 8f).dp.toPx() }
+                            Text(if (wideTitleFits) singleLineTitle else page.title, color = TextPrimaryDark,
+                                fontSize = 30.sp, lineHeight = 40.sp, fontWeight = FontWeight.Bold,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                            Spacer(Modifier.height(24.dp))
+                            GuideDots(pageIndex)
+                            Spacer(Modifier.height(24.dp))
+                            Button(onClick = { if (isLastPage) onFinish() else pageIndex += 1 },
+                                modifier = Modifier.fillMaxWidth().heightIn(min = GuideLayout.BUTTON_MIN_DP.dp),
+                                shape = RoundedCornerShape(28.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = EngineeringYellow, contentColor = Color.Black)) {
+                                Text(if (isLastPage) "开始使用" else "下一步", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                } else if (spacious) {
                     val availableHeight = maxHeight
                     val illustrationHeight = minOf((maxWidth - 32.dp) * (445f / 386f),
                         (availableHeight - 220.dp).coerceAtLeast(160.dp))
@@ -122,13 +146,7 @@ fun OnboardingScreen(
                             fontSize = 28.sp, lineHeight = 38.sp, fontWeight = FontWeight.Bold,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         Spacer(Modifier.height(24.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                            guidePages.indices.forEach { index ->
-                                Box(Modifier.padding(horizontal = 5.dp).size(if (index == pageIndex) 10.dp else 8.dp)
-                                    .clip(RoundedCornerShape(50))
-                                    .background(if (index == pageIndex) EngineeringYellow else TextSecondaryDark.copy(alpha = .24f)))
-                            }
-                        }
+                        GuideDots(pageIndex)
                         Spacer(Modifier.height(24.dp))
                         Button(onClick = { if (isLastPage) onFinish() else pageIndex += 1 },
                             modifier = Modifier.widthIn(max = 300.dp).fillMaxWidth().heightIn(min = 52.dp),
@@ -162,6 +180,17 @@ fun OnboardingLoadingScreen(modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center
     ) {
         CircularProgressIndicator(color = EngineeringYellow)
+    }
+}
+
+@Composable
+private fun GuideDots(pageIndex: Int) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+        guidePages.indices.forEach { index ->
+            Box(Modifier.padding(horizontal = 5.dp).size(if (index == pageIndex) 10.dp else 8.dp)
+                .clip(RoundedCornerShape(50))
+                .background(if (index == pageIndex) EngineeringYellow else TextSecondaryDark.copy(alpha = .24f)))
+        }
     }
 }
 

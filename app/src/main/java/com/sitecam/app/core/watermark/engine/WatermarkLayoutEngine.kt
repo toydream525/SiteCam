@@ -85,7 +85,9 @@ object WatermarkLayoutEngine {
             val legacy = style in setOf("CLASSIC", "MINIMAL", "INFO_BOARD")
             val size = (if(legacy) 26f else 30f) * s; val pad = 22f * s; val gap = (if(legacy) 14f else 7f) * s
             // Keep the ordinary card compact, expanding across the viewport only as text demands.
-            val preferred = min(availableWidth, min(width,height) * if(table) .82f else .9f)
+            val widthRatio = data.widthRatio?.let { if (it.isFinite()) it.coerceIn(.3f, .9f) else .6f }
+                ?: if(table) .82f else .9f
+            val preferred = min(availableWidth, min(width,height) * widthRatio)
             fun inkWidth(text: String, font: Float, bold: Boolean = false): Float {
                 val paint = watermarkPaint(font, bold = bold)
                 return text.lineSequence().maxOfOrNull { paint.measureText(it) } ?: 0f

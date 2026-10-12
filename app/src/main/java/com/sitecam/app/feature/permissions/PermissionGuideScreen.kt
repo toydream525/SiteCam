@@ -24,6 +24,7 @@ import com.sitecam.app.feature.onboarding.OnboardingPreferences
 import com.sitecam.app.ui.theme.*
 import com.sitecam.app.ui.theme.PageBackground as DarkBackground
 import com.sitecam.app.ui.theme.PageCard as DarkCard
+import com.sitecam.app.ui.theme.AccentText
 import com.sitecam.app.ui.theme.PageText as TextPrimaryDark
 import com.sitecam.app.ui.theme.PageMuted as TextSecondaryDark
 import kotlinx.coroutines.launch
@@ -130,7 +131,7 @@ fun PermissionGuideScreen(
             PermissionCard("麦克风 · 可选", "用于录制视频声音。不开启时可以录制无声视频。", access.microphone, access.microphoneNeedsSettings, action = if(management && !access.microphone) ({ requestItem(listOf(android.Manifest.permission.RECORD_AUDIO), access.microphoneNeedsSettings) }) else null)
             if(!management) {
             if (hasRequested) {
-                Text(if (access.allGranted) "所需权限已就绪，可以开始使用。" else "授权结果已更新。未开启的项目可稍后补充，不会再次自动弹出申请。", color = EngineeringYellow)
+                Text(if (access.allGranted) "所需权限已就绪，可以开始使用。" else "授权结果已更新。未开启的项目可稍后补充，不会再次自动弹出申请。", color = AccentText)
             }
             val requestable = access.permissionsToRequest()
             val blocked = PermissionAccess.blockedPermissions(access)

@@ -98,6 +98,7 @@ import com.sitecam.app.ui.theme.PageBackground as DarkBackground
 import com.sitecam.app.ui.theme.PageBorder as DarkBorder
 import com.sitecam.app.ui.theme.PageCard as DarkCard
 import com.sitecam.app.ui.theme.PageSurface as DarkSurface
+import com.sitecam.app.ui.theme.AccentText
 import com.sitecam.app.ui.theme.EngineeringYellow
 import com.sitecam.app.ui.theme.ErrorRed
 import com.sitecam.app.ui.theme.SuccessGreen
@@ -267,7 +268,7 @@ fun ProjectListScreen(
                 onValueChange = viewModel::setSearch,
                 label = { Text("搜索工程 / 线路") },
                 leadingIcon = {
-                    Icon(Icons.Default.Search, contentDescription = null, tint = EngineeringYellow)
+                    Icon(Icons.Default.Search, contentDescription = null, tint = AccentText)
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -544,7 +545,7 @@ fun ProjectListScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp),
-                    color = EngineeringYellow,
+                    color = AccentText,
                     trackColor = DarkBorder
                 )
                 Text(
@@ -584,7 +585,7 @@ fun ProjectListScreen(
                                 Text(project.name, color = TextPrimaryDark, fontSize = 18.sp, fontWeight = FontWeight.Bold,
                                     modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
                                 if (row.isSelected) ProjectPill("当前", EngineeringYellow)
-                                if (project.isCaptureLocked) Icon(Icons.Default.Lock, "已锁定拍摄", tint = EngineeringYellow, modifier = Modifier.padding(start = 6.dp).size(18.dp))
+                                if (project.isCaptureLocked) Icon(Icons.Default.Lock, "已锁定拍摄", tint = AccentText, modifier = Modifier.padding(start = 6.dp).size(18.dp))
                                 if (project.isArchived) Icon(Icons.Default.Archive, "已归档", tint = TextSecondaryDark, modifier = Modifier.padding(start = 6.dp).size(18.dp))
                             }
                             Text(listOf(project.categoryName.ifBlank { "未分类" }, project.routeName).filter { it.isNotBlank() }.joinToString(" · "),
@@ -745,7 +746,7 @@ private fun EmptyProjectsState() {
                 .padding(28.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(Icons.Default.Folder, contentDescription = null, tint = EngineeringYellow, modifier = Modifier.size(34.dp))
+            Icon(Icons.Default.Folder, contentDescription = null, tint = AccentText, modifier = Modifier.size(34.dp))
             Spacer(Modifier.height(10.dp))
             Text("没有符合条件的工程包", color = TextPrimaryDark, fontWeight = FontWeight.Bold)
         }

@@ -15,7 +15,7 @@ fun WatermarkVisualPreview(data: WatermarkData, modifier: Modifier = Modifier) {
     Canvas(modifier) {
         val layout = WatermarkLayoutEngine.calculateLayout(1080f, 1440f, data)
         val bounds = layout.cardRect
-        val fitBounds = WatermarkLayoutEngine.calculateLayout(1080f, 1440f, data.copy(fontSizeScale = 1f)).cardRect
+        val fitBounds = WatermarkLayoutEngine.calculateLayout(1080f, 1440f, data.copy(fontSizeScale = 1f, widthRatio = .6f)).cardRect
         if(bounds.width() > 0 && bounds.height() > 0 && size.width > 0 && size.height > 0) {
             val baseScale = min(size.width * .76f / fitBounds.width(), size.height * .76f / fitBounds.height())
             val scale = min(baseScale, min(size.width * .94f / bounds.width(), size.height * .92f / bounds.height()))

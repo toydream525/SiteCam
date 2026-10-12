@@ -42,6 +42,7 @@ class WatermarkTemplateMutations(
 
     fun style(id: Long, styleType: String) = enqueue { dao.changeTemplateStyle(id, styleType) }
     fun fontSize(id: Long, scale: Float) = enqueue { dao.updateTemplateFontSize(id, scale) }
+    fun width(id: Long, ratio: Float) = enqueue { dao.updateTemplateWidth(id, ratio.coerceIn(.3f, .9f)) }
     fun opacity(id: Long, opacity: Float) = enqueue { dao.updateTemplateOpacity(id, opacity) }
     fun position(id: Long, position: String) = enqueue { dao.updateTemplatePosition(id, position) }
     fun fieldValue(id: Long, value: String) = enqueue { dao.updateFieldValue(id, value) }

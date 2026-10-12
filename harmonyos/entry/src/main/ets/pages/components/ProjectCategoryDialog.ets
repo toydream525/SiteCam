@@ -1,4 +1,4 @@
-import { SITE_ACCENT, PAGE_CARD as SITE_CARD, PAGE_MUTED as SITE_MUTED, PAGE_TEXT as SITE_TEXT } from './UiPrimitives';
+import { PAGE_CARD as SITE_CARD, PAGE_MUTED as SITE_MUTED, PAGE_TEXT as SITE_TEXT } from './UiPrimitives';
 
 @CustomDialog
 export struct ProjectCategoryDialog {
@@ -16,9 +16,9 @@ export struct ProjectCategoryDialog {
             Button(category).width('100%').height(40).fontSize(13).fontColor(SITE_TEXT).backgroundColor($r('app.color.card_raised')).onClick(() => { this.controller.close(); this.onSelect(category); });
           }, (category: string) => category);
         }.width('100%');
-      }.width('100%').constraintSize({ maxHeight: 260 }).scrollBar(BarState.Off);
-      Button('取消').width('100%').fontColor(SITE_ACCENT).backgroundColor(Color.Transparent).onClick(() => { this.controller.close(); this.onCancel(); });
+      }.edgeEffect(EdgeEffect.Spring).width('100%').constraintSize({ maxHeight: 260 }).scrollBar(BarState.Off);
+      Button('取消').width('100%').fontColor($r('app.color.text_accent')).backgroundColor(Color.Transparent).onClick(() => { this.controller.close(); this.onCancel(); });
     }.padding(18).width('90%').backgroundColor(SITE_CARD).borderRadius(14);
-    }.width('100%').constraintSize({maxWidth:600,maxHeight:'90%'}).align(Alignment.Top).scrollBar(BarState.Off);
+    }.edgeEffect(EdgeEffect.Spring).width('100%').constraintSize({maxWidth:600,maxHeight:'90%'}).align(Alignment.Top).scrollBar(BarState.Off);
   }
 }

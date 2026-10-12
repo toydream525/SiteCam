@@ -1,5 +1,5 @@
 import { LengthMetricsUnit } from '@kit.ArkUI';
-import { Snapshot, Field } from '../../../main/ets/core/Models';
+import { Snapshot, Field, Watermark, migrateWatermarkFields } from '../../../main/ets/core/Models';
 import { layoutWatermark, Layout } from '../../../main/ets/core/WatermarkRenderer';
 
 function check(value:boolean,message:string):void {if(!value)throw new Error(message);}
@@ -22,6 +22,19 @@ export class WatermarkWidthChecks {
   static async forStyle(style:string):Promise<void> {
     const s=new Snapshot();s.project='工程甲';s.address='一区';s.watermark.style=style;
     s.watermark.fields=[new Field('project','工程名称'),new Field('address','现场位置')];
+    const old=JSON.parse('{"style":"CLASSIC","fontScale":1,"fields":[]}') as Watermark;
+    const migrated=migrateWatermarkFields(old);check(migrated.widthRatio===.6,'old template width default');
+    migrated.widthRatio=.35;check(migrateWatermarkFields(migrated).widthRatio===.35,'width reset on repeated migration');
+    for(const ratio of [.3,.6,.9])for(const size of [[1280,960],[960,1280],[1600,2560],[2560,1600],[240,180]])for(const font of [.6,1,2]) {
+      s.watermark.widthRatio=ratio;s.watermark.fontScale=font;
+      const small=complete(s,size[0],size[1]);check(small.w<=Math.min(size[0],size[1])*ratio+1,'custom width limit');
+      const long=JSON.parse(JSON.stringify(s)) as Snapshot;long.address='一区现场地址'.repeat(12);long.watermark.fields.push(new Field('custom_note','现场备注','钢筋绑扎检查'.repeat(6)));
+      const large=complete(long,size[0],size[1]);check(large.w<=Math.min(size[0],size[1])*ratio+1,'long custom width limit');
+      check(large.lines.filter(l=>l.key==='custom_note'&&l.role==='value').map(l=>l.text).join('')==='钢筋绑扎检查'.repeat(6),'custom content lost');
+    }
+    const legacy=JSON.parse(JSON.stringify(s).replace(/,"widthRatio":[0-9.]+/,'')) as Snapshot;
+    check(legacy.watermark.widthRatio===undefined,'parsed old snapshot gained width');
+    s.watermark.widthRatio=.6;
     for(const size of [[1280,960],[960,1280],[960,540],[240,180]])for(const font of [.6,1,2])for(const position of ['BOTTOM_LEFT','TOP_RIGHT']) {
       s.watermark.fontScale=font;s.watermark.position=position;
       const small=complete(s,size[0],size[1]);await new Promise<void>(resolve=>setTimeout(resolve,50));
