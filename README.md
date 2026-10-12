@@ -12,15 +12,15 @@
 
 **免费 · 开源 · 无广告**
 
-[⬇️ 下载安卓版 Release（推荐）](https://github.com/toydream525/SiteCam/releases/download/v0.4.0/SiteCam-0.4.0-Android-Release.apk)　
-[🌸 下载鸿蒙原生版](https://github.com/toydream525/SiteCam/releases/download/v0.4.0/SiteCam-0.4.0-HarmonyOS-Release-Unsigned.hap)　
+[⬇️ 下载安卓版 Release（推荐）](https://github.com/toydream525/SiteCam/releases/download/v0.4.1/SiteCam-0.4.1-Android-Release.apk)　
+[🌸 下载鸿蒙原生版](https://github.com/toydream525/SiteCam/releases/download/v0.4.1/SiteCam-0.4.1-HarmonyOS-Release-Unsigned.hap)　
 [🌐 官网](https://yuriaqua.com/sitecam/)　
 [📖 使用说明](docs/USER_GUIDE.md)　
 [💬 反馈问题](https://github.com/toydream525/SiteCam/issues)
 
 </div>
 
-当前公开版本为 **v0.4.0（大版本更新）**。默认下载 Android Release，推荐日常自用安装。
+当前公开版本为 **v0.4.1**。默认下载 Android Release，推荐日常自用安装。
 
 ---
 
@@ -59,8 +59,8 @@
 
 | 你的设备 | 当前状态 | 下载 |
 | --- | --- | --- |
-| 🤖 安卓手机 | **v0.4.0，可安装使用**，支持 Android 8.0 及以上 | [Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.0/SiteCam-0.4.0-Android-Release.apk) |
-| 🌸 鸿蒙手机 / 平板 | **v0.4.0 原生版，已上架华为应用市场** | [华为应用市场直接下载（一键拉起）](appmarket://details?id=com.sitecam.app) · [Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.4.0/SiteCam-0.4.0-HarmonyOS-Release-Unsigned.hap) · [签名说明](harmonyos/README.md) |
+| 🤖 安卓手机 | **v0.4.1，可安装使用**，支持 Android 8.0 及以上 | [Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.1/SiteCam-0.4.1-Android-Release.apk) |
+| 🌸 鸿蒙手机 / 平板 | **v0.4.1 原生版，已上架华为应用市场** | [华为应用市场直接下载（一键拉起）](appmarket://details?id=com.sitecam.app) · [Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.4.1/SiteCam-0.4.1-HarmonyOS-Release-Unsigned.hap) · [签名说明](harmonyos/README.md) |
 | 🍎 iPhone / iPad | 开发中，暂无安装包 | — |
 
 **鸿蒙版说明：** 鸿蒙原生版已正式上架华为应用市场！华为手机及平板用户可点击 [华为应用市场直接下载](appmarket://details?id=com.sitecam.app)（手机端直接唤起华为应用市场详情页）或在应用市场搜索“SiteCam工程水印相机”一键下载安装，无需自行签名。侧载测试用户可使用公开的未签名 Release HAP，需自行签名后安装。鸿蒙版不申请应用联网权限；具体地址由系统服务提供，系统服务可能使用网络，断网时可手动填写地点。
@@ -76,14 +76,11 @@
 
 ## 🆕 最近更新
 
-**v0.4.0（大版本更新）：**
-- **全形态设备适配**：优化折叠屏与平板体验，横竖屏拍摄均增加防误触握持留白。
-- **页面切换平稳**：进出二级页面取景画面不再跳动，水印与文字完整显示不截断。
-- **变焦更稳定**：支持多焦段顺滑切换，切换后保持所选倍率。
-- **离线位置记录**：断网保留卫星坐标并支持手填地点，联网自动解析地址。
-- **水印自适应排版**：文字过多时紧凑排列，不挡核心取景。
-- **全新视觉**：新增四款桌面图标（设置中可换），使用指引升级为清晰大字图解。
-- **资料整理优化**：工程与相册排版更清晰，整包导出更便捷。
+**v0.4.1：**
+- **水印宽度可调**：水印编辑的“外观”和拍摄页的“水印”面板都能直接调水印宽度，长内容自动换行，字号不变。
+- **开场指引更好用**：折叠内屏等大窗口下改成左图右操作，平板竖屏和手机居中铺满。
+- **显示更清晰**：浅色模式下强调文字看得更清楚，底部按钮不再贴住系统导航条。
+- **操作更顺**：列表滑到边界有回弹，页面切换更平缓。
 
 支持拍照加水印、按工程整理照片与视频、标注问题和导出资料。
 
