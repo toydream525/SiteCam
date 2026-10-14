@@ -4,6 +4,9 @@ import com.sitecam.app.feature.permissions.PermissionAccess
 import com.sitecam.app.feature.onboarding.OnboardingPreferences
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -160,6 +163,14 @@ fun CameraScreen(
     var shutterFlashToken by remember { mutableStateOf(0L) }
     var photoSaveAnimationToken by remember { mutableStateOf(0L) }
     val previewFlashAlpha = remember { Animatable(0f) }
+    var saveNoticeToken by remember { mutableStateOf(0L) }
+    var showSaveNotice by remember { mutableStateOf(false) }
+    LaunchedEffect(saveNoticeToken) {
+        if (saveNoticeToken == 0L) return@LaunchedEffect
+        showSaveNotice = true
+        delay(1600)
+        showSaveNotice = false
+    }
 
     LaunchedEffect(shutterFlashToken) {
         if (shutterFlashToken == 0L) return@LaunchedEffect
@@ -465,12 +476,11 @@ fun CameraScreen(
             when (event) {
                 is CameraUiEvent.PhotoSaved -> {
                     photoSaveAnimationToken += 1L
-                    if (event.showToast) {
-                        Toast.makeText(context, "媒体已保存", Toast.LENGTH_SHORT).show()
-                    }
+                    if (event.showToast) saveNoticeToken += 1L
                 }
                 is CameraUiEvent.VideoSaved -> {
-                    Toast.makeText(context, "媒体已保存", Toast.LENGTH_SHORT).show()
+                    photoSaveAnimationToken += 1L
+                    saveNoticeToken += 1L
                 }
                 is CameraUiEvent.QuickIssuePrompt -> {
                     onQuickIssuePrompt(event.mediaId)
@@ -1129,6 +1139,24 @@ fun CameraScreen(
             )
         }
 
+        if (showSaveNotice) {
+            Box(modifier = previewFrameModifier.zIndex(3f)) {
+                SaveSuccessNotice(
+                    watermarkRect = watermarkPreviewLayout(
+                        with(screenDensity) { geometry.previewWidth.dp.toPx() },
+                        with(screenDensity) { geometry.previewHeight.dp.toPx() },
+                        uiState.watermarkData
+                    ).cardRect,
+                    addressRefreshVisible = addressNeedsRefresh,
+                    reservedRects = if (immersivePhoneLandscape)
+                        listOfNotNull(projectRect, floatingZoomBounds).map { rect ->
+                            android.graphics.RectF(rect.left * screenDensity.density, rect.top * screenDensity.density,
+                                rect.right * screenDensity.density, rect.bottom * screenDensity.density)
+                        } else emptyList()
+                )
+            }
+        }
+
         // 6. Quick Watermark Edit Bottom Sheet
         if (showQuickWatermarkSheet) {
             QuickWatermarkEditSheet(
@@ -1159,6 +1187,41 @@ fun CameraScreen(
                 }
             )
         }
+    }
+}
+
+@Composable
+private fun SaveSuccessNotice(
+    watermarkRect: android.graphics.RectF,
+    addressRefreshVisible: Boolean,
+    reservedRects: List<android.graphics.RectF>
+) {
+    val density = LocalDensity.current
+    val margin = with(density) { 12.dp.toPx() }
+    SubcomposeLayout(modifier = Modifier.fillMaxSize()) { constraints ->
+        val notice = subcompose("save-success") {
+            Text("媒体已保存", color = Color.White, fontSize = 14.sp,
+                modifier = Modifier
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                    .background(Color.Black.copy(alpha = .78f))
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                    .semantics { liveRegion = LiveRegionMode.Polite })
+        }.single().measure(Constraints(maxWidth = (constraints.maxWidth - 2 * margin.toInt()).coerceAtLeast(1),
+            maxHeight = constraints.maxHeight))
+        val retrySize = with(density) { 48.dp.toPx() }
+        val retryCorner = chooseAddressRefreshCorner(constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat(),
+            retrySize, retrySize, watermarkRect, margin, reservedRects = reservedRects)
+        val retryRect = if (addressRefreshVisible) addressRefreshRectForCorner(retryCorner,
+            constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat(), retrySize, retrySize, margin) else null
+        val corner = chooseAddressRefreshCorner(constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat(),
+            notice.width.toFloat(), notice.height.toFloat(), watermarkRect, margin, reservedRects = reservedRects + listOfNotNull(retryRect))
+        val rect = addressRefreshRectForCorner(corner, constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat(),
+            notice.width.toFloat(), notice.height.toFloat(), margin)
+        // Even a full-frame watermark must not push the success notice back
+        // into the shutter dock. The passive notice remains inside the preview.
+        val x = rect?.left?.toInt() ?: (constraints.maxWidth - notice.width) / 2
+        val y = rect?.top?.toInt() ?: (constraints.maxHeight - notice.height) / 2
+        layout(constraints.maxWidth, constraints.maxHeight) { notice.placeRelative(x, y) }
     }
 }
 

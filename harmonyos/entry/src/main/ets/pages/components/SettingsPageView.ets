@@ -25,7 +25,7 @@ export interface QualityOption{label:string;description:string;value:number;}
    Row(){Text('另存到系统相册').fontSize(16).fontColor(TEXT).layoutWeight(1);Toggle({type:ToggleType.Switch,isOn:this.albumCopy}).selectedColor(YELLOW).onChange(v=>this.onAlbumCopy(v));}.width('100%').constraintSize({minHeight:64}).padding({left:16,right:16});
   }else if(group==='水印'){this.row('水印样式与字段','',()=>this.onWatermark(this.templateId));}
   else if(group==='权限与隐私'){this.row('权限设置','',()=>this.onPermissions());this.row('隐私政策','',()=>this.onOpenLink(PRIVACY));}
-  else if(group==='外观'){this.row('相机控件外观',this.cameraControlStyle==='BLUR'?'毛玻璃':'普通',()=>this.page='相机控件外观');this.row('桌面图标',this.iconName(this.icon),()=>this.page='桌面图标');}
+  else if(group==='外观'){this.row('相机控件外观',this.cameraControlStyle==='BLUR'?'毛玻璃':'普通',()=>this.page='相机控件外观');if(this.apiVersion>=26)this.row('桌面图标',this.iconName(this.icon),()=>this.page='桌面图标');}
   else{this.row('使用指南','',()=>this.onHelp());this.row('关于 SiteCam','',()=>this.page='关于 SiteCam');}
  }.width('100%').backgroundColor(CARD).borderRadius(16);}.width('100%');}
  @Builder content(){

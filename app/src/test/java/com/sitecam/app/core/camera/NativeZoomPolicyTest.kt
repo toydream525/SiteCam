@@ -56,4 +56,31 @@ class NativeZoomPolicyTest {
         assertEquals(8f, NativeZoomPolicy.displayRange(physicalTele).endInclusive, .0001f)
         assertEquals(physicalTele, NativeZoomPolicy.targetLens(listOf(main, physicalTele), main, 3.2f, true))
     }
+
+    @Test fun nearNominalPresetsRequestTheirDisplayedValueAcrossLenses() {
+        for ((measured, expected) in listOf(1.98f to 2f, 2.47f to 2.5f, 2.96f to 3f,
+            3.46f to 3.5f, 4.90f to 5f, 5.92f to 6f, 9.82f to 10f)) {
+            val tele = lens("tele", measured, 12f)
+            val main = lens("main", 1f, 12f)
+            assertEquals(listOf(expected), NativeZoomPolicy.nativeRatios(tele))
+            assertEquals(tele, NativeZoomPolicy.targetLens(listOf(main, tele), main, expected, true))
+        }
+    }
+
+    @Test fun realNonstandardStopsAndUnavailableReachArePreserved() {
+        for (ratio in listOf(.54f, .8f, 1f, 2.8f, 3.2f, 3.6f, 5.1f)) {
+            assertEquals(ratio, NativeZoomPolicy.shortcutRatio(ratio, .5f..12f), .0001f)
+        }
+        assertEquals(4.9f, NativeZoomPolicy.shortcutRatio(4.9f, 1f..4.95f), .0001f)
+        assertEquals(4.94f, CameraZoomMapping.referenceRatioForActiveLens(lens("tele", 4.94f)), .0001f)
+    }
+
+    @Test fun logicalMemberPresetsNormalizeWithoutInventingOtherStops() {
+        val main = lens("logical", 1f).copy(isLogicalCamera=true)
+        val physical = lens("tele", 4.94f).copy(parentLogicalCameraId="logical",
+            minSessionZoomRatio=4.94f, maxSessionZoomRatio=8f)
+        assertEquals(listOf(1f, 5f), NativeZoomPolicy.presets(listOf(main, physical)))
+        assertEquals(physical, NativeZoomPolicy.targetLens(listOf(main, physical), main, 5f, true))
+        assertEquals(4.94f, physical.equivalentZoomRatio!!, .0001f)
+    }
 }

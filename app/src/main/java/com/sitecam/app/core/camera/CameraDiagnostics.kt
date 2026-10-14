@@ -6,6 +6,21 @@ import android.hardware.camera2.CameraManager as SystemCameraManager
 import android.os.Build
 
 object CameraDiagnostics {
+    @Volatile private var liveSession: String = "No capture result recorded"
+    @Volatile private var sessionActive: Boolean = false
+    fun updateSession(selectedId: String?, physicalId: String?, requestedZoom: Float?, resultZoom: Float?, focalLength: Float?) {
+        liveSession = "Selected Camera ID: ${selectedId ?: "unknown"}\n" +
+            "Active Physical Camera ID: ${physicalId ?: "not reported"}\n" +
+            "Requested Session Zoom: ${requestedZoom ?: "not reported"}\n" +
+            "Capture Result Zoom: ${resultZoom ?: "not reported"}\n" +
+            "Capture Result Focal Length: ${focalLength ?: "not reported"}\n" +
+            "Capture Result Timestamp: ${System.currentTimeMillis()}"
+        sessionActive = true
+    }
+    fun clearSession() { sessionActive = false }
+    fun sessionDiagnostic(): String =
+        (if (sessionActive) "Latest active capture result:\n" else "Last capture result (session inactive):\n") + liveSession
+
 
     fun generateDiagnosticReport(context: Context): String {
         val sb = StringBuilder()
@@ -17,6 +32,8 @@ object CameraDiagnostics {
         sb.appendLine("Android OS: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
         sb.appendLine("Fingerprint: ${Build.FINGERPRINT}")
         sb.appendLine("Timestamp: ${System.currentTimeMillis()}")
+        sb.appendLine()
+        sb.appendLine(sessionDiagnostic())
         sb.appendLine()
 
         try {

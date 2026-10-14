@@ -85,6 +85,7 @@ object CameraCapabilityInspector {
             .build()
     }
 
+    @androidx.annotation.OptIn(androidx.camera.camera2.interop.ExperimentalCamera2Interop::class)
     fun cameraIdOf(cameraInfo: CameraInfo?): String? = cameraInfo?.let {
         runCatching { Camera2CameraInfo.from(it).cameraId }.getOrNull()
     }
@@ -100,10 +101,18 @@ object CameraCapabilityInspector {
         val available = provider.availableCameraInfos
         val directIds = available.mapNotNull(::cameraIdOf).toSet()
         val activeId = activeSelectionId ?: cameraIdOf(activeInfo)
+        val systemManager = context.getSystemService(Context.CAMERA_SERVICE)
+            as? android.hardware.camera2.CameraManager
+        val systemCameraIds = runCatching { systemManager?.cameraIdList?.toSet().orEmpty() }
+            .getOrDefault(emptySet())
+        val systemCharacteristics = readCharacteristics(systemManager, systemCameraIds)
         val public = available.mapNotNull { info ->
             val id = cameraIdOf(info) ?: return@mapNotNull null
             capabilityFor(
                 info = info,
+                characteristics = systemCharacteristics[id] ?: runCatching {
+                    systemManager?.getCameraCharacteristics(id)
+                }.getOrNull(),
                 cameraId = id,
                 provider = provider,
                 active = id == activeId,
@@ -113,11 +122,6 @@ object CameraCapabilityInspector {
             )
         }
 
-        val systemManager = context.getSystemService(Context.CAMERA_SERVICE)
-            as? android.hardware.camera2.CameraManager
-        val systemCameraIds = runCatching { systemManager?.cameraIdList?.toSet().orEmpty() }
-            .getOrDefault(emptySet())
-        val systemCharacteristics = readCharacteristics(systemManager, systemCameraIds)
         val exposedPhysicalIds = public
             .flatMap { it.physicalMemberIds }
             .filter { it !in directIds }
@@ -234,6 +238,7 @@ object CameraCapabilityInspector {
 
     private fun capabilityFor(
         info: CameraInfo,
+        characteristics: CameraCharacteristics?,
         cameraId: String,
         provider: ProcessCameraProvider,
         active: Boolean,
@@ -242,9 +247,6 @@ object CameraCapabilityInspector {
         appAccessible: Boolean
     ): CameraLensCapability? {
         val publicSelectorCandidate = isPublicSelectorCandidate(provider, cameraId)
-        val characteristics = runCatching {
-            Camera2CameraInfo.extractCameraCharacteristics(info)
-        }.getOrNull()
         if (characteristics == null) {
             val facing = runCatching { info.lensFacing }.getOrDefault(CameraSelector.LENS_FACING_UNKNOWN)
             return CameraLensCapability(

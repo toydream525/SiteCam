@@ -123,8 +123,7 @@ fun rememberScreenEnvironment(): ScreenEnvironment {
     // confirmed layout by consulting the device capability as well.
     val foldableCapability = remember(activity) {
         activity?.let {
-            runCatching { androidx.window.WindowSdkExtensions.getInstance().extensionVersion >= 6 &&
-                WindowInfoTracker.getOrCreate(it).supportedPostures.isNotEmpty() }.getOrDefault(false) ||
+            runCatching { hasSupportedPostures(it) }.getOrDefault(false) ||
                 it.packageManager.hasSystemFeature("android.hardware.sensor.hinge_angle")
         } ?: false
     }
@@ -140,4 +139,13 @@ fun rememberScreenEnvironment(): ScreenEnvironment {
         maxOf(deviceWidth, deviceHeight) / minOf(deviceWidth, deviceHeight).coerceAtLeast(1f) >= 1.85f
     return ScreenEnvironment(screenProfile("", width, height, folds.isNotEmpty()), folds,
         foldable, normalTallPhone)
+}
+
+
+// Keep the runtime extension gate beside this call. The Window lint checker
+// does not recognize the guarded query through Compose's inline remember block.
+@android.annotation.SuppressLint("RequiresWindowSdk")
+private fun hasSupportedPostures(activity: Activity): Boolean {
+    if (androidx.window.WindowSdkExtensions.getInstance().extensionVersion < 6) return false
+    return WindowInfoTracker.getOrCreate(activity).supportedPostures.isNotEmpty()
 }

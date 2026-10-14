@@ -194,6 +194,9 @@ private fun GuideDots(pageIndex: Int) {
     }
 }
 
+// openRawResource also opens file-backed PNG drawable assets; the decoder
+// needs the source bytes rather than a scaled Drawable.
+@android.annotation.SuppressLint("ResourceType")
 @Composable
 private fun OnboardingIllustration(
     pageIndex: Int,

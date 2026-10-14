@@ -7,6 +7,13 @@
 - **显示更清晰**：浅色模式下强调文字对比度提升，底部按钮避开系统导航条。
 - **操作更顺**：滚动到边界有回弹，页面切换采用淡入淡出。
 
+### 2026-10-14 同版本修复
+
+- 调整拍摄成功提示位置，连续拍摄时不再遮挡快门。
+- 优化镜头快捷倍率与切换体验。
+- 修复鸿蒙相册多选删除时工具栏闪烁、照片列表未及时更新的问题。
+- 旧版鸿蒙系统不再显示不可用的桌面图标切换入口。
+
 ### 下载资产
 
 - Android：[Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.1/SiteCam-0.4.1-Android-Release.apk) · [Debug APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.1/SiteCam-0.4.1-Android-Debug.apk)

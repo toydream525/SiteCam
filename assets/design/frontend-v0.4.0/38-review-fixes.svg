@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="820" viewBox="0 0 1200 820">
+<rect width="1200" height="820" fill="#15171c"/>
+<g font-family="sans-serif" fill="#f5f5f5"><text x="30" y="40" font-size="24">38 · Review fixes / existing layout preserved</text>
+<rect x="30" y="70" width="350" height="700" rx="24" fill="#090909"/><text x="55" y="115" font-size="20">Camera</text>
+<rect x="50" y="145" width="310" height="413" fill="#353942"/><rect x="150" y="165" width="195" height="42" rx="12" fill="#14161bcc"/><text x="165" y="192" font-size="17">Media saved</text>
+<g font-size="22"><text x="105" y="600">0.8×</text><text x="180" y="600" fill="#ffb300">1×</text><text x="248" y="600">Native×</text></g>
+<text x="140" y="645" font-size="18" fill="#ffb300">Photo   Video</text><circle cx="205" cy="710" r="38" fill="white"/>
+<rect x="425" y="70" width="350" height="700" rx="24" fill="#23262e"/><text x="450" y="115" font-size="20">Gallery · 2 selected</text>
+<g fill="#404650"><rect x="445" y="150" width="150" height="150"/><rect x="605" y="150" width="150" height="150"/><rect x="445" y="310" width="150" height="150"/></g>
+<g fill="#ffb300"><circle cx="575" cy="170" r="10"/><circle cx="735" cy="170" r="10"/></g>
+<rect x="425" y="700" width="350" height="70" fill="#30343e"/><text x="450" y="742" font-size="17">Export  Share  Move  Delete</text>
+<rect x="820" y="70" width="350" height="700" rx="24" fill="#23262e"/><text x="845" y="115" font-size="20">Settings · API 24</text>
+<rect x="840" y="150" width="310" height="64" rx="12" fill="#30343e"/><text x="860" y="190" font-size="18">Camera controls                  ›</text>
+<g fill="#b8bec9" font-size="17"><text x="40" y="805">Save-success notice moves into the preview; errors remain. Selection stays stable. Unsupported icon picker is absent.</text></g></g></svg>

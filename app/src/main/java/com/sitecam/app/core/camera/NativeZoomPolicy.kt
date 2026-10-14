@@ -1,9 +1,19 @@
 package com.sitecam.app.core.camera
 
 import kotlin.math.abs
+import kotlin.math.round
 
 /** Routes one continuous main-camera zoom scale using only public camera metadata. */
 object NativeZoomPolicy {
+    fun shortcutRatio(measured: Float, range: ClosedFloatingPointRange<Float>): Float {
+        if (!measured.isFinite() || measured < 1.5f) return measured
+        val nominal = round(measured * 2f) / 2f
+        // Only round upward: a shortcut must not request less than the optical
+        // boundary. Both the label and the actual requested value use this ratio.
+        return if (nominal >= measured && nominal - measured <= measured * .025f &&
+            nominal in range) nominal else measured
+    }
+
     fun usableLenses(lenses: List<CameraLensCapability>, active: CameraLensCapability): List<CameraLensCapability> =
         lenses.filter { it.lensFacing == active.lensFacing && it.appAccessible && it.photoBindable }
 
@@ -13,7 +23,8 @@ object NativeZoomPolicy {
         // A logical group's physical IDs do not prove that setZoomRatio
         // will select those members. Offer only this public session's native
         // 1x; the rest of its system-managed range remains available to pinch.
-        return listOf(reference).filter { it.isFinite() && it > 0f && it in displayRange(lens) }
+        val range = displayRange(lens)
+        return listOf(shortcutRatio(reference, range)).filter { it.isFinite() && it > 0f && it in range }
     }
 
     fun displayRange(lens: CameraLensCapability): ClosedFloatingPointRange<Float> {
@@ -49,7 +60,8 @@ object NativeZoomPolicy {
         // A small upward threshold avoids repeated rebinds around a native
         // boundary. Downward crossing leaves immediately so no request is
         // clamped below the current lens's optical minimum.
-        if (!exactNativeStop && requestedRatio in activeRange && requestedRatio < bestNative * 1.02f) return active
+        if (!exactNativeStop && abs(requestedRatio - bestNative) > .001f &&
+            requestedRatio in activeRange && requestedRatio < bestNative * 1.02f) return active
         return best
     }
 }

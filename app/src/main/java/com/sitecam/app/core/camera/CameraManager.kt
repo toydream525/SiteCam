@@ -1,6 +1,12 @@
 package com.sitecam.app.core.camera
 
 import android.annotation.SuppressLint
+import android.hardware.camera2.CameraCaptureSession
+import android.hardware.camera2.CaptureRequest
+import android.hardware.camera2.CaptureResult
+import android.hardware.camera2.TotalCaptureResult
+import android.os.Build
+import androidx.camera.camera2.interop.Camera2Interop
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -111,7 +117,7 @@ class CameraManager(private val context: Context) {
     private var activeZoomInfo: CameraInfo? = null
     private var physicalStateObserver: Observer<androidx.camera.core.CameraState>? = null
     private var physicalStateInfo: CameraInfo? = null
-    private var cameraBindingGeneration = 0L
+    @Volatile private var cameraBindingGeneration = 0L
     private var targetRotation: Int = Surface.ROTATION_0
     // Preview, still capture and video must all follow the real display
     // rotation. Forcing Preview to ROTATION_0 made a physical phone keep a
@@ -311,6 +317,7 @@ class CameraManager(private val context: Context) {
         return false
     }
 
+    @SuppressLint("UnsafeOptInUsageError")
     private fun bindUseCases(
         provider: ProcessCameraProvider,
         lifecycleOwner: LifecycleOwner,
@@ -319,10 +326,23 @@ class CameraManager(private val context: Context) {
         includeVideo: Boolean,
         videoBindingAttempted: Boolean = includeVideo
     ) {
-        val newPreview = Preview.Builder()
+        val previewBuilder = Preview.Builder()
             .setTargetAspectRatio(AspectRatio.RATIO_4_3)
             .setTargetRotation(previewTargetRotation)
-            .build()
+        CameraDiagnostics.clearSession()
+        val diagnosticGeneration = cameraBindingGeneration + 1L
+        Camera2Interop.Extender(previewBuilder).setSessionCaptureCallback(object : CameraCaptureSession.CaptureCallback() {
+            override fun onCaptureCompleted(session: CameraCaptureSession, request: CaptureRequest, result: TotalCaptureResult) {
+                if (cameraBindingGeneration != diagnosticGeneration) return
+                CameraDiagnostics.updateSession(
+                    cameraSelector.physicalCameraId ?: CameraCapabilityInspector.cameraIdOf(camera?.cameraInfo),
+                    if (Build.VERSION.SDK_INT >= 29) result.get(CaptureResult.LOGICAL_MULTI_CAMERA_ACTIVE_PHYSICAL_ID) else null,
+                    if (Build.VERSION.SDK_INT >= 30) request.get(CaptureRequest.CONTROL_ZOOM_RATIO) else null,
+                    if (Build.VERSION.SDK_INT >= 30) result.get(CaptureResult.CONTROL_ZOOM_RATIO) else null,
+                    result.get(CaptureResult.LENS_FOCAL_LENGTH))
+            }
+        })
+        val newPreview = previewBuilder.build()
             .also { it.surfaceProvider = previewView.surfaceProvider }
         val newImageCapture = ImageCapture.Builder()
             .setTargetAspectRatio(AspectRatio.RATIO_4_3)
@@ -731,6 +751,9 @@ class CameraManager(private val context: Context) {
             val target = NativeZoomPolicy.targetLens(
                 zoomLensCandidates(requireVideo),
                 active, clampedDisplayRatio, exactNativeStop)
+            // Prefer the logical session for native stops in its real range.
+            // Its normalized preset requests the intended ratio without forcing
+            // an unverified physical session on vendor HALs.
             val isMemberOfActiveLogical = active.isLogicalCamera && target.parentLogicalCameraId == active.cameraId
             val coveredByActiveLogical = active.isLogicalCamera && clampedDisplayRatio in NativeZoomPolicy.displayRange(active)
             if (target.cameraId != active.cameraId && !isMemberOfActiveLogical && !coveredByActiveLogical) {
@@ -998,6 +1021,7 @@ class CameraManager(private val context: Context) {
         imageCapture = null
         videoCapture = null
         currentCameraId = null
+        CameraDiagnostics.clearSession()
         lensInspection = CameraCapabilityInspection()
         unavailableZoomLenses.clear()
         unavailableVideoZoomLenses.clear()
