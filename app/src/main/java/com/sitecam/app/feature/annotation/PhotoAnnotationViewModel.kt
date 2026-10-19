@@ -40,6 +40,8 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 
+data class TextEditorState(val target: TextEditTarget?, val position: Offset, val text: String, val width: Float, val height: Float)
+
 data class AnnotationUiState(
     val mediaItem: MediaItemEntity? = null,
     val selectedTool: AnnotationTool = AnnotationTool.ARROW,
@@ -48,10 +50,13 @@ data class AnnotationUiState(
     val elements: List<AnnotationElement> = emptyList(),
     val undoStack: List<List<AnnotationElement>> = emptyList(),
     val previewBitmap: Bitmap? = null,
+    val textDragPreview: Bitmap? = null,
+    val textEditor: TextEditorState? = null,
     val canUndo: Boolean = false,
     val canRedo: Boolean = false,
     val imageWidth: Int = 0,
     val imageHeight: Int = 0,
+    val loadError: String? = null,
     val isSaving: Boolean = false
 )
 
@@ -77,8 +82,42 @@ class PhotoAnnotationViewModel(
     private data class EditState(val steps: List<EditStep>, val elements: List<AnnotationElement>)
     private val history = mutableListOf<EditState>()
     private val future = mutableListOf<EditState>()
+    private var sourceWidth = 1
+    private var sourceHeight = 1
     private var sourceUri: Uri? = null
     private var legacyProduct = false
+    private var recipeBaseUri: String? = null
+    /** The stored base is required by non-empty vector text but cannot be read. */
+    private var baseLost = false
+    private data class TextPreviewRequest(val session: Long, val recipe: List<EditStep>)
+    private var textPreviewSession = 0L
+    private val textPreviews = kotlinx.coroutines.channels.Channel<TextPreviewRequest>(kotlinx.coroutines.channels.Channel.CONFLATED)
+    private val textPreviewWorker = viewModelScope.launch {
+        for (request in textPreviews) {
+            if (request.session != textPreviewSession) continue
+            var bitmap: Bitmap? = null
+            try {
+                withContext(Dispatchers.Default) {
+                    bitmap = renderRecipe(appContainer.appContext, request.recipe, 1600)
+                }
+                // A newer pointer position does not invalidate a completed frame
+                // in this drag. Only cancellation or an editor change ends it.
+                if (request.session == textPreviewSession) {
+                    _uiState.value = _uiState.value.copy(textDragPreview = bitmap)
+                    bitmap = null
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                continue
+            } catch (_: OutOfMemoryError) {
+                continue
+            } finally {
+                bitmap?.recycle()
+            }
+            kotlinx.coroutines.delay(16)
+        }
+    }
     private var viewportWidth = 0f
     private var viewportHeight = 0f
     private var queuedViewport: Pair<Float, Float>? = null
@@ -86,6 +125,7 @@ class PhotoAnnotationViewModel(
     private var failedViewportRetries = 0
     fun viewportChanged(width: Float, height: Float) {
         if (width <= 0 || height <= 0) return
+        if (_uiState.value.loadError != null) { viewportWidth = width; viewportHeight = height; return }
         if (_uiState.value.isSaving) { queuedViewport = width to height; return }
         // A new size gets its own retry budget for the render attempt below.
         if (failedViewport != null && failedViewport != (width to height)) failedViewportRetries = 0
@@ -129,7 +169,7 @@ class PhotoAnnotationViewModel(
         _uiState.value = _uiState.value.copy(canUndo = true, canRedo = false)
     }
     fun applyTransform(kind: String, width: Float, height: Float, crop: androidx.compose.ui.geometry.Rect? = null) {
-        if (_uiState.value.isSaving || width <= 0 || height <= 0 || retryViewportIfNeeded()) return
+        if (_uiState.value.loadError != null || _uiState.value.isSaving || width <= 0 || height <= 0 || retryViewportIfNeeded()) return
         val before = editState()
         val draw = if (before.elements.isEmpty()) emptyList() else listOf(EditStep.Draw(before.elements, width, height))
         val next = EditState(steps + draw + EditStep.Transform(kind, crop?.left ?: 0f, crop?.top ?: 0f, crop?.right ?: 1f, crop?.bottom ?: 1f), emptyList())
@@ -144,7 +184,8 @@ class PhotoAnnotationViewModel(
         onFailed: () -> Unit = {}
     ) {
         val generation = ++previewGeneration
-        _uiState.value = _uiState.value.copy(isSaving = true)
+        textPreviewSession++
+        _uiState.value = _uiState.value.copy(isSaving = true, textDragPreview = null)
         viewModelScope.launch {
             try {
                 val rendered = withContext(Dispatchers.IO) { renderRecipe(appContainer.appContext, next.steps, 1600) }
@@ -153,7 +194,7 @@ class PhotoAnnotationViewModel(
                     history.clear(); history.addAll(nextHistory)
                     future.clear(); future.addAll(nextFuture)
                     _uiState.value = _uiState.value.copy(previewBitmap = rendered, imageWidth = rendered.width,
-                        imageHeight = rendered.height, elements = next.elements,
+                        imageHeight = rendered.height, elements = next.elements, textDragPreview = null,
                         canUndo = history.isNotEmpty(), canRedo = future.isNotEmpty())
                     onCommitted()
                 } else rendered.recycle()
@@ -208,54 +249,225 @@ class PhotoAnnotationViewModel(
             val dimensions = if (resolvedItem.width > 0 && resolvedItem.height > 0) {
                 resolvedItem.width to resolvedItem.height
             } else {
-                withContext(Dispatchers.IO) {
-                    val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                    appContainer.appContext.contentResolver.openInputStream(Uri.parse(resolvedItem.contentUri))?.use {
-                        BitmapFactory.decodeStream(it, null, options)
-                    }
-                    options.outWidth to options.outHeight
-                }
+                imageDimensions(Uri.parse(resolvedItem.contentUri)) ?: (0 to 0)
             }
             val annotation = appContainer.database.issueDao().getAnnotationByMediaId(mediaId)
-            val restored = annotation?.vectorDataJson?.let(EditRecipe::decode).orEmpty()
-            legacyProduct = annotation != null && restored.isEmpty()
-            sourceUri = if (legacyProduct) Uri.parse(annotation!!.annotatedContentUri) else Uri.parse(resolvedItem.contentUri)
-            steps = restored
+            val rawRecipe = annotation?.vectorDataJson
+            val decodedRecipe = rawRecipe?.let(EditRecipe::decodeOrNull)
+            val restored = decodedRecipe.orEmpty()
+            val malformedRecipe = !rawRecipe.isNullOrBlank() && decodedRecipe == null
+            val storedBase = annotation?.vectorDataJson?.let(EditRecipe::baseUri)
+            baseLost = false
+            legacyProduct = false
+            recipeBaseUri = storedBase
+            val stored = storedBase?.let(Uri::parse)
+            val storedReadable = stored != null && isReadable(stored)
+            // A failed save may already have copied the base into app-private
+            // storage even though the annotation row was never replaced.
+            val baseCandidate = if (!storedReadable && (storedBase != null || restored.isEmpty()))
+                AnnotationBaseStore.existing(appContainer.appContext, mediaId)
+            else null
+            val recoverableBase = if (baseCandidate != null && isReadable(baseCandidate)) baseCandidate else null
+            when {
+                annotation == null -> {
+                    sourceUri = Uri.parse(resolvedItem.contentUri)
+                    steps = emptyList()
+                }
+                malformedRecipe -> {
+                    // Preserve the stored row instead of flattening a recipe we
+                    // cannot read; display the last product and block saving.
+                    baseLost = true
+                    sourceUri = Uri.parse(annotation.annotatedContentUri)
+                    legacyProduct = true
+                    steps = emptyList()
+                }
+                storedReadable -> {
+                    sourceUri = stored!!
+                    steps = restored
+                }
+                recoverableBase != null -> {
+                    sourceUri = recoverableBase
+                    recipeBaseUri = recoverableBase.toString()
+                    steps = restored
+                }
+                storedBase != null && restored.isEmpty() -> {
+                    // No vector record can be lost; the flattened product is the
+                    // only remaining source and becomes a base on the next save.
+                    sourceUri = Uri.parse(annotation.annotatedContentUri)
+                    recipeBaseUri = annotation.annotatedContentUri
+                    legacyProduct = true
+                    steps = emptyList()
+                }
+                storedBase != null -> {
+                    // Do not silently flatten a recipe whose base disappeared:
+                    // the old JSON stays untouched and saving is blocked.
+                    baseLost = true
+                    sourceUri = Uri.parse(annotation.annotatedContentUri)
+                    legacyProduct = true
+                    steps = emptyList()
+                }
+                restored.isEmpty() -> {
+                    // Legacy flattened product without a base pointer.
+                    sourceUri = Uri.parse(annotation.annotatedContentUri)
+                    recipeBaseUri = annotation.annotatedContentUri
+                    legacyProduct = true
+                    steps = emptyList()
+                }
+                else -> {
+                    sourceUri = Uri.parse(resolvedItem.contentUri)
+                    recipeBaseUri = null
+                    steps = restored
+                }
+            }
+            val sourceDimensions = imageDimensions(sourceUri!!)
+            if (sourceDimensions == null) {
+                baseLost = true
+                _uiState.value = _uiState.value.copy(
+                    mediaItem = resolvedItem.copy(contentUri = sourceUri.toString()),
+                    imageWidth = dimensions.first.coerceAtLeast(0),
+                    imageHeight = dimensions.second.coerceAtLeast(0),
+                    loadError = if (malformedRecipe) "标注记录已损坏，且底图或成品无法读取，无法继续编辑"
+                        else "标注底图或成品无法读取，无法继续编辑"
+                )
+                return@launch
+            }
+            sourceWidth = sourceDimensions.first
+            sourceHeight = sourceDimensions.second
+            steps = if (legacyProduct) emptyList() else restored
             _uiState.value = _uiState.value.copy(
                 mediaItem = resolvedItem,
                 imageWidth = dimensions.first.coerceAtLeast(0),
-                imageHeight = dimensions.second.coerceAtLeast(0)
+                imageHeight = dimensions.second.coerceAtLeast(0),
+                loadError = when {
+                    malformedRecipe -> "标注记录已损坏，无法继续编辑"
+                    baseLost -> "标注底图已丢失，无法继续编辑"
+                    else -> null
+                }
             )
             refreshPreview()
         }
     }
 
+    private suspend fun imageDimensions(uri: Uri): Pair<Int, Int>? = withContext(Dispatchers.IO) {
+        try {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            appContainer.appContext.contentResolver.openInputStream(uri)?.use {
+                BitmapFactory.decodeStream(it, null, bounds)
+            }
+            if (bounds.outWidth > 0 && bounds.outHeight > 0) bounds.outWidth to bounds.outHeight else null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        } catch (_: OutOfMemoryError) {
+            null
+        }
+    }
+
     fun selectTool(tool: AnnotationTool) {
+        if (_uiState.value.loadError != null) return
         _uiState.value = _uiState.value.copy(selectedTool = tool)
     }
 
     fun selectColor(color: Color) {
+        if (_uiState.value.loadError != null) return
         _uiState.value = _uiState.value.copy(selectedColor = color)
     }
 
     fun selectStrokeWidth(width: Float) {
+        if (_uiState.value.loadError != null) return
         _uiState.value = _uiState.value.copy(selectedStrokeWidth = width)
     }
 
-    fun addElement(element: AnnotationElement) {
-        if (_uiState.value.isSaving || retryViewportIfNeeded()) return
+    fun addElement(element: AnnotationElement): Boolean {
+        if (_uiState.value.loadError != null || _uiState.value.isSaving || retryViewportIfNeeded()) return false
         checkpoint(); _uiState.value = _uiState.value.copy(elements = _uiState.value.elements + element)
+        return true
+    }
+    fun openTextEditor(target: TextEditTarget?, position: Offset, width: Float, height: Float) {
+        if (_uiState.value.loadError != null) return
+        _uiState.value = _uiState.value.copy(textEditor = TextEditorState(target, position, target?.note?.text.orEmpty(), width, height))
+    }
+    fun textDraftChanged(text: String) {
+        if (_uiState.value.loadError != null) return
+        _uiState.value.textEditor?.let { _uiState.value = _uiState.value.copy(textEditor = it.copy(text = text)) }
+    }
+    fun dismissTextEditor() { _uiState.value = _uiState.value.copy(textEditor = null) }
+    /** Back/outside taps must not race a confirmed edit that is still rendering. */
+    fun dismissTextEditorIfIdle() { if (!_uiState.value.isSaving) dismissTextEditor() }
+    fun confirmTextEditor() {
+        val editor = _uiState.value.textEditor ?: return
+        if (_uiState.value.loadError != null || _uiState.value.isSaving || editor.text.isBlank()) return
+        val note = editor.target?.note?.copy(text = editor.text) ?: AnnotationElement.TextNote(editor.position,
+            editor.text, _uiState.value.selectedColor, _uiState.value.selectedStrokeWidth)
+        when {
+            editor.target != null -> updateText(editor.target, note) { dismissTextEditor() }
+            viewportWidth == editor.width && viewportHeight == editor.height -> {
+                if (addElement(note)) dismissTextEditor()
+                else viewModelScope.launch { _saveFailed.emit("编辑视图正在恢复，请稍后重试") }
+            }
+            else -> {
+                // The dialog captures the canvas before the keyboard resize.  Bake
+                // all live elements with that same canvas, keeping the new note on
+                // top instead of letting older elements paint over it.
+                val live = _uiState.value.elements + note
+                refreshPreview(EditState(steps + EditStep.Draw(live, editor.width, editor.height), emptyList()),
+                    history + editState(), emptyList(), onCommitted = { dismissTextEditor() })
+            }
+        }
+    }
+    fun textTargets(width: Float, height: Float): List<TextEditTarget> =
+        EditableTextRecipe.targets(steps, _uiState.value.elements, sourceWidth, sourceHeight, width, height)
+
+    private fun changedText(target: TextEditTarget, note: AnnotationElement.TextNote): EditState? {
+        if (target.stepIndex == null && _uiState.value.elements.getOrNull(target.elementIndex) == target.note) {
+            return EditState(steps, _uiState.value.elements.toMutableList().apply { set(target.elementIndex, note) })
+        }
+        // Opening the keyboard can resize the canvas and move a live vector
+        // batch into the recipe. Keep the dialog attached to that same note.
+        val stepIndex = target.stepIndex?.takeIf { (steps.getOrNull(it) as? EditStep.Draw)?.elements?.getOrNull(target.elementIndex) == target.note }
+            ?: steps.indices.reversed().firstOrNull { index -> (steps[index] as? EditStep.Draw)?.elements?.contains(target.note) == true }
+            ?: return null
+        val draw = steps[stepIndex] as EditStep.Draw
+        val index = if (target.stepIndex == stepIndex) target.elementIndex else draw.elements.indexOfLast { it == target.note }
+        return EditState(steps.toMutableList().apply {
+            set(stepIndex, draw.copy(elements = draw.elements.toMutableList().apply { set(index, note) }))
+        }, _uiState.value.elements)
+    }
+    fun updateText(target: TextEditTarget, note: AnnotationElement.TextNote, onCommitted: (() -> Unit)? = null) {
+        if (_uiState.value.loadError != null || _uiState.value.isSaving) { clearTextPreview(); return }
+        if (target.note == note) { clearTextPreview(); onCommitted?.invoke(); return }
+        val next = changedText(target, note)
+        if (next == null) {
+            clearTextPreview()
+            viewModelScope.launch { _saveFailed.emit("文字位置已变化，请重新选择") }
+            return
+        }
+        clearTextPreview()
+        refreshPreview(next, history + editState(), emptyList(), onCommitted = { onCommitted?.invoke() })
+    }
+    fun clearTextPreview() {
+        textPreviewSession++
+        _uiState.value = _uiState.value.copy(textDragPreview = null)
+    }
+    fun previewText(target: TextEditTarget, note: AnnotationElement.TextNote, width: Float, height: Float) {
+        if (_uiState.value.loadError != null) return
+        val next = changedText(target, note) ?: return
+        val recipe = next.steps + if (next.elements.isEmpty()) emptyList() else listOf(EditStep.Draw(next.elements, width, height))
+        // Only pending positions are conflated; an in-flight frame from the same
+        // session may be displayed even when more Move events have arrived.
+        textPreviews.trySend(TextPreviewRequest(textPreviewSession, recipe))
     }
     fun undo() {
-        if (_uiState.value.isSaving || history.isEmpty() || retryViewportIfNeeded()) return
+        if (_uiState.value.loadError != null || _uiState.value.isSaving || history.isEmpty() || retryViewportIfNeeded()) return
         refreshPreview(history.last(), history.dropLast(1), future + editState())
     }
     fun redo() {
-        if (_uiState.value.isSaving || future.isEmpty() || retryViewportIfNeeded()) return
+        if (_uiState.value.loadError != null || _uiState.value.isSaving || future.isEmpty() || retryViewportIfNeeded()) return
         refreshPreview(future.last(), history + editState(), future.dropLast(1))
     }
     fun clearAll() {
-        if (!_uiState.value.isSaving && !retryViewportIfNeeded()) refreshPreview(EditState(emptyList(), emptyList()), history + editState(), emptyList())
+        if (_uiState.value.loadError == null && !_uiState.value.isSaving && !retryViewportIfNeeded()) refreshPreview(EditState(emptyList(), emptyList()), history + editState(), emptyList())
     }
 
     fun saveAnnotatedImage(
@@ -264,21 +476,36 @@ class PhotoAnnotationViewModel(
         viewHeight: Float
     ) {
         val media = _uiState.value.mediaItem ?: return
+        _uiState.value.loadError?.let { error -> viewModelScope.launch { _saveFailed.emit(error) }; return }
         if (_uiState.value.isSaving || viewWidth <= 0 || viewHeight <= 0 || retryViewportIfNeeded()) return
+        if (baseLost) {
+            viewModelScope.launch { _saveFailed.emit("标注底图已丢失，无法保存；旧记录不会被覆盖") }
+            return
+        }
+        clearTextPreview()
         val recipe = steps + if (_uiState.value.elements.isEmpty()) emptyList() else listOf(EditStep.Draw(_uiState.value.elements, viewWidth, viewHeight))
 
         _uiState.value = _uiState.value.copy(isSaving = true)
 
         viewModelScope.launch(Dispatchers.IO) {
+            val previousBaseUri = recipeBaseUri
             com.sitecam.app.core.media.MediaOperationCoordinator.withExclusive {
             var originalBitmap: Bitmap? = null
             var annotatedBitmap: Bitmap? = null
             var savedUri: Uri? = null
             try {
                 check(appContainer.database.mediaItemDao().getMediaItemById(media.id) != null) { "媒体已删除" }
+                // The base must be app-private before it is written into the
+                // recipe.  System-gallery products can be deleted by the user.
+                if (legacyProduct || previousBaseUri?.let { !AnnotationBaseStore.isStoredBase(context, media.id, Uri.parse(it)) } == true) {
+                    val storedBase = AnnotationBaseStore.store(context, media.id, sourceUri ?: error("原图未就绪"))
+                        ?: error("标注底图保存失败，请重试")
+                    sourceUri = storedBase
+                    recipeBaseUri = storedBase.toString()
+                }
                 val profile = appContainer.settingsDataStore.photoQualityProfile.first()
                 val gallery = appContainer.settingsDataStore.saveToSystemGallery.first()
-                val sourceSize = _uiState.value.mediaItem?.let { it.width to it.height } ?: (0 to 0)
+                val sourceSize = sourceWidth to sourceHeight
                 var effectiveWidth = sourceSize.first.toDouble()
                 var effectiveHeight = sourceSize.second.toDouble()
                 recipe.filterIsInstance<EditStep.Transform>().forEach { step ->
@@ -325,7 +552,7 @@ class PhotoAnnotationViewModel(
                     AnnotationEntity(
                         mediaId = media.id,
                         annotatedContentUri = saveResult.uri.toString(),
-                        vectorDataJson = if (legacyProduct) "" else EditRecipe.encode(recipe)
+                        vectorDataJson = EditRecipe.encode(recipe, recipeBaseUri)
                     )
                 )
                 // Ownership is transferred to Room at this point.  The new
@@ -333,10 +560,15 @@ class PhotoAnnotationViewModel(
                 // exception while cleaning up the old product/emitting UI.
                 savedUri = null
 
-                val oldCleanupWarning = oldAnnotation?.let {
-                    appContainer.mediaStoreManager.deleteMediaUriDetailed(Uri.parse(it.annotatedContentUri)) == MediaDeleteOutcome.FAILED
-                } ?: false
-                _saveCompleted.emit(AnnotationSaveResult(saveResult.uri, oldCleanupWarning))
+                val oldCleanupWarning = oldAnnotation
+                    ?.takeIf { it.annotatedContentUri != recipeBaseUri && it.annotatedContentUri != media.contentUri }
+                    ?.let { appContainer.mediaStoreManager.deleteMediaUriDetailed(Uri.parse(it.annotatedContentUri)) == MediaDeleteOutcome.FAILED }
+                    ?: false
+                val oldBaseCleanupWarning = previousBaseUri
+                    ?.takeIf { it != recipeBaseUri && it != oldAnnotation?.annotatedContentUri && it != media.contentUri }
+                    ?.let { appContainer.mediaStoreManager.deleteMediaUriDetailed(Uri.parse(it)) == MediaDeleteOutcome.FAILED }
+                    ?: false
+                _saveCompleted.emit(AnnotationSaveResult(saveResult.uri, oldCleanupWarning || oldBaseCleanupWarning))
             } catch (e: CancellationException) {
                 // Before DB replacement, the temporary product is ours to
                 // clean up.  After replacement savedUri is null, so
@@ -358,6 +590,12 @@ class PhotoAnnotationViewModel(
             }
             }
         }
+    }
+
+    private suspend fun isReadable(uri: Uri): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            appContainer.appContext.contentResolver.openInputStream(uri)?.use { true } ?: false
+        }.getOrDefault(false)
     }
 
     private fun resolveReadableSourceUri(context: Context, media: MediaItemEntity): Uri {

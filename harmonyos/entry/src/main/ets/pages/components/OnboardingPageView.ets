@@ -5,7 +5,7 @@ const TEXT:Resource=$r('app.color.text_primary');
 const MUTED:Resource=$r('app.color.text_secondary');
 const YELLOW='#FFB300';
 const TITLES:string[]=['先选工程，\n照片不混放','横拍竖拍，\n自己选择','按日期找照片，\n随手记问题','资料统一导出，\n完工及时锁定'];
-const ILLUSTRATION_LEFT:number[]=[12,422,832,1242];
+const ILLUSTRATIONS:string[]=['first-launch-project-hd.png','first-launch-capture-hd.png','first-launch-media-hd.png','first-launch-archive-hd.png'];
 
 @Component export struct OnboardingPageView {
  @Prop @Watch('stepChanged') step:number=0;
@@ -39,9 +39,9 @@ const ILLUSTRATION_LEFT:number[]=[12,422,832,1242];
   const step=this.currentIndex();
   let source:image.ImageSource|undefined=undefined;
   try{
-   const bytes=await this.getUIContext().getHostContext()!.resourceManager.getRawFileContent('first-launch-steps-v2.png');
+   const bytes=await this.getUIContext().getHostContext()!.resourceManager.getRawFileContent(ILLUSTRATIONS[step]);
    source=image.createImageSource(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength));
-   const cropped=await source.createPixelMap({desiredRegion:{x:ILLUSTRATION_LEFT[step],y:116,size:{width:386,height:445}}});
+   const cropped=await source.createPixelMap();
    if(token!==this.illustrationToken){await cropped.release();return;}
    const previous=this.illustration;this.illustration=cropped;await previous?.release();
   }catch(e){console.warn('SITECAM_GUIDE_ILLUSTRATION '+String(e));}

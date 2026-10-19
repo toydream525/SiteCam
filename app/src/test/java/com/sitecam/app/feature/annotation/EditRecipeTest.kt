@@ -19,6 +19,12 @@ class EditRecipeTest {
         val recipe = listOf(EditStep.Draw(listOf(AnnotationElement.Arrow(Offset(20f,30f), Offset(70f,80f), androidx.compose.ui.graphics.Color.Red, 10f)), 200f, 300f), EditStep.Transform("rotate"), EditStep.Transform("crop", .1f,.2f,.8f,.9f))
         assertEquals(recipe, EditRecipe.decode(EditRecipe.encode(recipe)))
     }
+    @Test fun malformedRecipeIsNotMistakenForAnEmptyRecipe() {
+        assertNull(EditRecipe.decodeOrNull("[]"))
+        assertNull(EditRecipe.decodeOrNull("not-json"))
+        assertNull(EditRecipe.decodeOrNull(""))
+        assertEquals(emptyList<EditStep>(), EditRecipe.decodeOrNull("{\"steps\":[]}"))
+    }
     @Test fun wholeImageTransformsPreservePixelsAndCropDimensions() {
         val bitmap = Bitmap.createBitmap(4, 2, Bitmap.Config.ARGB_8888)
         bitmap.setPixel(0,0,Color.RED)

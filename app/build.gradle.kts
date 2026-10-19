@@ -33,8 +33,8 @@ android {
         applicationId = "com.sitecam.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 21
-        versionName = "0.4.1"
+        versionCode = 22
+        versionName = "0.4.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -169,6 +169,8 @@ dependencies {
     implementation(libs.androidx.media3.transformer)
     implementation(libs.androidx.media3.effect)
     implementation(libs.androidx.media3.common)
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.ui)
 
     // Unit Testing
     testImplementation(libs.junit)

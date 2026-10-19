@@ -1,6 +1,6 @@
 # SiteCam 鸿蒙原生版 beta
 
-当前源码版本 **v0.4.1（21）**，可通过系统定位获取坐标和自动地点地址；工程资料保存在本机。系统地址服务可能使用网络，地址不可用时可手动填写。
+当前源码版本 **v0.4.2（22）**，可通过系统定位获取坐标和自动地点地址；工程资料保存在本机。系统地址服务可能使用网络，地址不可用时可手动填写。
 
 > **公开下载的 Release HAP 未签名，需自行签名后安装。鸿蒙版已上架华为应用市场，可搜索“SiteCam工程水印相机”下载；商店新版本以审核进度为准。** AppGallery 签名包不作为本次公开下载资产；不同设备的镜头、闪光灯和视频能力仍需按设备确认。
 
@@ -23,9 +23,9 @@
 
 ## 构建与安装
 
-v0.4.1 公开下载资产：
+v0.4.2 公开下载资产：
 
-- [鸿蒙版未签名 HAP](https://github.com/toydream525/SiteCam/releases/download/v0.4.1/SiteCam-0.4.1-HarmonyOS-Release-Unsigned.hap)
+- [鸿蒙版未签名 HAP](https://github.com/toydream525/SiteCam/releases/download/v0.4.2/SiteCam-0.4.2-HarmonyOS-Release-Unsigned.hap)
 
 该公开版 HAP 未签名，需自行签名后安装。历史版本保留。
 
@@ -68,11 +68,15 @@ HDC=/Applications/DevEco-Studio.app/Contents/sdk/default/openharmony/toolchains/
 ## 可重复验证
 
 ```sh
-./scripts/verify.py --target 127.0.0.1:5557
+./scripts/verify.py --target 127.0.0.1:5557 \
+  --main-hap /absolute/path/entry-default-signed.hap \
+  --test-hap /absolute/path/entry-ohosTest-signed.hap
 ./scripts/ui_smoke.py --target 127.0.0.1:5557
 ```
 
-脚本构建测试模块并在指定模拟器运行。它会停止该模拟器上的 SiteCam 进程，请勿在有未保存工作的设备上运行。测试数据库与主应用分离。最新报告为 `verification/api26-results.json`（44 项中 43 项通过）；视频编解码器缺失时会如实返回非零退出码。
+`verify.py` 接受已有的同一版本、应用身份和签名身份的主包与测试包，不构建、签名或覆盖 `dist`。依次安装 **default 主包，再安装 ohosTest 测试包**；主包提供 `libsitecam.so`，仅装测试包不能完成原生视频检查。任一安装失败立即停止，不启动或接受运行结果。需要签名时仍复用上文既有 Debug 身份和设备白名单；AppGallery 商店身份不用于此侧载流程。
+
+脚本会停止指定模拟器上的 SiteCam 进程，请勿在有未保存工作的设备上运行。测试数据库与主应用分离，每次运行结果写入新的 `verification/runtime-时间戳.json`，也可用 `--output` 指定新文件；已有结果文件不覆盖。仅精确的“没有可用 H.264 编解码器”标为环境跳过；缺原生模块、SPS/PPS、封装及编码帧错误均判失败。现有结果文件不代表本轮已重新运行。
 
 测试页另有“验证相册副本”和“验证文件夹导出”，用于系统交互，需在模拟器操作授权。测试报告和完整限制见 [VERIFICATION.md](VERIFICATION.md)。用户指南在 `entry/src/main/resources/rawfile/USER_GUIDE.md`。
 

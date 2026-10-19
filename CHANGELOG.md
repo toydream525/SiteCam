@@ -1,5 +1,19 @@
 # 更新日志
 
+## v0.4.2 — 2026-10-19
+
+- 支持导入已有照片，添加工程水印后另存新照片；照片上已有的水印暂不支持修改或替换。
+- 文字标注支持自由拖动，点选后可带入原文字再次编辑；文字输入仅在选中文字工具时显示。
+- 安卓版支持应用内播放视频，可暂停、拖动进度和切换全屏。
+- 修复鸿蒙平板等设备视频回放画面被裁切的问题，视频预览与回放完整显示。
+- 修复部分旧照片标注记录异常时再次编辑可能丢失原有标注的问题。
+- 提升功能指引插图清晰度，优化手机外形与画面细节。
+
+### 下载
+
+- Android：[Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.2/SiteCam-0.4.2-Android-Release.apk) · [Debug APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.2/SiteCam-0.4.2-Android-Debug.apk)
+- HarmonyOS：[Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.4.2/SiteCam-0.4.2-HarmonyOS-Release-Unsigned.hap)，需自行签名后安装；[华为应用市场](appmarket://details?id=com.sitecam.app)的新版本以审核进度为准。
+
 ## v0.4.1 — 2026-10-12
 
 - **水印宽度可调**：水印编辑的“外观”和拍摄页的“水印”面板都能直接调整水印宽度，长内容自动换行，字号不变。

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="820" viewBox="0 0 1320 820">
+<rect width="1320" height="820" fill="#101419"/>
+<style>text{font-family:sans-serif;fill:#f3f4f6;font-size:20px}.muted{fill:#b0bec5;font-size:16px}</style>
+<text x="36" y="40">视频详情</text><text x="490" y="40">全屏播放</text>
+<g transform="translate(36 65)"><rect width="400" height="715" rx="20" fill="#1c222a" stroke="#39424c"/>
+<text x="20" y="42">‹　现场记录.mp4　　　ⓘ　↗</text><rect x="0" y="70" width="400" height="550" fill="#000"/>
+<rect x="0" y="220" width="400" height="225" fill="#57646a"/><path d="M0 420L100 260L210 355L400 240V445H0Z" fill="#39494e"/>
+<rect x="18" y="360" width="148" height="66" rx="4" fill="#173345"/><text x="28" y="386" class="muted">道路巡检工程</text><text x="28" y="411" class="muted">现场记录</text>
+<path d="M180 315V355L216 335Z" fill="#fff"/><text x="18" y="580" class="muted">00:05</text><path d="M80 573H294" stroke="#65727b" stroke-width="4"/><path d="M80 573H150" stroke="#ffca55" stroke-width="4"/><circle cx="150" cy="573" r="7" fill="#ffca55"/><text x="308" y="580" class="muted">00:15</text><path d="M364 570V558H376M364 592V604H376M386 558H398V570M386 604H398V592" stroke="#fff" fill="none" stroke-width="2"/>
+<text x="60" y="670" style="fill:#ffca55">登记问题　　详细信息</text></g>
+<g transform="translate(490 160)"><rect width="790" height="444" rx="16" fill="#000" stroke="#39424c"/><rect x="0" y="0" width="790" height="444" rx="16" fill="#57646a"/>
+<path d="M0 400L190 80L400 260L790 40V444H0Z" fill="#39494e"/><rect x="25" y="300" width="210" height="100" rx="4" fill="#173345"/><text x="40" y="335">道路巡检工程</text><text x="40" y="370" class="muted">现场记录</text>
+<path d="M355 188V248L410 218Z" fill="#fff"/><rect x="0" y="394" width="790" height="50" fill="#90000000"/><text x="20" y="428" class="muted">00:05</text><path d="M90 420H650" stroke="#65727b" stroke-width="4"/><path d="M90 420H276" stroke="#ffca55" stroke-width="4"/><circle cx="276" cy="420" r="7" fill="#ffca55"/><text x="665" y="428" class="muted">00:15</text><path d="M755 426H743V414M775 414V426H763" stroke="#fff" fill="none" stroke-width="2"/>
+</g>
+</svg>

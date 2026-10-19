@@ -1,8 +1,6 @@
 package com.sitecam.app.feature.onboarding
 
 import android.graphics.BitmapFactory
-import android.graphics.BitmapRegionDecoder
-import android.graphics.Rect
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -37,6 +35,13 @@ private val guidePages = listOf(
     GuidePage("横拍竖拍，\n自己选择", "手机横竖方向与取景框示意"),
     GuidePage("按日期找照片，\n随手记问题", "日历、相册和问题标记示意"),
     GuidePage("资料统一导出，\n完工及时锁定", "导出文件夹与锁定工程示意")
+)
+
+private val guideArtwork = intArrayOf(
+    R.drawable.onboarding_project_hd,
+    R.drawable.onboarding_capture_hd,
+    R.drawable.onboarding_media_hd,
+    R.drawable.onboarding_archive_hd
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -205,16 +210,9 @@ private fun OnboardingIllustration(
 ) {
     val context = LocalContext.current
     val artwork = remember(context, pageIndex) {
-        // Use the adopted illustration itself; crop out all source-page UI.
-        context.resources.openRawResource(R.drawable.onboarding_steps_art).use { stream ->
-            @Suppress("DEPRECATION")
-            val decoder = requireNotNull(BitmapRegionDecoder.newInstance(stream, false))
-            try {
-                val left = 12 + 410 * pageIndex.coerceIn(0, 3)
-                decoder.decodeRegion(Rect(left, 116, left + 386, 561), BitmapFactory.Options()).asImageBitmap()
-            } finally {
-                decoder.recycle()
-            }
+        // Native-resolution redraws of the adopted illustrations; no page UI is baked in.
+        context.resources.openRawResource(guideArtwork[pageIndex.coerceIn(0, 3)]).use { stream ->
+            requireNotNull(BitmapFactory.decodeStream(stream)).asImageBitmap()
         }
     }
     Image(bitmap = artwork, contentDescription = description,

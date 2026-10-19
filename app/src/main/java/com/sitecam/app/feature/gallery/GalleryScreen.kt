@@ -32,6 +32,24 @@ fun GalleryScreen(viewModel: GalleryViewModel, onNavigateBack: () -> Unit,
     onNavigateToDetail: (Long) -> Unit, modifier: Modifier = Modifier, selectedMediaId: Long? = null) {
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsState()
+    val importState by viewModel.photoImport.state.collectAsState()
+    var importProjectPicker by remember { mutableStateOf(false) }
+    var importProjectId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        val projectId = importProjectId
+        if (uri != null && projectId != null) viewModel.photoImport.begin(uri, projectId)
+    }
+    fun choosePhoto(projectId: Long) {
+        importProjectId = projectId
+        photoPicker.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+    }
+    if (importProjectPicker) AlertDialog(onDismissRequest = { importProjectPicker = false }, title = { Text("导入到工程") }, text = {
+        LazyColumn { items(state.projects, key = { it.id }) { project ->
+            TextButton(onClick = { importProjectPicker = false; choosePhoto(project.id) }, enabled = !project.isArchived && !project.isCaptureLocked) {
+                Text(project.name + if (project.isArchived) " · 已归档" else if (project.isCaptureLocked) " · 拍摄锁定" else "")
+            }
+        } }
+    }, confirmButton = { TextButton({ importProjectPicker = false }) { Text("取消") } })
     var filters by remember { mutableStateOf(false) }
     var selecting by remember { mutableStateOf(false) }
     BackHandler(selecting) { selecting = false; viewModel.clearSelection() }
@@ -63,8 +81,9 @@ fun GalleryScreen(viewModel: GalleryViewModel, onNavigateBack: () -> Unit,
             }
         }
     } }
+    Box(modifier.fillMaxSize()) {
     Scaffold(
-        modifier = modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets.safeDrawing,
         topBar = { TopAppBar(title = { Text(state.currentProject?.name ?: "全部工程相册") },
         // Distinct from PhotoDetailScreen's back action: on a wide split screen both are on screen
@@ -83,6 +102,11 @@ fun GalleryScreen(viewModel: GalleryViewModel, onNavigateBack: () -> Unit,
         }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
+            if (!selecting) Button(onClick = {
+                val project = state.currentProject
+                if (project == null) importProjectPicker = true else choosePhoto(project.id)
+            }, enabled = !state.isLoading && importState == null && state.currentProject?.let { !it.isArchived && !it.isCaptureLocked } != false,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) { Text("导入照片") }
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if(selecting) {
                     Text("已选 ${state.checkedIds.size} 项", Modifier.padding(8.dp))
@@ -123,6 +147,8 @@ fun GalleryScreen(viewModel: GalleryViewModel, onNavigateBack: () -> Unit,
                 }
             }
         }
+    }
+    importState?.let { PhotoImportScreen(viewModel.photoImport, it) }
     }
     if(filters) ModalBottomSheet(onDismissRequest = { filters = false }) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {

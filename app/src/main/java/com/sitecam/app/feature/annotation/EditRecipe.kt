@@ -31,13 +31,14 @@ object EditRecipe {
         } }
         return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
     }
-    fun encode(steps: List<EditStep>): String = JSONObject().put("version", 1).put("steps", JSONArray().apply {
+    fun encode(steps: List<EditStep>, baseUri: String? = null): String = JSONObject().apply { baseUri?.let { put("baseUri", it) } }.put("version", 1).put("steps", JSONArray().apply {
         steps.forEach { step -> put(when (step) {
             is EditStep.Transform -> JSONObject().put("kind", step.kind).put("l", step.left).put("t", step.top).put("r", step.right).put("b", step.bottom)
             is EditStep.Draw -> JSONObject().put("kind", "draw").put("w", step.width).put("h", step.height).put("elements", JSONArray().apply { step.elements.forEach { put(elementJson(it)) } })
         }) }
     }).toString()
-    fun decode(json: String): List<EditStep> = runCatching {
+    fun baseUri(json: String): String? = runCatching { JSONObject(json).optString("baseUri").takeIf { it.isNotBlank() } }.getOrNull()
+    fun decodeOrNull(json: String): List<EditStep>? = runCatching {
         val steps = JSONObject(json).getJSONArray("steps")
         (0 until steps.length()).map { index -> val item = steps.getJSONObject(index)
             if (item.getString("kind") == "draw") {
@@ -45,7 +46,8 @@ object EditRecipe {
                 EditStep.Draw((0 until elements.length()).map { elementFromJson(elements.getJSONObject(it)) }, item.getDouble("w").toFloat(), item.getDouble("h").toFloat())
             } else EditStep.Transform(item.getString("kind"), item.optDouble("l", 0.0).toFloat(), item.optDouble("t", 0.0).toFloat(), item.optDouble("r", 1.0).toFloat(), item.optDouble("b", 1.0).toFloat())
         }
-    }.getOrDefault(emptyList())
+    }.getOrNull()
+    fun decode(json: String): List<EditStep> = decodeOrNull(json).orEmpty()
     private fun point(point: Offset) = JSONArray().put(point.x).put(point.y)
     private fun JSONObject.point(key: String): Offset = getJSONArray(key).let { Offset(it.getDouble(0).toFloat(), it.getDouble(1).toFloat()) }
     private fun elementJson(e: AnnotationElement): JSONObject = JSONObject().put("color", e.color.toArgb()).put("stroke", e.strokeWidth).apply {

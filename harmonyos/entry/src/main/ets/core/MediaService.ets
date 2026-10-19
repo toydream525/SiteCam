@@ -10,7 +10,7 @@ import { systemShare } from '@kit.ShareKit';
 import { Snapshot, MediaItem, QUALITY_EDGES, QUALITY_JPEG, safeName, timeText } from './Models';
 import { paintWatermark } from './WatermarkRenderer';
 import { ImageProcessor, EditRecipe } from './ImageProcessor';
-import { captureWorker, editWorker } from './ImageJobs';
+import { captureWorker, editWorker, importWorker } from './ImageJobs';
 import { MediaDeletionCoordinator } from './MediaDeletionCoordinator';
 import { store, Store } from './Store';
 export { EditRecipe, EditStep, Mark, serializeEditRecipe, deserializeEditRecipe } from './ImageProcessor';
@@ -33,6 +33,8 @@ export class MediaService extends ImageProcessor {
   async edit(m: MediaItem,recipe: EditRecipe,q: number): Promise<string> {
     return await taskpool.execute(new taskpool.Task(editWorker,this.root,JSON.stringify(m),JSON.stringify(recipe),q)) as string;
   }
+  async renderImport(path:string,snapshot:Snapshot,quality:number,preview:boolean=false):Promise<MediaItem>{return JSON.parse(await taskpool.execute(new taskpool.Task(importWorker,this.root,path,JSON.stringify(snapshot),quality,preview)) as string) as MediaItem;}
+  async selectImport():Promise<string>{const result=await new photoAccessHelper.PhotoViewPicker().select({MIMEType:photoAccessHelper.PhotoViewMIMETypes.IMAGE_TYPE,maxSelectNumber:1});return result.photoUris.length?result.photoUris[0]:'';}
   async albumCopy(m: MediaItem,path: string=m.path): Promise<string> {
     const helper=photoAccessHelper.getPhotoAccessHelper(this.context);
     try {const uris=await helper.showAssetsCreationDialog([fileUri.getUriFromPath(path)],[{title:m.name.replace(/\.[^.]+$/,''),fileNameExtension:m.type==='VIDEO'?'mp4':'jpg',photoType:m.type==='VIDEO'?photoAccessHelper.PhotoType.VIDEO:photoAccessHelper.PhotoType.IMAGE}]);

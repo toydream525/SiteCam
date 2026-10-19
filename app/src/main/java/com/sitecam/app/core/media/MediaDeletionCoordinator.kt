@@ -94,8 +94,13 @@ class MediaDeletionCoordinator(
         // Once the first index is removed, navigation cancellation must not interrupt
         // the physical deletes or the compensating database writes.
         return withContext(NonCancellable) {
-            // Every physical delete happens before its index row, so a delete that
-            // still needs the user's approval leaves the whole index untouched.
+            // Indexed products are deleted before their index rows so a delete
+            // that still needs approval leaves the index untouched. The annotation
+            // base is not indexed and is deleted only after the media row, so a
+            // product consent/failure can never remove it while it is still needed.
+            val annotationBase = annotation?.let {
+                com.sitecam.app.feature.annotation.EditRecipe.baseUri(it.vectorDataJson)
+            }?.takeIf { it != item.contentUri && it != annotation?.annotatedContentUri }
             if (annotation != null) {
                 when (val annotationDelete = deletePhysical(annotation.annotatedContentUri)) {
                     is MediaDeletionOutcome.ConsentRequired -> return@withContext MediaDeletionResult(
@@ -139,6 +144,11 @@ class MediaDeletionCoordinator(
                 // The physical product is already gone, so no pointer may be restored.
                 return@withContext MediaDeletionResult(false, message = "媒体索引删除失败: ${error.message ?: "未知错误"}")
             }
+            // The base is only auxiliary: it is no longer referenced by any row.
+            // Delete it last so a product consent/failure can never remove it while
+            // the annotation still points at it.  A refusal here can only orphan the
+            // old image, never break an existing pointer.
+            annotationBase?.let { deletePhysical(it) }
 
             MediaDeletionResult(
                 success = true,

@@ -11,6 +11,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.FlowRow
@@ -110,13 +112,13 @@ fun PhotoAnnotationScreen(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
+    val editingEnabled = !uiState.isSaving && uiState.loadError == null
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
 
     var dragStart by remember { mutableStateOf<Offset?>(null) }
     var dragCurrent by remember { mutableStateOf<Offset?>(null) }
     var freehandPoints by remember { mutableStateOf<List<Offset>>(emptyList()) }
-    var showTextInputDialog by remember { mutableStateOf(false) }
-    var pendingTextPosition by remember { mutableStateOf(Offset.Zero) }
+    var selectedText by remember { mutableStateOf<TextEditTarget?>(null) }
     var showUnsavedBackConfirm by remember { mutableStateOf(false) }
 
     var showCrop by remember { mutableStateOf(false) }
@@ -154,6 +156,11 @@ fun PhotoAnnotationScreen(
     }
     LaunchedEffect(viewModel) {
         viewModel.saveFailed.collect { message ->
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        }
+    }
+    LaunchedEffect(uiState.loadError) {
+        uiState.loadError?.let { message ->
             Toast.makeText(context, message, Toast.LENGTH_LONG).show()
         }
     }
@@ -203,8 +210,8 @@ fun PhotoAnnotationScreen(
                     }
                 },
                 actions = {
-                    TextButton(onClick = { viewModel.redo() }, enabled = uiState.canRedo && !uiState.isSaving) { Text("重做") }
-                    IconButton(onClick = { viewModel.undo() }, enabled = uiState.canUndo && !uiState.isSaving) {
+                    TextButton(onClick = { viewModel.redo() }, enabled = uiState.canRedo && editingEnabled) { Text("重做") }
+                    IconButton(onClick = { viewModel.undo() }, enabled = uiState.canUndo && editingEnabled) {
                         Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "撤销", tint = Color.White)
                     }
                     IconButton(
@@ -215,7 +222,7 @@ fun PhotoAnnotationScreen(
                                 viewHeight = canvasSize.height.toFloat()
                             )
                         },
-                        enabled = !uiState.isSaving
+                        enabled = editingEnabled
                     ) {
                         if (uiState.isSaving) {
                             CircularProgressIndicator(color = EngineeringYellow, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
@@ -234,15 +241,44 @@ fun PhotoAnnotationScreen(
                 modifier = canvasModifier.fillMaxSize()
                     .background(Color.Black)
                     .onSizeChanged { canvasSize = it; viewModel.viewportChanged(it.width.toFloat(), it.height.toFloat()) }
-                    .pointerInput(uiState.selectedTool, uiState.selectedColor, uiState.selectedStrokeWidth, uiState.isSaving, canvasSize, uiState.imageWidth, uiState.imageHeight) {
-                        if (uiState.isSaving) return@pointerInput
+                    .pointerInput(uiState.selectedTool, uiState.selectedColor, uiState.selectedStrokeWidth, uiState.isSaving, uiState.loadError, canvasSize, uiState.imageWidth, uiState.imageHeight) {
+                        if (!editingEnabled) return@pointerInput
                         if (uiState.selectedTool == AnnotationTool.TEXT) {
-                            detectTapGestures { offset ->
-                                if (imageContentRect == null || imageContentRect.contains(offset)) {
-                                    pendingTextPosition = offset
-                                    showTextInputDialog = true
+                            try { awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                val rect = imageContentRect?.rect ?: return@awaitEachGesture
+                                if (!rect.contains(down.position)) return@awaitEachGesture
+                                val target = viewModel.textTargets(canvasSize.width.toFloat(), canvasSize.height.toFloat())
+                                    .asReversed().firstOrNull { it.contains(down.position) }
+                                selectedText = target
+                                val note = target?.note
+                                var movedNote = note
+                                var moved = false
+                                var last = down.position
+                                var cancelled = false
+                                do {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.firstOrNull { it.id == down.id }
+                                    if (change == null || change.isConsumed) { cancelled = true; break }
+                                    last = change.position
+                                    if ((last - down.position).getDistance() > viewConfiguration.touchSlop) moved = true
+                                    if (moved && note != null) {
+                                        change.consume()
+                                        movedNote = target!!.moved(last - down.position)
+                                        selectedText = target.copy(note = movedNote!!)
+                                        viewModel.previewText(target, movedNote!!, canvasSize.width.toFloat(), canvasSize.height.toFloat())
+                                    }
+                                } while (change.pressed)
+                                if (!cancelled) {
+                                    if (moved) {
+                                        if (target != null) movedNote?.let { viewModel.updateText(target, it) }
+                                    } else {
+                                        viewModel.openTextEditor(target, note?.position ?: down.position, canvasSize.width.toFloat(), canvasSize.height.toFloat())
+                                    }
                                 }
-                            }
+                                selectedText = null
+                                if (cancelled) viewModel.clearTextPreview()
+                            } } finally { selectedText = null; viewModel.clearTextPreview() }
                         } else detectDragGestures(
                             onDragStart = { offset ->
                                 if (imageContentRect != null && !imageContentRect.contains(offset)) {
@@ -255,9 +291,6 @@ fun PhotoAnnotationScreen(
                                 dragCurrent = offset
                                 if (uiState.selectedTool == AnnotationTool.FREEHAND || uiState.selectedTool == AnnotationTool.MOSAIC) {
                                     freehandPoints = listOf(offset)
-                                } else if (uiState.selectedTool == AnnotationTool.TEXT) {
-                                    pendingTextPosition = offset
-                                    showTextInputDialog = true
                                 }
                             },
                             onDrag = { change, _ ->
@@ -340,7 +373,7 @@ fun PhotoAnnotationScreen(
                 // Background Photo Image
                 uiState.mediaItem?.let { item ->
                     AsyncImage(
-                        model = uiState.previewBitmap ?: item.contentUri,
+                        model = uiState.textDragPreview ?: uiState.previewBitmap ?: item.contentUri,
                         contentDescription = "底图",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Fit
@@ -350,10 +383,19 @@ fun PhotoAnnotationScreen(
                 // Rendered Annotations + Live Dragging
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val drawAnnotations: DrawScope.() -> Unit = {
-                        for (element in uiState.elements) {
+                        for (element in if (uiState.textDragPreview == null) uiState.elements else emptyList()) {
                             drawAnnotationElement(element, imageContentRect?.rect ?: Rect(0f, 0f, size.width, size.height))
                         }
 
+                        (selectedText ?: uiState.textEditor?.target)?.let { target ->
+                            val bounds = TextNoteGeometry.layout(target.note.position, target.note.text, target.contentRect).bubbleRect
+                            val points = floatArrayOf(bounds.left, bounds.top, bounds.right, bounds.top, bounds.right, bounds.bottom, bounds.left, bounds.bottom)
+                            target.toView.mapPoints(points)
+                            val outline = Path().apply {
+                                moveTo(points[0], points[1]); lineTo(points[2], points[3]); lineTo(points[4], points[5]); lineTo(points[6], points[7]); close()
+                            }
+                            drawPath(outline, EngineeringYellow, style = Stroke(2.dp.toPx()))
+                        }
                         // Live Drag Preview
                         val start = dragStart
                         val current = dragCurrent
@@ -421,9 +463,9 @@ fun PhotoAnnotationScreen(
             Column(paletteModifier.verticalScroll(rememberScrollState())) {
             FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 listOf("horizontal" to "水平翻转", "vertical" to "垂直翻转", "rotate" to "旋转90°").forEach { (kind, label) ->
-                    TextButton(enabled = !uiState.isSaving, onClick = { viewModel.applyTransform(kind, canvasSize.width.toFloat(), canvasSize.height.toFloat()) }) { Text(label, fontSize = 12.sp) }
+                    TextButton(enabled = editingEnabled, onClick = { viewModel.applyTransform(kind, canvasSize.width.toFloat(), canvasSize.height.toFloat()) }) { Text(label, fontSize = 12.sp) }
                 }
-                TextButton(enabled = !uiState.isSaving, onClick = { cropLeft = 0f; cropTop = 0f; cropRight = 1f; cropBottom = 1f; showCrop = true }) { Text("裁剪") }
+                TextButton(enabled = editingEnabled, onClick = { cropLeft = 0f; cropTop = 0f; cropRight = 1f; cropBottom = 1f; showCrop = true }) { Text("裁剪") }
             }
             // Bottom Tool Palette
             Card(
@@ -451,7 +493,7 @@ fun PhotoAnnotationScreen(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
-                                    .clickable { viewModel.selectTool(tool) }
+                                    .clickable(enabled = editingEnabled) { viewModel.selectTool(tool) }
                                     .padding(horizontal = 8.dp, vertical = 8.dp)
                             ) {
                                 Box(
@@ -500,7 +542,7 @@ fun PhotoAnnotationScreen(
                                     .size(30.dp)
                                     .clip(CircleShape)
                                     .background(color)
-                                    .clickable { viewModel.selectColor(color) },
+                                    .clickable(enabled = editingEnabled) { viewModel.selectColor(color) },
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (isSelected) {
@@ -532,16 +574,16 @@ fun PhotoAnnotationScreen(
     }
 
     // Text Note Dialog
-    if (showTextInputDialog) {
-        var noteText by remember { mutableStateOf("") }
+    uiState.textEditor?.let { editor ->
+        val originalNote = editor.target?.note
         AlertDialog(
-            onDismissRequest = { showTextInputDialog = false },
+            onDismissRequest = viewModel::dismissTextEditorIfIdle,
             containerColor = DarkCard,
-            title = { Text("添加现场标注说明", color = TextPrimaryDark, fontWeight = FontWeight.Bold) },
+            title = { Text(if (originalNote != null) "编辑文字" else "添加文字", color = TextPrimaryDark, fontWeight = FontWeight.Bold) },
             text = {
                 OutlinedTextField(
-                    value = noteText,
-                    onValueChange = { noteText = it },
+                    value = editor.text,
+                    onValueChange = viewModel::textDraftChanged,
                     label = { Text("批注内容（如：裂缝长约50cm）") },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = EngineeringYellow),
@@ -550,26 +592,15 @@ fun PhotoAnnotationScreen(
             },
             confirmButton = {
                 Button(
-                    onClick = {
-                        if (noteText.isNotBlank()) {
-                            viewModel.addElement(
-                                AnnotationElement.TextNote(
-                                    position = pendingTextPosition,
-                                    text = noteText.trim(),
-                                    color = uiState.selectedColor,
-                                    strokeWidth = uiState.selectedStrokeWidth
-                                )
-                            )
-                            showTextInputDialog = false
-                        }
-                    },
+                    onClick = viewModel::confirmTextEditor,
+                    enabled = editingEnabled && editor.text.isNotBlank(),
                     colors = ButtonDefaults.buttonColors(containerColor = EngineeringYellow)
                 ) {
-                    Text("添加", color = Color.Black, fontWeight = FontWeight.Bold)
+                    Text("确定", color = Color.Black, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showTextInputDialog = false }) {
+                TextButton(onClick = viewModel::dismissTextEditorIfIdle, enabled = editingEnabled) {
                     Text("取消", color = TextSecondaryDark)
                 }
             }

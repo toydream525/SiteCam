@@ -195,6 +195,7 @@ export const QUALITY_JPEG: number[] = [65,75,85,95];
 export function pad(n: number): string { return n.toString().padStart(2,'0'); }
 export function dateText(t: number): string { const d=new Date(t); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
 export function timeText(t: number): string { const d=new Date(t); return `${dateText(t)} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
+export function watermarkTimeText(t: number): string { const d=new Date(t); return `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
 export function safeName(s: string): string {
   const cleaned=s.replace(/[\\/:*?"<>|\r\n]/g,'_').trim();
   if(cleaned.length<=100)return cleaned||'工程';

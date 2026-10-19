@@ -1,6 +1,6 @@
 import { LengthMetricsUnit } from '@kit.ArkUI';
 import { image } from '@kit.ImageKit';
-import { Snapshot, STYLES, Field, Style, Fix } from './Models';
+import { Snapshot, STYLES, Field, Style, Fix, watermarkTimeText } from './Models';
 
 export class InkLine { text: string=''; x: number=0; y: number=0; width: number=0; size: number=0; color: string=''; bold: boolean=false; key: string=''; role: string='value'; ascent: number=0; descent: number=0; }
 export class InkRect { x: number=0; y: number=0; w: number=0; h: number=0; color: string=''; }
@@ -16,7 +16,7 @@ export function resolveFields(s: Snapshot): Field[] {
     let value=f.key==='elevation' ? formatElevation(s.fix,s.locationStatus) : f.value;
     if (!value) switch (f.key) {
       case 'project': value=s.project; break; case 'category': value=s.category; break;
-      case 'time': value=watermarkTime(s.timestamp); break; case 'address': value=s.address; break;
+      case 'time': value=watermarkTimeText(s.timestamp); break; case 'address': value=s.address; break;
       case 'gps': value=s.fix ? `${s.fix.latitude.toFixed(6)}, ${s.fix.longitude.toFixed(6)}${s.locationStatus==='STALE'?'（旧定位）':''}` : ''; break;
       case 'user': value=s.watermark.user; break;
     }
@@ -32,7 +32,6 @@ export function formatElevation(fix: Fix|null,locationStatus: string): string {
   return `${altitude.toFixed(1)} m`;
 }
 function builtInLabel(key: string, fallback: string): string { switch(key){case 'project':return '工程名称';case 'category':return '工程类型';case 'time':return '拍摄时间';case 'address':return '现场位置';case 'elevation':return '海拔';case 'gps':return 'GPS定位';case 'user':return '拍摄人员';default:return fallback;} }
-function watermarkTime(t: number): string { const d=new Date(t),p=(n:number)=>n.toString().padStart(2,'0'); return `${d.getFullYear()}.${p(d.getMonth()+1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; }
 function rank(k: string,a: string,b: string): number { return k===a?0:k===b?1:2; }
 export function wrapText(ctx: DrawingContext,text: string,width: number): string[] {
   const result: string[]=[];
