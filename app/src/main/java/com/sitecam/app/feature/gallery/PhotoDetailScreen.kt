@@ -24,7 +24,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -46,16 +45,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.key
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import com.sitecam.app.ui.theme.DarkBackground
 import com.sitecam.app.ui.theme.DarkCard
 import com.sitecam.app.ui.theme.EngineeringYellow
@@ -235,23 +233,8 @@ fun PhotoDetailScreen(
                                 modifier = Modifier.fillMaxSize(),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                VideoThumbnail(media.contentUri, Modifier.fillMaxWidth().weight(1f), contentScale = ContentScale.Fit)
-                                Button(
-                                    onClick = {
-                                        try {
-                                            context.startActivity(Intent(Intent.ACTION_VIEW).apply {
-                                                setDataAndType(android.net.Uri.parse(media.contentUri), "video/mp4")
-                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                            })
-                                        } catch (_: Exception) {
-                                            Toast.makeText(context, "设备没有可用的视频播放器", Toast.LENGTH_LONG).show()
-                                        }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = EngineeringYellow),
-                                    modifier = Modifier.padding(16.dp)
-                                ) {
-                                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.Black)
-                                    Text("播放视频", color = Color.Black, modifier = Modifier.padding(start = 6.dp))
+                                key(media.id, media.contentUri) {
+                                    InlineVideoPlayer(media.contentUri, Modifier.fillMaxSize())
                                 }
                             }
                         } else {

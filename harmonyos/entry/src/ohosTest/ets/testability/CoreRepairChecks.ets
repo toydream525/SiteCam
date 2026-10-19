@@ -1,6 +1,6 @@
 import { common } from '@kit.AbilityKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
-import { relationalStore } from '@kit.ArkData';
+import { relationalStore, preferences } from '@kit.ArkData';
 import { Store } from '../../../main/ets/core/Store';
 import { MediaDeletionCoordinator } from '../../../main/ets/core/MediaDeletionCoordinator';
 import { Project, MediaItem, Snapshot, Fix, Annotation, Watermark } from '../../../main/ets/core/Models';
@@ -52,6 +52,11 @@ export class CoreRepairChecks {
     await data.close();
     const raw=await relationalStore.getRdbStore(ctx,{name:namespace+'.db',securityLevel:relationalStore.SecurityLevel.S1});
     await raw.executeSql("UPDATE media SET addressText='' WHERE id=?",[manual.id]);await raw.close();
+    // Clearing the column alone is not a legacy database: the first open
+    // already stamped backfillVersion=1. A real legacy DB never had that
+    // marker, so reset it to exercise the upgrade backfill.
+    const pref=await preferences.getPreferences(ctx,{name:namespace+'_settings'});
+    await pref.put('backfillVersion',0);await pref.flush();
     const reopened=new Store(namespace);await reopened.open(ctx);
     try{const legacy=await reopened.mediaById(manual.id);CoreRepairChecks.assert(legacy?.addressText==='手动工程地址','legacy snapshot without GPS did not recover its address');}finally{await reopened.close();}
   }

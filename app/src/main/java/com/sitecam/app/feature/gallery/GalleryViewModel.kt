@@ -63,6 +63,7 @@ class GalleryViewModel(private val appContainer: AppContainer, initialProjectId:
     private data class Filters(val project: Long? = null, val filter: GalleryFilter = GalleryFilter.ALL,
         val date: CaptureDateRange = CaptureDateRange(), val severity: String? = null, val status: String? = null,
         val category: String? = null, val checked: Set<Long> = emptySet())
+    val photoImport = PhotoImportController(appContainer, viewModelScope) { _events.emit(GalleryUiEvent.Message(it)) }
     private val filters = MutableStateFlow(Filters(project = initialProjectId))
     private val busy = MutableStateFlow(false)
     private val progress = MutableStateFlow("")

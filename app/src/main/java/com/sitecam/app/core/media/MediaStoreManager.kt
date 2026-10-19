@@ -280,6 +280,19 @@ class MediaStoreManager(private val context: Context) {
         deleteMediaUriDetailed(uri) != MediaDeleteOutcome.FAILED
 
     suspend fun deleteMediaOutcome(uri: Uri): MediaDeletionOutcome = withContext(Dispatchers.IO) {
+        if (uri.scheme == "file") {
+            // Annotation bases live under the app's private files directory. Only
+            // that subtree may be removed through a file URI.
+            val target = uri.path?.let(::File)?.let { runCatching { it.canonicalFile }.getOrNull() }
+                ?: return@withContext MediaDeletionOutcome.Failed
+            val root = File(context.filesDir, "SiteCam").canonicalFile
+            if (!target.path.startsWith(root.path + File.separator)) return@withContext MediaDeletionOutcome.Failed
+            return@withContext when {
+                target.delete() -> MediaDeletionOutcome.Deleted
+                !target.exists() -> MediaDeletionOutcome.AlreadyMissing
+                else -> MediaDeletionOutcome.Failed
+            }
+        }
         val resolver = context.contentResolver
         try {
             if (resolver.delete(uri, null, null) > 0) return@withContext MediaDeletionOutcome.Deleted

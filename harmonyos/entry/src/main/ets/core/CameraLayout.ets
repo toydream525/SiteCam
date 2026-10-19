@@ -97,8 +97,10 @@ export function cameraLayout(width: number, height: number, ratio: number,
     out.controlsY = Math.max(creaseTop + creaseHeight, center + 40);
     out.controlsWidth = w; out.controlsHeight = h - out.controlsY;
   } else if (out.side) {
-    if(phoneGrip||referenceLandscape){
-      const grip=phoneGrip?Math.min(48,w*.08):0,tools=56;
+    if(referenceLandscape){
+      // Both ordinary phones and tablets use the adopted immersive arrangement.
+      // Reserve the additional grip budget only for ordinary phones.
+      const grip=phoneGrip?48:0,tools=56;
       const dock=Math.min(w*.30,184+32*(Math.max(1,Math.min(2,fontScale))-1));
       const previewArea=Math.max(1,w-tools-dock-grip);
       out.previewWidth=Math.min(previewArea,h*ratio);out.previewHeight=out.previewWidth/ratio;

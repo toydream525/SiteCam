@@ -7,6 +7,7 @@ import com.sitecam.app.core.database.entity.AnnotationEntity
 import com.sitecam.app.core.database.entity.IssueEntity
 import com.sitecam.app.core.database.entity.MediaItemEntity
 import com.sitecam.app.core.database.entity.ProjectEntity
+import com.sitecam.app.feature.annotation.EditRecipe
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
 import org.junit.Assert.*
@@ -114,6 +115,28 @@ class MediaDeletionIntegrationTest {
         } finally {
             release.complete(Unit); deletion?.cancelAndJoin(); fixture.close()
         }
+    }
+
+    @Test fun annotationBaseIsNotRemovedWhenProductDeletionFails(): Unit = runBlocking {
+        val fixture = Fixture()
+        try {
+            val project = fixture.project("底图保留")
+            val item = fixture.media(project)
+            val base = File(fixture.directory, "base-${item.id}.jpg").apply { writeText("base") }
+            val product = File(fixture.directory, "product-${item.id}.jpg").apply { writeText("product") }
+            val annotation = AnnotationEntity(mediaId = item.id, annotatedContentUri = Uri.fromFile(product).toString(),
+                vectorDataJson = EditRecipe.encode(emptyList(), Uri.fromFile(base).toString()))
+            fixture.database.issueDao().insertAnnotation(annotation)
+            val coordinator = MediaDeletionCoordinator(fixture.database) { uri ->
+                if (uri.toString() == annotation.annotatedContentUri) MediaDeletionOutcome.Failed
+                else fixture.deletePhysical(uri)
+            }
+            val result = coordinator.delete(item)
+            assertFalse(result.success)
+            assertTrue("base must survive a failed product delete", base.exists())
+            assertNotNull(fixture.database.issueDao().getAnnotationByMediaId(item.id))
+            assertNotNull(fixture.database.mediaItemDao().getMediaItemById(item.id))
+        } finally { fixture.close() }
     }
 
     @Test fun projectDeletionIncludesHiddenMediaAndTheirIndependentAnnotations(): Unit = runBlocking {

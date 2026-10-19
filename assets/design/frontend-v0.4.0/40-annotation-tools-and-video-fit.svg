@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="860" viewBox="0 0 1440 860">
+<rect width="1440" height="860" fill="#101419"/>
+<style>text{font-family:sans-serif;fill:#f3f4f6;font-size:20px}.muted{fill:#b0bec5;font-size:16px}.yellow{fill:#ffca55}</style>
+<text x="40" y="42">其他标注工具</text><text x="480" y="42">文字工具</text><text x="920" y="42">视频回放</text>
+<defs><g id="photo"><rect width="360" height="390" fill="#57646a"/><path d="M0 340L90 150L200 260L360 80V390H0Z" fill="#39494e"/></g></defs>
+<g transform="translate(40 65)"><rect width="400" height="750" rx="20" fill="#1c222a" stroke="#39424c"/>
+<text x="20" y="40">‹　现场隐患照片标注　　　✓</text><use href="#photo" x="20" y="65"/>
+<path d="M100 350L280 230M243 230H280V267" fill="none" stroke="#ffca55" stroke-width="7"/>
+<text x="24" y="505" class="muted">水平翻转　垂直翻转　旋转90°　裁剪</text>
+<rect x="20" y="530" width="110" height="50" rx="10" fill="#ffca55"/><text x="52" y="563" style="fill:#231a00">箭头</text><text x="172" y="563">矩形</text><text x="292" y="563">圆形</text>
+<text x="52" y="620">画笔</text><text x="172" y="620">文字</text><text x="280" y="620">马赛克</text>
+<circle cx="100" cy="675" r="14" fill="#f44336"/><circle cx="150" cy="675" r="14" fill="#ffb300"/><circle cx="200" cy="675" r="14" fill="#ffc107"/><circle cx="250" cy="675" r="14" fill="#4caf50"/><circle cx="300" cy="675" r="14" fill="#fff"/></g>
+<g transform="translate(480 65)"><rect width="400" height="750" rx="20" fill="#1c222a" stroke="#39424c"/>
+<text x="20" y="40">‹　现场隐患照片标注　　　✓</text><use href="#photo" x="20" y="65"/><text x="100" y="280" class="yellow">此处渗水</text>
+<text x="24" y="505" class="muted">水平翻转　垂直翻转　旋转90°　裁剪</text>
+<text x="52" y="563">箭头</text><text x="172" y="563">矩形</text><text x="292" y="563">圆形</text>
+<rect x="145" y="590" width="110" height="50" rx="10" fill="#ffca55"/><text x="52" y="620">画笔</text><text x="172" y="620" style="fill:#231a00">文字</text><text x="280" y="620">马赛克</text>
+<circle cx="100" cy="670" r="14" fill="#f44336"/><circle cx="150" cy="670" r="14" fill="#ffb300"/><circle cx="200" cy="670" r="14" fill="#ffc107"/><circle cx="250" cy="670" r="14" fill="#4caf50"/><circle cx="300" cy="670" r="14" fill="#fff"/>
+<rect x="20" y="700" width="360" height="38" rx="8" fill="#303030"/><text x="32" y="727" class="muted">文字标注内容</text></g>
+<g transform="translate(920 65)"><rect width="480" height="750" rx="20" fill="#1c222a" stroke="#39424c"/>
+<text x="20" y="40">‹　视频详情</text><rect x="16" y="65" width="448" height="430" fill="#10171d"/>
+<rect x="16" y="154" width="448" height="252" fill="#57646a"/><path d="M16 390L150 200L240 300L464 175V406H16Z" fill="#39494e"/>
+<path d="M26 188V164H50M430 164H454V188M26 372V396H50M430 396H454V372" fill="none" stroke="#ffca55" stroke-width="4"/>
+<path d="M225 262V297L257 280Z" fill="#fff"/><text x="60" y="535" class="yellow">另存到系统相册　　标记问题</text>
+<rect x="16" y="575" width="448" height="150" fill="#10171d"/><rect x="190" y="575" width="100" height="150" fill="#57646a"/>
+<path d="M197 598V582H213M267 582H283V598M197 702V718H213M267 718H283V702" fill="none" stroke="#ffca55" stroke-width="3"/></g>
+</svg>

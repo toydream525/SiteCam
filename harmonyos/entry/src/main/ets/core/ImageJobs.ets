@@ -8,3 +8,6 @@ export async function captureWorker(root: string,bytes: ArrayBuffer,snapshot: st
 export async function editWorker(root: string,mediaJson: string,recipeJson: string,quality: number): Promise<string> {
   return await new ImageProcessor(root).editLocal(JSON.parse(mediaJson) as MediaItem,JSON.parse(recipeJson) as EditRecipe,quality);
 }
+
+@Concurrent
+export async function importWorker(root:string,path:string,snapshot:string,quality:number,preview:boolean):Promise<string>{return JSON.stringify(await new ImageProcessor(root).importWatermarked(path,JSON.parse(snapshot) as Snapshot,quality,preview));}
