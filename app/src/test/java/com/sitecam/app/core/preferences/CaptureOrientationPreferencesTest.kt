@@ -15,6 +15,24 @@ import java.io.File
 
 class CaptureOrientationPreferencesTest {
     @get:Rule val temporary = TemporaryFolder()
+    @Test fun snapshotDefaultsOnButAnExplicitOffAndShutterChoiceSurviveRestart() = runBlocking {
+        val file = File(temporary.newFolder(), "snapshot.preferences_pb")
+        val context = mockk<Context>()
+        var scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        try {
+            val store = PreferenceDataStoreFactory.create(scope = scope, produceFile = { file })
+            val settings = AppSettingsDataStore(context, store)
+            assertEquals(true, settings.snapshotEnabled.first())
+            assertEquals(250, settings.snapshotShutterSpeed.first())
+            settings.setSnapshotEnabled(false)
+            settings.setSnapshotShutterSpeed(500)
+            scope.coroutineContext[Job]!!.cancelAndJoin()
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+            val reopened = AppSettingsDataStore(context, PreferenceDataStoreFactory.create(scope = scope, produceFile = { file }))
+            assertEquals(false, reopened.snapshotEnabled.first())
+            assertEquals(500, reopened.snapshotShutterSpeed.first())
+        } finally { scope.coroutineContext[Job]!!.cancelAndJoin() }
+    }
     @Test fun absentOrInvalidDirectionDefaultsToAutoButManualSelectionSurvivesRestart() = runBlocking {
         val file = File(temporary.newFolder(), "camera.preferences_pb")
         val context = mockk<Context>()

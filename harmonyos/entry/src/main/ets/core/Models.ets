@@ -67,7 +67,7 @@ export class Field {
 function defaultWatermarkFields(): Field[] {
   const elevation=new Field('elevation','海拔');
   elevation.enabled=false;
-  return [new Field('project','工程名称'),new Field('category','工程类型'),new Field('time','拍摄时间'),new Field('address','现场位置'),elevation,new Field('gps','GPS定位'),new Field('user','拍摄人员')];
+  return [new Field('project','工程名称'),new Field('category','工程类型'),new Field('time','拍摄时间'),new Field('address','现场位置'),elevation,new Field('gps','GPS定位'),new Field('user','拍摄人员'),new Field('weather','天气')];
 }
 export function usableAltitude(altitude: number, altitudeAccuracy: number | undefined): number | null {
   if (!Number.isFinite(altitude)) return null;
@@ -111,6 +111,8 @@ export class Settings {
   icon: string='D';
   templateId: number=0;
   currentProject: number = 0;
+  snapshotEnabled: boolean = true;
+  snapshotShutterSpeed: number = 250;
   photoQuality: number = 1;
   editQuality: number = 1;
   orientation: string = 'AUTO';
@@ -148,6 +150,7 @@ export class Fix {
 }
 export class Snapshot {
   presentationVersion: number = 2; // Missing in parsed v0.2.8 snapshots: retain legacy rendering.
+  mirrorPreview:boolean=false;
   captureRatio: number = 0; // 0 preserves legacy/native framing; new photos freeze 3:4 or 4:3.
   timestamp: number = Date.now();
   project: string = '';
@@ -256,6 +259,7 @@ export function migrateWatermarkFields(source: Watermark): Watermark {
   // the historical enabled default while leaving every present user value,
   // label, and relative position untouched.
   for(const f of fields){if((f.enabled as boolean)===undefined)f.enabled=f.key==='elevation'?false:true;}
+  if(!fields.some((f:Field)=>f.key==='weather'))fields.push(new Field('weather','天气'));
   if(fields.some((f:Field)=>f.key==='elevation'))return out;
   const elevation=new Field('elevation','海拔');
   elevation.enabled=false;

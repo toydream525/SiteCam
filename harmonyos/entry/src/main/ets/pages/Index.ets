@@ -68,6 +68,9 @@ struct Index {
   @State thumbnailScale: number=1;
   @State shutterFlash: number=0;
   private captureInFlight: boolean=false;
+  @State burstEnabled:boolean=false;
+  @State burstCapturing:boolean=false;
+  @State deletingDetail:boolean=false;
   private videoStarting: boolean=false;
   private stoppingVideo: boolean=false;
   private cameraRetryCount: number=0;
@@ -287,7 +290,7 @@ struct Index {
       const bytes=await this.context.resourceManager.getRawFileContent('USER_GUIDE.md');this.help=String.fromCharCode();const decoder=new util.TextDecoder('utf-8');this.help=decoder.decodeToString(bytes);
     }catch(e){this.message=`打开失败：${(e as Error).message}`;}
   }
-  aboutToDisappear(): void {if(this.focusTimer>=0)clearTimeout(this.focusTimer);for(const timer of this.animationTimers)clearTimeout(timer);if(this.timer>=0)clearInterval(this.timer);if(this.projectUndoTimer>=0)clearTimeout(this.projectUndoTimer);this.lifecycleToken++;this.projectSwitchOpen=false;this.cameraReady=false;this.syncFlashUi();this.location.onChange=null;this.location.stop();void this.restoreWindowOrientation();void this.camera?.close().catch((e:Error)=>console.warn('SITECAM_CLOSE '+e.message));this.shutterSound.release().catch(()=>{});this.video.cancel();}
+  aboutToDisappear(): void {this.burstCapturing=false;if(this.focusTimer>=0)clearTimeout(this.focusTimer);for(const timer of this.animationTimers)clearTimeout(timer);if(this.timer>=0)clearInterval(this.timer);if(this.projectUndoTimer>=0)clearTimeout(this.projectUndoTimer);this.lifecycleToken++;this.projectSwitchOpen=false;this.cameraReady=false;this.syncFlashUi();this.location.onChange=null;this.location.stop();void this.restoreWindowOrientation();void this.camera?.close().catch((e:Error)=>console.warn('SITECAM_CLOSE '+e.message));this.shutterSound.release().catch(()=>{});this.video.cancel();}
   @State settingsSubPage:string='设置';
   @State galleryFilters:boolean=false;
   @State gallerySelecting:boolean=false;
@@ -296,6 +299,7 @@ struct Index {
   @State quickPicker:boolean=false;
   @State quickAdd:boolean=false;
   onBackPress(): boolean {
+    if(this.burstCapturing){this.burstCapturing=false;return true;}
     if(this.orientationMenuVisible){this.orientationMenuVisible=false;return true;}
     if(this.quickPicker){this.quickPicker=false;return true;}
     if(this.quickAdd){this.quickAdd=false;return true;}
@@ -319,7 +323,7 @@ struct Index {
     const back=this.page==='detail'||this.page==='move'?'gallery':this.page==='editor'?'detail':this.page==='watermark'?this.styleReturn:this.page==='help'?'settings':this.pageOrigin||'camera';
     this.task(async()=>{if(this.page==='watermark')await this.persistWatermarkBeforeLeave();await this.navigate(back,'backward');});return true;
   }
-  private async refresh(): Promise<void> {this.projects=await store.projects();this.items=await store.media();this.templates=await store.templates();this.projectCategories=(await store.categories()).map(c=>c.name);if(this.settings.currentProject&&!this.projects.some((p:Project)=>p.id===this.settings.currentProject)){this.settings.currentProject=0;this.settings.projectSelectionCleared=true;await this.persist();}const activeDetailId=this.detail.id;if(activeDetailId){const latest=this.items.find((m:MediaItem)=>m.id===activeDetailId);if(latest)this.detail=JSON.parse(JSON.stringify(latest)) as MediaItem;else{this.detail=new MediaItem();if(this.page==='detail'){this.galleryStack.clear();await this.navigate('gallery','backward');}}}}
+  private async refresh(): Promise<void> {this.projects=await store.projects();this.items=await store.media();this.templates=await store.templates();this.projectCategories=(await store.categories()).map(c=>c.name);if(this.settings.currentProject&&!this.projects.some((p:Project)=>p.id===this.settings.currentProject)){this.settings.currentProject=0;this.settings.projectSelectionCleared=true;await this.persist();}const activeDetailId=this.detail.id;if(activeDetailId){const latest=this.items.find((m:MediaItem)=>m.id===activeDetailId);if(latest)this.detail=JSON.parse(JSON.stringify(latest)) as MediaItem;else{this.detail=new MediaItem();if(this.page==='detail'&&!this.deletingDetail){await this.navigate('gallery','backward');this.galleryStack.clear();}}}}
   private async task(action: ()=>Promise<void>): Promise<void> {if(this.busy)return;this.busy=true;try{await action();}catch(e){console.error('SITECAM_ACTION '+(e as Error).stack);this.notify((e as Error).message||'操作未完成');}finally{this.busy=false;}}
   private async dialogTask(action:()=>Promise<void>):Promise<void>{if(this.busy)throw new Error('当前操作尚未完成，请稍后重试');this.busy=true;try{await action();}finally{this.busy=false;}}
   private saveSetting(change:(next:Settings)=>void):void {const operation=this.settingsQueue.catch(()=>{}).then(async():Promise<void>=>{const next=JSON.parse(JSON.stringify(this.settings)) as Settings;change(next);await this.persistSettingsSnapshot(next);this.settings=next;});this.settingsQueue=operation.catch((e:Error)=>{this.settings=JSON.parse(JSON.stringify(store.settings)) as Settings;this.notify(e.message||'设置保存失败，请重试');});}
@@ -487,6 +491,7 @@ struct Index {
   private async foregroundChanged(): Promise<void> {
     this.lifecycleToken++;
     if(!this.foreground){
+      this.burstCapturing=false;
       await this.shutterSound.suspend();
       await this.restoreWindowOrientation();
       if(this.recording){try{await this.stopVideo();}catch(e){this.notify((e as Error).message||'录像已安全收尾');}}
@@ -642,6 +647,7 @@ struct Index {
       try{
         this.controller.setXComponentSurfaceRotation({lock:true});
       }catch(e){}
+      this.camera.setSnapshotMode(this.settings.snapshotEnabled||this.burstEnabled,this.settings.snapshotShutterSpeed);
       await this.camera.open(cameraSurface,'',false,displayDegrees);
       try{
         console.info(`SITECAM_XCOMPONENT_CONFIG ${this.camera.previewWidth}x${this.camera.previewHeight} rotation=${JSON.stringify(this.controller.getXComponentSurfaceRotation())}`);
@@ -687,25 +693,72 @@ struct Index {
   private watermarkBound(index: number): number {const parts=this.watermarkBounds.split(',');if(index<0||index>=parts.length)return 0;const value=Number(parts[index]);return Number.isFinite(value)?value:0;}
   private rotation(): number {if(this.settings.orientation==='PORTRAIT')return 90;if(this.settings.orientation==='LEFT')return 0;if(this.settings.orientation==='RIGHT')return 180;const rotation=display.getDefaultDisplaySync().rotation;return rotation===1?0:rotation===3?180:90;}
   private async captureProject(): Promise<Project> {const selectedId=this.settings.currentProject;if(!selectedId)throw new Error('请先选择工程包');const live=(await store.projects('UPDATED',false,'ALL')).find((value:Project)=>value.id===selectedId);if(!live){await this.refresh();throw new Error('当前工程已删除，请重新选择工程包');}if(this.settings.currentProject!==selectedId)throw new Error('工程选择已变化，请重试');if(live.locked||live.archived){await this.refresh();throw new Error('当前工程已锁定或归档，不能继续拍摄');}return live;}
+  private handleCapture():void {
+    if(this.burstCapturing){this.burstCapturing=false;return;}
+    void this.task(async()=>{if(this.captureMode==='photo')await this.shoot();else{this.animateShutter(false);await this.toggleVideo();}});
+  }
+  private toggleBurst():void {
+    if(this.busy||this.captureMode!=='photo'||this.captureInFlight||this.recording)return;
+    void this.task(async()=>{
+      this.burstEnabled=!this.burstEnabled;
+      this.cameraReady=false;
+      try{await this.camera?.configureSnapshot(this.settings.snapshotEnabled||this.burstEnabled,this.settings.snapshotShutterSpeed);this.updateFrameRatio();this.syncZoomUi();}
+      finally{this.cameraReady=!!this.camera?.photoSupported;this.syncFlashUi();}
+    });
+  }
   private async shoot(): Promise<void> {
     const p=await this.captureProject();
     if(!this.cameraReady||!this.camera?.photoSupported)throw new Error('相机尚未就绪');
-    const s=captureSnapshot(p,this.settings,this.location.snapshotFixForWatermark()),quality=this.settings.photoQuality,degrees=this.effectiveDegrees();
-    const soundToken=this.lifecycleToken;const orientationMode=this.settings.orientation;const captureSurface=this.surface;s.captureRatio=degrees%180===0?3/4:4/3;this.snapshot=s;this.captureInFlight=true;
+    const burst=this.burstEnabled,quick=this.settings.snapshotEnabled||burst,albumCopy=this.settings.albumCopy;
+    const albumItems:MediaItem[]=[];
+    const quality=quick?2:this.settings.photoQuality,degrees=this.effectiveDegrees();
+    const soundToken=this.lifecycleToken,orientationMode=this.settings.orientation,captureSurface=this.surface;
+    let saving:Promise<void>|null=null,saveError:Error|null=null,lastItem:MediaItem|null=null,saved=0;
+    this.captureInFlight=true;this.burstCapturing=burst;
     try {
+      await this.camera.configureSnapshot(quick,this.settings.snapshotShutterSpeed);
       if(!await this.applyWindowOrientation(orientationMode,true))throw new Error('无法锁定拍摄方向');
-      if(!this.captureContextValid(soundToken,captureSurface))return;
-      if(!this.cameraReady||!this.camera?.photoSupported)throw new Error('相机尚未就绪');
-      this.animateShutter(true);
-      const soundEnabled=this.settings.shutterSoundEnabled;
-      const bytes=await this.camera!.shoot(this.camera!.photoRotation(degrees),()=>{if(soundEnabled&&this.foreground&&this.page==='camera'&&this.lifecycleToken===soundToken)void this.shutterSound.play(this.context);});
-      const item=await this.files!.capture(bytes,s,quality,0);item.projectId=p.id;
-      try{await store.putMedia(item);}catch(e){try{await store.putMedia(item);}catch(retryError){console.warn('SITECAM_PHOTO_STORE '+String(retryError));this.notify('照片已拍摄，但未能登记到工程相册');throw retryError as Error;}}
-      await this.refresh();this.animatePhotoSaved();this.notify('照片已保存到工程相册');
-      if(this.settings.albumCopy){try{const uri=await this.saveAlbumCopy(item);if(uri)item.albumUri=uri;}catch(e){this.notify('照片已保存，另存系统相册未完成：'+(e as Error).message);}}
-      if(this.quickIssueEnabled)this.openIssue(item);
-    } finally {if(this.captureContextValid(soundToken,captureSurface))await this.restoreWindowOrientation(this.settings.orientation===orientationMode?orientationMode:this.settings.orientation);this.captureInFlight=false;if(this.captureContextValid(soundToken,captureSurface))this.updateFrameRatio();}
+      do {
+        if(!this.captureContextValid(soundToken,captureSurface)||burst&&!this.burstCapturing)break;
+        const s=captureSnapshot(p,this.settings,this.location.snapshotFixForWatermark());s.captureRatio=degrees%180===0?3/4:4/3;s.mirrorPreview=this.camera!.previewIsMirrored();this.snapshot=s;
+        this.animateShutter(true);
+        const soundEnabled=this.settings.shutterSoundEnabled;
+        const bytes=await this.camera!.shoot(this.camera!.photoRotation(degrees),()=>{if(soundEnabled&&this.foreground&&this.page==='camera'&&this.lifecycleToken===soundToken)void this.shutterSound.play(this.context);});
+        // The next frame overlaps the previous save; at most one save and one
+        // captured JPEG are in flight. Slow storage cannot grow an unbounded queue.
+        if(saving)await saving;
+        if(saveError)throw saveError;
+        saving=this.saveCapturedPhoto(bytes,s,quality,p.id,!burst&&albumCopy).then((item:MediaItem)=>{lastItem=item;saved++;if(burst&&albumCopy)albumItems.push(item);}).catch((error:Error)=>{saveError=error;this.burstCapturing=false;});
+        if(burst)await new Promise<void>((resolve:()=>void)=>setTimeout(resolve,120));
+      }while(burst&&this.burstCapturing&&!saveError);
+      if(saving)await saving;
+      if(saveError)throw saveError;
+      if(saved>0)this.notify(burst?'连拍已保存 '+saved+' 张':'照片已保存到工程相册');
+      if(albumItems.length&&this.foreground&&this.page==='camera'){
+        try{
+          for(let offset=0;offset<albumItems.length;offset+=20){
+            const batch=albumItems.slice(offset,offset+20),uris=await this.files!.albumCopies(batch);
+            if(!uris.length)break;
+            for(let i=0;i<uris.length;i++)await store.updateMediaAlbumUri(batch[i].id,uris[i]);
+          }
+        }catch(e){this.notify('连拍照片已保存，另存系统相册未完成');}
+      }
+      if(lastItem&&this.quickIssueEnabled&&this.foreground&&this.page==='camera')this.openIssue(lastItem);
+    } finally {
+      this.burstCapturing=false;
+      if(saving)await saving;
+      if(this.captureContextValid(soundToken,captureSurface))await this.restoreWindowOrientation(this.settings.orientation===orientationMode?orientationMode:this.settings.orientation);
+      this.captureInFlight=false;if(this.captureContextValid(soundToken,captureSurface))this.updateFrameRatio();
+    }
   }
+  private async saveCapturedPhoto(bytes:ArrayBuffer,s:Snapshot,quality:number,projectId:number,copyToAlbum:boolean):Promise<MediaItem>{
+    const item=await this.files!.capture(bytes,s,quality,0);item.projectId=projectId;
+    try{await store.putMedia(item);}catch(e){await this.files!.removePath(item.path);throw e as Error;}
+    await this.refresh();this.animatePhotoSaved();
+    if(copyToAlbum){try{const uri=await this.saveAlbumCopy(item);if(uri)item.albumUri=uri;}catch(e){this.notify('照片已保存，另存系统相册未完成：'+(e as Error).message);}}
+    return item;
+  }
+
   private openIssue(item:MediaItem):void {const id=item.id;this.issueTarget=JSON.parse(JSON.stringify(item)) as MediaItem;this.issueDialog=new CustomDialogController({customStyle:true,autoCancel:false,alignment:DialogAlignment.Center,builder:QuickIssueDialog({maxHeight:Math.max(120,this.windowHeight-40),existingTitle:item.issueTitle,existingSeverity:item.severity,existingStatus:item.issueStatus,existingNotes:item.issueNotes,onConfirm:(title:string,severity:string,status:string,notes:string)=>this.dialogTask(async()=>{const issue=new Issue();issue.mediaId=id;issue.title=title;issue.description=notes;issue.severity=severity;issue.status=status;await store.putIssue(issue);await this.refresh();this.notify('问题记录已保存');}),onRemove:()=>this.dialogTask(async()=>{await store.clearIssue(id);await this.refresh();this.notify('问题已移除');})})});this.issueDialog!.open();}
   private async applyWindowOrientation(value: string, lockAuto: boolean=false): Promise<boolean> {const target=windowOrientationTarget(value,lockAuto);let orientation: window.Orientation;if(target==='PORTRAIT')orientation=window.Orientation.PORTRAIT;else if(target==='LANDSCAPE')orientation=window.Orientation.LANDSCAPE;else if(target==='LANDSCAPE_INVERTED')orientation=window.Orientation.LANDSCAPE_INVERTED;else if(target==='LOCKED')orientation=window.Orientation.LOCKED;else orientation=window.Orientation.AUTO_ROTATION_RESTRICTED;const sequence=++this.orientationSequence;const operation=this.orientationQueue.catch(()=>{}).then(async(): Promise<boolean>=>{if(sequence!==this.orientationSequence)return false;const win=await window.getLastWindow(this.context);if(sequence!==this.orientationSequence)return false;await win.setPreferredOrientation(orientation);return true;});this.orientationQueue=operation.then(()=>{},()=>{});try{return await operation;}catch(e){this.notify('无法切换屏幕方向');return false;}}
   private async restoreWindowOrientation(mode: string=this.settings.orientation): Promise<boolean> {return this.applyWindowOrientation(mode);}
@@ -767,7 +820,28 @@ struct Index {
   private async batchMoreDialog(): Promise<void> { this.actionDialog=new CustomDialogController({customStyle:true,builder:ProjectBatchActionDialog({selectedCount:this.selected.length,onAction:(action:string)=>{if(action==='category')this.openCategoryDialog();else if(action==='delete')this.confirmDelete(true);else this.task(async()=>this.projectBatch(action));},onCancel:()=>{}})});this.actionDialog!.open(); }
   private projectSortDialog(): void {AlertDialog.show({title:'排序方式',message:'选择工程列表排序',primaryButton:{value:'取消',action:()=>{}},buttons:[{value:'最近拍摄',action:()=>{this.sort=0;}},{value:'创建时间',action:()=>{this.sort=1;}},{value:'最近修改',action:()=>{this.sort=2;}},{value:'名称',action:()=>{this.sort=3;}},{value:'线路',action:()=>{this.sort=4;}}]});}
   private toggleMedia(id: number): void {if(this.busy)return;this.mediaSelection=this.mediaSelection.includes(id)?this.mediaSelection.filter(v=>v!==id):this.mediaSelection.concat(id);}
-  private deleteDetail(): void {AlertDialog.show({title:'删除资料？',message:'将删除工程相册中的原件和编辑成品，系统相册副本不受影响。',primaryButton:{value:'取消',action:()=>{}},secondaryButton:{value:'删除',fontColor:'#F44336',action:()=>{this.task(async()=>{await this.files!.deleteMedia([this.detail.id]);this.detail=new MediaItem();this.galleryStack.clear();await this.refresh();await this.navigate('gallery','backward');this.notify('资料已删除');});}}});}
+  private deleteDetail(): void {
+    const id=this.detail.id;if(!id||this.busy||this.deletingDetail)return;
+    AlertDialog.show({title:'删除资料？',message:'将删除工程相册中的原件和编辑成品，系统相册副本不受影响。',primaryButton:{value:'取消',action:()=>{}},secondaryButton:{value:'删除',fontColor:'#F44336',action:()=>{void this.task(async()=>{
+      if(this.detail.id!==id)return;
+      this.deletingDetail=true;
+      let removed=false;
+      try{
+        await new Promise<void>((resolve:()=>void)=>setTimeout(resolve,32));
+        await this.files!.deleteMedia([id]);removed=true;
+      }finally{
+        try{
+          await this.refresh();
+          if(!this.items.some((item:MediaItem)=>item.id===id)){
+            if(this.page==='detail')await this.navigate('gallery','backward');
+            this.galleryStack.clear();this.detail=new MediaItem();
+          }
+        }finally{this.deletingDetail=false;}
+      }
+      if(removed)this.notify('资料已删除');
+    });}}});
+  }
+
   private editProject(p:Project,useForCapture:boolean=false):void {this.projectCreateForCapture=useForCapture;this.draft=JSON.parse(JSON.stringify(p)) as Project;this.editorDialog=new CustomDialogController({customStyle:true,autoCancel:false,builder:ProjectEditorDialog({project:this.draft,categories:this.projectCategories.length?this.projectCategories:['其他'],offlineMode:OFFLINE_BUILD,onConfirm:(value:Project)=>this.dialogTask(async()=>{this.draft=value;await this.saveProject(useForCapture);}),onCancel:()=>{}})});this.editorDialog!.open();}
   private async saveProject(useForCapture:boolean=this.projectCreateForCapture):Promise<void>{if(!this.draft.name.trim())throw new Error('请填写工程名称');const creating=!this.draft.id;this.draft.name=this.draft.name.trim();await store.putProject(this.draft);await this.refresh();if(creating&&useForCapture){await this.selectProject(this.draft);return;}this.selectedProjectId=this.draft.id;if(this.page==='projectEdit')await this.navigate('projects','backward');}
 
@@ -781,15 +855,21 @@ struct Index {
     const ids=projects?this.selected.slice():this.mediaSelection.slice();
     if(!ids.length)return;
     AlertDialog.show({title:projects?'删除所选工程？':'删除所选资料？',message:'将删除应用内原件和编辑成品，系统相册副本不受影响。此操作无法撤销。',primaryButton:{value:'取消',action:()=>{}},secondaryButton:{value:'删除',fontColor:'#CF3A31',action:()=>{this.task(async()=>{
+      const detailId=this.detail.id;
+      const affectsDetail=!!detailId&&(projects?ids.includes(this.detail.projectId):ids.includes(detailId));
+      if(affectsDetail){this.deletingDetail=true;await new Promise<void>((resolve:()=>void)=>setTimeout(resolve,32));}
       try {
         if(projects)await this.files!.deleteProjects(ids);
         else await this.files!.deleteMedia(ids);
       } finally {
         // Also reconcile after partial success; keep selection stable until
         // the committed database state has been reloaded.
-        await this.refresh();
-        if(projects)this.selected=this.selected.filter((id:number)=>this.projects.some((p:Project)=>p.id===id));
-        else this.mediaSelection=this.mediaSelection.filter((id:number)=>this.items.some((m:MediaItem)=>m.id===id));
+        try{
+          await this.refresh();
+          if(projects)this.selected=this.selected.filter((id:number)=>this.projects.some((p:Project)=>p.id===id));
+          else this.mediaSelection=this.mediaSelection.filter((id:number)=>this.items.some((m:MediaItem)=>m.id===id));
+          if(affectsDetail&&!this.items.some((m:MediaItem)=>m.id===detailId))this.galleryStack.clear();
+        }finally{this.deletingDetail=false;}
       }
     });}}});
   }
@@ -896,16 +976,17 @@ Column({space:2}){Text(title).fontSize(22).fontWeight(FontWeight.Bold).fontColor
   projectEditPage() {this.header(this.draft.id?'编辑工程':'新建工程','projects');Scroll(){Column({space:14}){this.field('工程名称',this.draft.name,v=>this.draft.name=v);this.field('线路（可选）',this.draft.route,v=>this.draft.route=v);this.field('类别',this.draft.category,v=>this.draft.category=v);this.field('地点',this.draft.address,v=>this.draft.address=v);this.field('备注',this.draft.notes,v=>this.draft.notes=v);Row(){Text('锁定工程，禁止继续拍摄').fontColor($r('app.color.text_primary')).layoutWeight(1);Toggle({type:ToggleType.Switch,isOn:this.draft.locked}).selectedColor('#FFB300').onChange(v=>this.draft.locked=v);}
 Row(){Text('归档').fontColor($r('app.color.text_primary')).layoutWeight(1);Toggle({type:ToggleType.Switch,isOn:this.draft.archived}).selectedColor('#FFB300').onChange(v=>this.draft.archived=v);}
 Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#352500').onClick(()=>this.task(async()=>this.saveProject()));}.width('100%').constraintSize({maxWidth:600}).padding(18);}.edgeEffect(EdgeEffect.Spring).width('100%').scrollBar(BarState.Off).align(Alignment.Top).layoutWeight(1);}
-  private projectEntryMaxWidth():number {const g=this.cameraGeometry();if(g.immersivePhoneLandscape)return Math.max(72,Math.min(220,g.previewWidth-24));const reserved=g.toolbarHeight>60?16:(this.addressRefreshFallbackVisible()?224:172);return Math.max(72,Math.min(220,g.toolbarWidth-reserved));}
+  private projectEntryMaxWidth():number {const g=this.cameraGeometry();if(g.immersivePhoneLandscape)return Math.max(72,Math.min(220,g.previewWidth-24));const reserved=g.toolbarHeight>60?16:(this.addressRefreshFallbackVisible()?272:220);return Math.max(72,Math.min(220,g.toolbarWidth-reserved));}
   @Builder
   projectToolbarButton(){Button(){Row({space:5}){Text(this.current().name||'选择工程').fontSize(14).maxLines(1).textOverflow({overflow:TextOverflow.Ellipsis}).fontColor(SITE_TEXT).constraintSize({maxWidth:Math.max(40,this.projectEntryMaxWidth()-42)});Image($r('app.media.ic_chevron_down')).width(18).height(18);}}.height(48).constraintSize({maxWidth:this.projectEntryMaxWidth()}).padding({left:10,right:10}).backgroundColor(this.toolbarControlBackground()).borderRadius(24).accessibilityText('工程项目：'+(this.current().name||'请选择工程')).id('camera-project').onClick(()=>this.openProjectSwitchPanel());}
   @Builder
   cameraToolbarActions(){Flex({direction:this.cameraGeometry().immersivePhoneLandscape?FlexDirection.Column:FlexDirection.Row,justifyContent:this.cameraGeometry().immersivePhoneLandscape?FlexAlign.SpaceEvenly:FlexAlign.SpaceBetween,alignItems:ItemAlign.Center}){
     if(this.addressRefreshFallbackVisible())Button(){if(this.locationRefreshState==='refreshing')LoadingProgress().width(24).height(24);else Image($r('app.media.ic_refresh_location')).width(26).height(26);}.width(48).height(48).accessibilityText('刷新地址').backgroundColor(this.toolbarControlBackground()).enabled(this.locationRefreshState!=='refreshing').id('camera-refresh-address-fallback').onClick(()=>this.requestAddressRefresh());
     Button(){Image(this.flashMode==='off'?$r('app.media.ic_flash_off'):this.flashMode==='auto'?$r('app.media.ic_flash_auto'):this.flashMode==='torch'?$r('app.media.ic_flash_torch'):$r('app.media.ic_flash_on')).width(24).height(24);}.width(48).height(48).padding(0).backgroundColor(this.toolbarControlBackground()).enabled(!this.recording&&!this.videoStarting&&this.flashAvailable).accessibilityText('闪光灯 '+flashModeLabel(this.flashMode)).onTouch(e=>{if(e.type===TouchType.Down)this.flashTouchDown();}).onClick(()=>this.flashShortPress()).gesture(LongPressGesture({repeat:false}).onAction(()=>this.flashLongPress()));
+    Button(){Image($r('app.media.ic_burst')).width(24).height(24).fillColor(this.burstEnabled?SITE_ACCENT:SITE_TEXT);}.width(48).height(48).padding(0).backgroundColor(this.toolbarControlBackground()).enabled(!this.busy&&!this.recording&&!this.videoStarting&&this.captureMode==='photo').accessibilityText(this.burstEnabled?'连拍，开启':'连拍，关闭').id('camera-burst').onClick(()=>this.toggleBurst());
     Button(){Image($r('app.media.ic_orientation')).width(24).height(24);}.width(48).height(48).padding(0).backgroundColor(this.toolbarControlBackground()).enabled(!this.busy&&!this.recording&&!this.videoStarting).id('camera-orientation').accessibilityText('拍摄方向').onClick(()=>this.openOrientation()).bindPopup(this.orientationMenuVisible,{builder:this.orientationMenu,placement:this.cameraGeometry().immersivePhoneLandscape?Placement.Right:Placement.BottomLeft,popupColor:'#1C1C1C',backgroundBlurStyle:this.toolbarBlurStyle(),autoCancel:true,enableArrow:true,onStateChange:(event)=>{this.orientationMenuVisible=event.isVisible;}});
     Button(){Image($r('app.media.ic_settings')).width(24).height(24);}.width(48).height(48).padding(0).backgroundColor(this.toolbarControlBackground()).enabled(!this.busy&&!this.recording&&!this.videoStarting).id('camera-settings').accessibilityText('设置').onClick(()=>this.task(async()=>this.navigate('settings')));
-  }.width(this.cameraGeometry().immersivePhoneLandscape?48:(this.addressRefreshFallbackVisible()?204:152)).height(this.cameraGeometry().immersivePhoneLandscape?Math.max(this.cameraGeometry().toolbarHeight,this.addressRefreshFallbackVisible()?192:144):48);}
+  }.width(this.cameraGeometry().immersivePhoneLandscape?48:(this.addressRefreshFallbackVisible()?252:200)).height(this.cameraGeometry().immersivePhoneLandscape?Math.max(this.cameraGeometry().toolbarHeight,this.addressRefreshFallbackVisible()?240:192):48);}
   @Builder
   cameraToolbar(){Column(){
     if(this.cameraGeometry().immersivePhoneLandscape){Scroll(){this.cameraToolbarActions();}.edgeEffect(EdgeEffect.Spring).width('100%').height('100%').scrollBar(BarState.Off);}
@@ -957,13 +1038,13 @@ Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#3525
             Stack() {
               Circle().width(70).height(70).fill(Color.White);
               Circle().width(58).height(58).fill(Color.Black);
-              if(this.recording){Rect().width(26).height(26).radius(6).fill('#E53935');}
+              if(this.recording||this.burstCapturing){Rect().width(26).height(26).radius(6).fill('#E53935');}
               else{Circle().width(48).height(48).fill(this.captureMode==='video'?'#E53935':Color.White);}
             }
           }.width(74).height(74).padding(0).backgroundColor(Color.Transparent)
-            .scale({x:this.shutterScale,y:this.shutterScale}).id('camera-shutter').accessibilityText(this.recording?'停止录像':'拍摄')
-            .enabled(!this.busy&&(this.recording||(!this.current().locked&&!this.current().archived&&this.cameraReady&&!!(this.captureMode==='photo'?this.camera?.photoSupported:this.camera?.videoSupported))))
-            .onClick(()=>this.task(async()=>{if(this.captureMode==='photo')await this.shoot();else{this.animateShutter(false);await this.toggleVideo();}}));
+            .scale({x:this.shutterScale,y:this.shutterScale}).id('camera-shutter').accessibilityText(this.burstCapturing?'停止连拍':this.recording?'停止录像':'拍摄')
+            .enabled(this.burstCapturing||!this.busy&&(this.recording||(!this.current().locked&&!this.current().archived&&this.cameraReady&&!!(this.captureMode==='photo'?this.camera?.photoSupported:this.camera?.videoSupported))))
+            .onClick(()=>this.handleCapture());
           Button() {Image($r('app.media.ic_switch_lens')).width(26).height(26);}
             .width(52).height(52).padding(0).backgroundColor(SITE_CARD_RAISED).borderRadius(26).id('camera-switch-lens')
             .enabled(this.cameraReady&&!this.videoStarting&&!this.busy&&!this.recording&&!!this.camera?.canSwitchLensForMode(this.captureMode==='video'))
@@ -985,10 +1066,10 @@ Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#3525
   @Builder
   coverCameraControls() {
     FoldCoverControls({panelWidth:this.cameraGeometry().controlsWidth,panelHeight:this.cameraGeometry().controlsHeight,recording:this.recording,
-      canCapture:!this.busy&&(this.recording||(!this.current().locked&&!this.current().archived&&this.cameraReady&&!!(this.captureMode==='photo'?this.camera?.photoSupported:this.camera?.videoSupported))),
+      canCapture:this.burstCapturing||!this.busy&&(this.recording||(!this.current().locked&&!this.current().archived&&this.cameraReady&&!!(this.captureMode==='photo'?this.camera?.photoSupported:this.camera?.videoSupported))),
       canSwitch:this.cameraReady&&!this.videoStarting&&!this.busy&&!this.recording&&!!this.camera?.canSwitchLensForMode(this.captureMode==='video'),
       onGallery:()=>this.task(async()=>{this.filterProject=this.current().id;await this.navigate('gallery');}),
-      onCapture:()=>this.task(async()=>{if(this.captureMode==='photo')await this.shoot();else await this.toggleVideo();}),
+      onCapture:()=>this.handleCapture(),
       onSwitch:()=>this.task(async()=>this.switchCameraLens(this.captureMode==='video')),
       onLongPress:()=>this.openCoverToolsMenu()})
       .position({x:this.cameraGeometry().controlsX,y:this.cameraGeometry().controlsY});
@@ -1026,10 +1107,10 @@ Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#3525
         Button(){if(this.items.length&&this.items[0].type==='PHOTO'){Image('file://'+(this.items[0].edited||this.items[0].path)).width('100%').height('100%').borderRadius(10).objectFit(ImageFit.Cover);}else{Image($r('app.media.icon_folder')).width(32).height(32);}}
           .width(this.landscapeThumbnailSize()).height(this.landscapeThumbnailSize()).padding(0).backgroundColor(SITE_CARD_RAISED).borderRadius(10).id('camera-gallery-dock')
           .onClick(()=>this.task(async()=>{this.filterProject=this.current().id;await this.navigate('gallery');}));
-        Button(){Stack(){Circle().width(this.landscapeShutterSize()).height(this.landscapeShutterSize()).fill(Color.White);Circle().width(this.landscapeShutterSize()*.9).height(this.landscapeShutterSize()*.9).fill(Color.Black);if(this.recording){Rect().width(this.landscapeShutterSize()*.34).height(this.landscapeShutterSize()*.34).radius(6).fill('#E53935');}else{Circle().width(this.landscapeShutterSize()*.78).height(this.landscapeShutterSize()*.78).fill(this.captureMode==='video'?'#E53935':Color.White);}}}
-          .width(this.landscapeShutterSize()).height(this.landscapeShutterSize()).padding(0).backgroundColor(Color.Transparent).scale({x:this.shutterScale,y:this.shutterScale}).id('camera-shutter-dock').accessibilityText(this.recording?'停止录像':'拍摄')
-          .enabled(!this.busy&&(this.recording||(!this.current().locked&&!this.current().archived&&this.cameraReady&&!!(this.captureMode==='photo'?this.camera?.photoSupported:this.camera?.videoSupported))))
-          .onClick(()=>this.task(async()=>{if(this.captureMode==='photo')await this.shoot();else{this.animateShutter(false);await this.toggleVideo();}}));
+        Button(){Stack(){Circle().width(this.landscapeShutterSize()).height(this.landscapeShutterSize()).fill(Color.White);Circle().width(this.landscapeShutterSize()*.9).height(this.landscapeShutterSize()*.9).fill(Color.Black);if(this.recording||this.burstCapturing){Rect().width(this.landscapeShutterSize()*.34).height(this.landscapeShutterSize()*.34).radius(6).fill('#E53935');}else{Circle().width(this.landscapeShutterSize()*.78).height(this.landscapeShutterSize()*.78).fill(this.captureMode==='video'?'#E53935':Color.White);}}}
+          .width(this.landscapeShutterSize()).height(this.landscapeShutterSize()).padding(0).backgroundColor(Color.Transparent).scale({x:this.shutterScale,y:this.shutterScale}).id('camera-shutter-dock').accessibilityText(this.burstCapturing?'停止连拍':this.recording?'停止录像':'拍摄')
+          .enabled(this.burstCapturing||!this.busy&&(this.recording||(!this.current().locked&&!this.current().archived&&this.cameraReady&&!!(this.captureMode==='photo'?this.camera?.photoSupported:this.camera?.videoSupported))))
+          .onClick(()=>this.handleCapture());
         Button(){Image($r('app.media.ic_switch_lens')).width(28).height(28);}.width(this.landscapeFlipSize()).height(this.landscapeFlipSize()).padding(0).backgroundColor(Color.Transparent).borderRadius(24).id('camera-switch-lens-dock')
           .enabled(this.cameraReady&&!this.videoStarting&&!this.busy&&!this.recording&&!!this.camera?.canSwitchLensForMode(this.captureMode==='video')).onClick(()=>this.task(async()=>this.switchCameraLens(this.captureMode==='video')));
       }.width('100%').height(this.landscapeShutterSize()).justifyContent(FlexAlign.SpaceEvenly).alignItems(VerticalAlign.Center).position({x:0,y:(this.landscapeContentHeight()-this.landscapeShutterSize())/2});
@@ -1059,11 +1140,11 @@ Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#3525
         Blank();
       }.width('100%').height(Math.max(this.landscapePanelHeight(),Math.max(48,this.landscapeModeHeight())+this.landscapeThumbnailSize()+24+(this.floatingZoomPosition()===null&&this.zoomOptions().length?56:0)));}.edgeEffect(EdgeEffect.Spring)
         .width(this.cameraGeometry().controlsWidth-16).height(this.landscapePanelHeight()).scrollBar(BarState.Off).align(Alignment.Top).position({x:8,y:8});
-      Button(){Stack(){Circle().width(this.landscapeShutterSize()).height(this.landscapeShutterSize()).fill(Color.White);Circle().width(this.landscapeShutterSize()*.9).height(this.landscapeShutterSize()*.9).fill(Color.Black);if(this.recording){Rect().width(this.landscapeShutterSize()*.34).height(this.landscapeShutterSize()*.34).radius(6).fill('#E53935');}else{Circle().width(this.landscapeShutterSize()*.78).height(this.landscapeShutterSize()*.78).fill(this.captureMode==='video'?'#E53935':Color.White);}}}
-        .width(this.landscapeShutterSize()).height(this.landscapeShutterSize()).padding(0).backgroundColor(Color.Transparent).scale({x:this.shutterScale,y:this.shutterScale}).id('camera-shutter-dock').accessibilityText(this.recording?'停止录像':'拍摄')
-        .enabled(!this.busy&&(this.recording||(!this.current().locked&&!this.current().archived&&this.cameraReady&&!!(this.captureMode==='photo'?this.camera?.photoSupported:this.camera?.videoSupported))))
+      Button(){Stack(){Circle().width(this.landscapeShutterSize()).height(this.landscapeShutterSize()).fill(Color.White);Circle().width(this.landscapeShutterSize()*.9).height(this.landscapeShutterSize()*.9).fill(Color.Black);if(this.recording||this.burstCapturing){Rect().width(this.landscapeShutterSize()*.34).height(this.landscapeShutterSize()*.34).radius(6).fill('#E53935');}else{Circle().width(this.landscapeShutterSize()*.78).height(this.landscapeShutterSize()*.78).fill(this.captureMode==='video'?'#E53935':Color.White);}}}
+        .width(this.landscapeShutterSize()).height(this.landscapeShutterSize()).padding(0).backgroundColor(Color.Transparent).scale({x:this.shutterScale,y:this.shutterScale}).id('camera-shutter-dock').accessibilityText(this.burstCapturing?'停止连拍':this.recording?'停止录像':'拍摄')
+        .enabled(this.burstCapturing||!this.busy&&(this.recording||(!this.current().locked&&!this.current().archived&&this.cameraReady&&!!(this.captureMode==='photo'?this.camera?.photoSupported:this.camera?.videoSupported))))
         .position({x:(this.cameraGeometry().controlsWidth-this.landscapeShutterSize())/2,y:(this.cameraGeometry().controlsHeight-this.landscapeShutterSize())/2})
-        .onClick(()=>this.task(async()=>{if(this.captureMode==='photo')await this.shoot();else{this.animateShutter(false);await this.toggleVideo();}}));
+        .onClick(()=>this.handleCapture());
       Scroll(){Column({space:8}){
         Blank();
         Button(){Image($r('app.media.ic_switch_lens')).width(28).height(28);}.width(48).height(48).padding(0).backgroundColor(Color.Transparent).id('camera-switch-lens-dock')
@@ -1154,7 +1235,7 @@ Button('保存工程').width('100%').backgroundColor('#FFCA55').fontColor('#3525
   @Builder
   galleryDetailContent() {if(this.detail.id&&!this.galleryStack.getAllPathName().includes('media-placeholder')){this.detailRootPage();}else{Column({space:12}){Image($r('app.media.ic_camera')).width(48).height(48);Text('选择照片或视频').fontSize(20).fontWeight(FontWeight.Bold).fontColor(SITE_TEXT);}.width('100%').height('100%').justifyContent(FlexAlign.Center).padding(24).backgroundColor(SITE_BG);}}
   @Builder
-  detailRootPage() {DetailPageView({item:this.detail,showEdited:this.showEdited,issueTitle:this.detail.issueTitle,issueNotes:this.detail.issueNotes,issueSeverity:this.detail.severity,issueStatus:this.detail.issueStatus,retrying:this.busy,onSaveAlbum:()=>this.task(async()=>{const uri=await this.saveAlbumCopy(this.detail,this.showEdited&&this.detail.edited?this.detail.edited:this.detail.path);if(uri){await this.refresh();this.notify('已另存到系统相册，工程原件不受影响');}else this.notify('已取消另存，工程原件不受影响');}),onBack:()=>{if(this.page==='gallery')this.galleryStack.pop();else{this.galleryStack.clear();this.task(async()=>this.navigate('gallery','backward'));}},onEdit:()=>this.task(async()=>this.beginEdit()),onShare:()=>this.task(async()=>this.files!.share([this.showEdited&&this.detail.edited?this.detail.edited:this.detail.path],this.detail.type==='VIDEO')),onDelete:()=>this.deleteDetail(),onRetryVideo:()=>this.task(async()=>{const item=new MediaItem();item.id=this.detail.id;item.path=this.detail.path;item.edited=this.detail.edited;item.name=this.detail.name;item.type=this.detail.type;await this.video.process(item,this.files!,v=>this.videoProgress=v);await this.refresh();}),onToggleEdited:()=>this.showEdited=!this.showEdited,onIssue:()=>this.openIssue(this.detail)});}
+  detailRootPage() {if(!this.deletingDetail&&this.detail.id>0){DetailPageView({item:this.detail,showEdited:this.showEdited,issueTitle:this.detail.issueTitle,issueNotes:this.detail.issueNotes,issueSeverity:this.detail.severity,issueStatus:this.detail.issueStatus,retrying:this.busy,onSaveAlbum:()=>this.task(async()=>{const uri=await this.saveAlbumCopy(this.detail,this.showEdited&&this.detail.edited?this.detail.edited:this.detail.path);if(uri){await this.refresh();this.notify('已另存到系统相册，工程原件不受影响');}else this.notify('已取消另存，工程原件不受影响');}),onBack:()=>{if(this.page==='gallery')this.galleryStack.pop();else{this.galleryStack.clear();this.task(async()=>this.navigate('gallery','backward'));}},onEdit:()=>this.task(async()=>this.beginEdit()),onShare:()=>this.task(async()=>this.files!.share([this.showEdited&&this.detail.edited?this.detail.edited:this.detail.path],this.detail.type==='VIDEO')),onDelete:()=>this.deleteDetail(),onRetryVideo:()=>this.task(async()=>{const item=new MediaItem();item.id=this.detail.id;item.path=this.detail.path;item.edited=this.detail.edited;item.name=this.detail.name;item.type=this.detail.type;await this.video.process(item,this.files!,v=>this.videoProgress=v);await this.refresh();}),onToggleEdited:()=>this.showEdited=!this.showEdited,onIssue:()=>this.openIssue(this.detail)});}}
   private editorSide():boolean{return this.windowWidth>=Math.max(680,320*Math.max(1,this.fontScale)+280)&&this.windowHeight>=260;}
   private editorImageWidth(): number {const w=this.editorSide()?this.windowWidth-344:this.windowWidth-24;const h=this.editorSide()?this.windowHeight-76:Math.max(80,this.windowHeight-304);return Math.max(1,Math.min(w,h*this.editRatio));}
   @Builder
@@ -1183,7 +1264,7 @@ this.editorToolsScroll();
   @Builder
   permissionRootPage() {PermissionGuidePageView({management:this.permissionManagement,onPermission:(id:string,needsSettings:boolean)=>this.task(async()=>{const ids:Permissions[]=id==='camera'?['ohos.permission.CAMERA']:id==='microphone'?['ohos.permission.MICROPHONE']:['ohos.permission.APPROXIMATELY_LOCATION','ohos.permission.LOCATION'];this.permissionRequesting=true;try{if(needsSettings)await this.openAppSettings(ids);else await this.permissions(true,ids);}finally{this.permissionRequesting=false;}}),permissions:this.permissionRows(),hasRequested:this.settings.systemPermissionsRequested,requesting:this.permissionRequesting,fontScale:this.fontScale,viewportHeight:this.windowHeight,onBack:()=>this.task(async()=>this.navigate(this.permissionsReturn||'camera','backward')),onRequest:()=>this.task(async()=>{this.permissionRequesting=true;try{await this.permissions(true);}finally{this.permissionRequesting=false;}}),onContinue:()=>this.task(async()=>{this.settings.permissionHandled=true;await this.persist();await this.navigate(this.permissionsReturn||'camera','backward');}),onOpenSettings:()=>this.task(async()=>this.openAppSettings())});}
   @Builder
-  settingsRootPage() {SettingsPageView({page:$settingsSubPage,quality:this.settings.photoQuality,albumCopy:this.settings.albumCopy,shutterSoundEnabled:this.settings.shutterSoundEnabled,cameraControlStyle:this.settings.cameraControlStyle||'NORMAL',icon:this.settings.icon||'D',apiVersion:deviceInfo.sdkApiVersion,diagnostics:(this.camera?.flashDiagnostics||'')+(this.message?'\n'+this.message:''),templateId:this.settings.templateId,onBack:()=>this.task(async()=>this.navigate('camera','backward')),onHelp:()=>this.task(async()=>this.navigate('help','forward')),onWatermark:()=>this.openStyles('settings'),onQuality:(v:number)=>this.saveSetting((next:Settings)=>{next.photoQuality=v;next.editQuality=v;}),onAlbumCopy:(v:boolean)=>this.saveSetting((next:Settings)=>next.albumCopy=v),onShutterSound:(v:boolean)=>this.saveSetting((next:Settings)=>next.shutterSoundEnabled=v),onCameraControlStyle:(v:string)=>this.saveSetting((next:Settings)=>next.cameraControlStyle=v==='BLUR'?'BLUR':'NORMAL'),onIcon:(v:string)=>this.task(async()=>{if(deviceInfo.sdkApiVersion<26)return;await bundleManager.setAlternateIcon(v==='D'?'':v);this.settings.icon=v;await this.persist();}),onCopyDiagnostics:()=>this.task(async()=>this.copyDiagnostics()),onOpenLink:(url:string)=>this.task(async()=>this.openExternal(url)),onOpenEasterEgg:()=>this.openSiteCamEasterEgg(),onPermissions:()=>this.task(async()=>this.navigate('permissions','forward'))});}
+  settingsRootPage() {SettingsPageView({page:$settingsSubPage,snapshotEnabled:this.settings.snapshotEnabled,snapshotShutterSpeed:this.settings.snapshotShutterSpeed,onSnapshot:(v:boolean)=>this.saveSetting((next:Settings)=>next.snapshotEnabled=v),onSnapshotShutter:(v:number)=>this.saveSetting((next:Settings)=>next.snapshotShutterSpeed=v),quality:this.settings.photoQuality,albumCopy:this.settings.albumCopy,shutterSoundEnabled:this.settings.shutterSoundEnabled,cameraControlStyle:this.settings.cameraControlStyle||'NORMAL',icon:this.settings.icon||'D',apiVersion:deviceInfo.sdkApiVersion,diagnostics:(this.camera?.flashDiagnostics||'')+(this.message?'\n'+this.message:''),templateId:this.settings.templateId,onBack:()=>this.task(async()=>this.navigate('camera','backward')),onHelp:()=>this.task(async()=>this.navigate('help','forward')),onWatermark:()=>this.openStyles('settings'),onQuality:(v:number)=>this.saveSetting((next:Settings)=>{next.photoQuality=v;next.editQuality=v;}),onAlbumCopy:(v:boolean)=>this.saveSetting((next:Settings)=>next.albumCopy=v),onShutterSound:(v:boolean)=>this.saveSetting((next:Settings)=>next.shutterSoundEnabled=v),onCameraControlStyle:(v:string)=>this.saveSetting((next:Settings)=>next.cameraControlStyle=v==='BLUR'?'BLUR':'NORMAL'),onIcon:(v:string)=>this.task(async()=>{if(deviceInfo.sdkApiVersion<26)return;await bundleManager.setAlternateIcon(v==='D'?'':v);this.settings.icon=v;await this.persist();}),onCopyDiagnostics:()=>this.task(async()=>this.copyDiagnostics()),onOpenLink:(url:string)=>this.task(async()=>this.openExternal(url)),onOpenEasterEgg:()=>this.openSiteCamEasterEgg(),onPermissions:()=>this.task(async()=>this.navigate('permissions','forward'))});}
   @Builder
   helpRootPage() {HelpPageView({offlineMode:OFFLINE_BUILD,onBack:()=>this.task(async()=>this.navigate('settings','backward')),onReplayGuide:()=>this.task(async()=>{this.guideStep=0;this.guideReturn='help';await this.navigate('guide','forward');})});}
   @Builder

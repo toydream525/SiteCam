@@ -27,7 +27,8 @@ class SystemWeatherReader(private val context: Context) {
     suspend fun read(): SystemWeatherReading? = withContext(Dispatchers.IO) {
         try {
             val provider = context.packageManager.resolveContentProvider("weather", 0) ?: return@withContext null
-            if (!provider.exported) return@withContext null
+            if (!provider.exported || provider.applicationInfo.flags and
+                (android.content.pm.ApplicationInfo.FLAG_SYSTEM or android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0) return@withContext null
             val permission = provider.readPermission
             if (!permission.isNullOrEmpty() && context.checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) return@withContext null
             context.contentResolver.query(Uri.parse("content://weather/actualWeatherData/2"),

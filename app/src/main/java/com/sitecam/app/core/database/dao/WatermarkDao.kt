@@ -107,6 +107,9 @@ interface WatermarkDao {
                     .sortedByDescending { it.displayOrder }
                     .forEach { updateFieldOrder(it.id, it.displayOrder + 1) }
                 insertField(field.copy(displayOrder = insertionOrder, isEnabled = false))
+            } else if (field.fieldKey == BuiltInWatermarkFieldKeys.WEATHER) {
+                val end = (getFieldsForTemplateSync(templateId).maxOfOrNull { it.displayOrder } ?: -1) + 1
+                insertField(field.copy(displayOrder = end))
             } else {
                 insertField(field)
             }

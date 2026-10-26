@@ -41,6 +41,19 @@ export class MediaService extends ImageProcessor {
       if(!uris.length)return '';const input=await fs.open(path,fs.OpenMode.READ_ONLY);try{const output=await fs.open(uris[0],fs.OpenMode.WRITE_ONLY);try{await fs.copyFile(input.fd,output.fd);}finally{await fs.close(output);}}finally{await fs.close(input);}return uris[0];
     }finally{await helper.release();}
   }
+  async albumCopies(items:MediaItem[]):Promise<string[]>{
+    if(!items.length)return [];
+    const helper=photoAccessHelper.getPhotoAccessHelper(this.context);
+    try{
+      const configs:photoAccessHelper.PhotoCreationConfig[]=items.map((item:MediaItem):photoAccessHelper.PhotoCreationConfig=>({title:item.name.replace(/\.[^.]+$/,''),fileNameExtension:'jpg',photoType:photoAccessHelper.PhotoType.IMAGE}));
+      const uris=await helper.showAssetsCreationDialog(items.map((item:MediaItem)=>fileUri.getUriFromPath(item.path)),configs);
+      for(let i=0;i<uris.length;i++){
+        const input=await fs.open(items[i].path,fs.OpenMode.READ_ONLY);
+        try{const output=await fs.open(uris[i],fs.OpenMode.WRITE_ONLY);try{await fs.copyFile(input.fd,output.fd);}finally{await fs.close(output);}}finally{await fs.close(input);}
+      }
+      return uris;
+    }finally{await helper.release();}
+  }
   private shareType(path: string, forceVideo: boolean = false): uniformTypeDescriptor.UniformDataType {
     if (forceVideo) return uniformTypeDescriptor.UniformDataType.VIDEO;
     const clean = path.toLowerCase().split('?')[0];
