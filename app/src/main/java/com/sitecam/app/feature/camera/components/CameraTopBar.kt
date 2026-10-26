@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.BurstMode
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.StayCurrentPortrait
 import androidx.compose.material3.Icon
@@ -91,7 +92,9 @@ fun CameraTopBar(
     addressRefreshState: String? = null,
     onAddressRefreshClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
-    captureMode: CaptureMode = CaptureMode.PHOTO
+    captureMode: CaptureMode = CaptureMode.PHOTO,
+    burstEnabled: Boolean = false,
+    onBurstToggle: () -> Unit = {}
 ) {
     val flashIcon = when (flashMode.uppercase()) {
         "TORCH" -> Icons.Default.FlashlightOn
@@ -125,6 +128,9 @@ fun CameraTopBar(
         val actions: @Composable () -> Unit = {
             ToolIcon(flashIcon, if (flashSelected) EngineeringYellow else Color.White,
                 flashDescription, !isBusy, onFlashToggle, onFlashLongPress, boxSize = 48.dp, backgroundAlpha = plateAlpha)
+            ToolIcon(Icons.Default.BurstMode, if (burstEnabled) EngineeringYellow else Color.White,
+                if (burstEnabled) "连拍，开启" else "连拍，关闭", !isBusy && captureMode == CaptureMode.PHOTO,
+                onBurstToggle, boxSize = 48.dp, backgroundAlpha = plateAlpha)
             OrientationSelector(orientationLabel, !isBusy, onOrientationSelected, plateAlpha,
                 menuTowardPreview = verticalTools)
             ToolIcon(Icons.Default.Settings, Color.White, "设置", !isBusy, onSettingsClick,
@@ -144,13 +150,13 @@ fun CameraTopBar(
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceEvenly) { actions() }
-        } else if (maxWidth < (304f + 120f * (LocalDensity.current.fontScale.coerceAtLeast(1f) - 1f)).dp) {
+        } else if (maxWidth < (352f + 120f * (LocalDensity.current.fontScale.coerceAtLeast(1f) - 1f)).dp) {
             Column(Modifier.fillMaxWidth()) {
                 project(Modifier.widthIn(max = minOf(220.dp, shelfWidth)))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { actions() }
             }
         } else Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            project(Modifier.widthIn(max = minOf(220.dp, shelfWidth - 144.dp)))
+            project(Modifier.widthIn(max = minOf(220.dp, shelfWidth - 192.dp)))
             androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
             actions()
         }

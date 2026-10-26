@@ -49,7 +49,8 @@ object WatermarkLayoutEngine {
             BuiltInWatermarkFieldKeys.ADDRESS to "现场位置",
             BuiltInWatermarkFieldKeys.ELEVATION to "海拔",
             BuiltInWatermarkFieldKeys.GPS to "GPS定位",
-            BuiltInWatermarkFieldKeys.USER_NAME to "拍摄人员"
+            BuiltInWatermarkFieldKeys.USER_NAME to "拍摄人员",
+            BuiltInWatermarkFieldKeys.WEATHER to "天气"
         ).mapNotNull { (key, label) ->
             data.builtInValue(key)?.takeIf { key in data.enabledSystemFields && it.isNotBlank() }
                 ?.let { Field(key, data.fieldLabels[key] ?: label, it) }

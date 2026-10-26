@@ -2,11 +2,19 @@ package com.sitecam.app.core.camera
 
 import android.annotation.SuppressLint
 import android.hardware.camera2.CameraCaptureSession
+import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.CaptureResult
 import android.hardware.camera2.TotalCaptureResult
 import android.os.Build
 import androidx.camera.camera2.interop.Camera2Interop
+import androidx.camera.camera2.interop.Camera2CameraInfo
+import androidx.camera.camera2.interop.Camera2CameraControl
+import androidx.camera.camera2.interop.CaptureRequestOptions
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
+import android.util.Size
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -90,6 +98,81 @@ class CameraManager(private val context: Context) {
     private var pendingDisplayZoom: Float? = null
     private var zoomRequestGeneration = 0L
     private var exposureCompensationEv = 0.0
+    private var snapshotEnabled = true
+    private var snapshotShutterSpeed = 250
+    private var exposurePrioritySupported = false
+    private var exposurePriorityActive = false
+    private var exposurePriorityPausedUntil = 0L
+
+    @SuppressLint("UnsafeOptInUsageError")
+    suspend fun configureSnapshot(enabled: Boolean, shutterSpeed: Int) = withContext(Dispatchers.Main) {
+        val rebind = snapshotEnabled != enabled
+        snapshotEnabled = enabled
+        snapshotShutterSpeed = SnapshotPolicy.shutterSpeed(shutterSpeed)
+        exposurePriorityPausedUntil = 0L
+        if (rebind && _videoRecordingState.value == VideoRecordingState.IDLE) {
+            val owner = lifecycleOwnerRef
+            val view = previewViewRef
+            if (owner != null && view != null && camera != null) {
+                val zoom = _currentZoomRatio.value
+                bindCameraUseCases(owner, view, currentLensFacing, currentCameraId, zoomRequiresVideo)
+                setZoomRatio(zoom, requireVideo = zoomRequiresVideo)
+            }
+        }
+        applySnapshotControls(false)
+    }
+
+    /** Keep AE and its ISO control active; never force a dark manual exposure. */
+    @SuppressLint("UnsafeOptInUsageError")
+    private fun applySnapshotControls(shortExposure: Boolean) {
+        val active = camera ?: return
+        val options = CaptureRequestOptions.Builder()
+        if (snapshotEnabled && !zoomRequiresVideo) {
+            val info = Camera2CameraInfo.from(active.cameraInfo)
+            val ranges = info.getCameraCharacteristic(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES).orEmpty()
+            ranges.filter { it.lower >= 30 && it.upper <= 60 }.minByOrNull { it.lower + it.upper }?.let {
+                options.setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it)
+            }
+            if (Build.VERSION.SDK_INT >= 36 && exposurePrioritySupported) {
+                options.setCaptureRequestOption(CaptureRequest.CONTROL_AE_PRIORITY_MODE,
+                    if (shortExposure) CaptureRequest.CONTROL_AE_PRIORITY_MODE_SENSOR_EXPOSURE_TIME_PRIORITY else CaptureRequest.CONTROL_AE_PRIORITY_MODE_OFF)
+                if (shortExposure) {
+                    val range = info.getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE)
+                    val requested = SnapshotPolicy.exposureNanos(snapshotShutterSpeed)
+                    options.setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, range?.clamp(requested) ?: requested)
+                }
+            }
+        }
+        exposurePriorityActive = shortExposure
+        val future = Camera2CameraControl.from(active.cameraControl).setCaptureRequestOptions(options.build())
+        future.addListener({ runCatching { future.get() }.onFailure {
+            Log.w("CameraManager", "Snapshot controls unavailable", it)
+            if (camera === active) {
+                exposurePriorityActive = false
+                exposurePrioritySupported = false
+                Camera2CameraControl.from(active.cameraControl).clearCaptureRequestOptions()
+            }
+        } }, ContextCompat.getMainExecutor(context))
+    }
+
+    @SuppressLint("UnsafeOptInUsageError")
+    private fun updateExposurePriority(result: TotalCaptureResult) {
+        if (!snapshotEnabled || zoomRequiresVideo || !exposurePrioritySupported || Build.VERSION.SDK_INT < 36) return
+        val active = camera ?: return
+        val iso = result.get(CaptureResult.SENSOR_SENSITIVITY) ?: return
+        val exposure = result.get(CaptureResult.SENSOR_EXPOSURE_TIME) ?: return
+        val maxIso = Camera2CameraInfo.from(active.cameraInfo)
+            .getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)?.upper ?: return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (exposurePriorityActive && iso >= maxIso * .90) {
+            exposurePriorityPausedUntil = now + 2000L
+            ContextCompat.getMainExecutor(context).execute { if (camera === active) applySnapshotControls(false) }
+        } else if (!exposurePriorityActive && now >= exposurePriorityPausedUntil &&
+            exposure.toDouble() * iso / SnapshotPolicy.exposureNanos(snapshotShutterSpeed) < maxIso * .75) {
+            exposurePriorityPausedUntil = now + 1000L
+            ContextCompat.getMainExecutor(context).execute { if (camera === active) applySnapshotControls(true) }
+        }
+    }
 
     private val _cameraCapability = MutableStateFlow(CameraCapability())
     val cameraCapability: StateFlow<CameraCapability> = _cameraCapability.asStateFlow()
@@ -334,6 +417,7 @@ class CameraManager(private val context: Context) {
         Camera2Interop.Extender(previewBuilder).setSessionCaptureCallback(object : CameraCaptureSession.CaptureCallback() {
             override fun onCaptureCompleted(session: CameraCaptureSession, request: CaptureRequest, result: TotalCaptureResult) {
                 if (cameraBindingGeneration != diagnosticGeneration) return
+                updateExposurePriority(result)
                 CameraDiagnostics.updateSession(
                     cameraSelector.physicalCameraId ?: CameraCapabilityInspector.cameraIdOf(camera?.cameraInfo),
                     if (Build.VERSION.SDK_INT >= 29) result.get(CaptureResult.LOGICAL_MULTI_CAMERA_ACTIVE_PHYSICAL_ID) else null,
@@ -344,12 +428,15 @@ class CameraManager(private val context: Context) {
         })
         val newPreview = previewBuilder.build()
             .also { it.surfaceProvider = previewView.surfaceProvider }
-        val newImageCapture = ImageCapture.Builder()
-            .setTargetAspectRatio(AspectRatio.RATIO_4_3)
+        val imageBuilder = ImageCapture.Builder()
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
             .setFlashMode(mapImageCaptureFlashMode(currentFlashMode))
             .setTargetRotation(targetRotation)
-            .build()
+        if (snapshotEnabled) imageBuilder.setResolutionSelector(ResolutionSelector.Builder()
+            .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
+            .setResolutionStrategy(ResolutionStrategy(Size(2560, 1920), ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)).build())
+        else imageBuilder.setTargetAspectRatio(AspectRatio.RATIO_4_3)
+        val newImageCapture = imageBuilder.build()
         val newVideoCapture = if (includeVideo) {
             val recorder = Recorder.Builder()
                 .setQualitySelector(QualitySelector.from(Quality.HD))
@@ -411,6 +498,13 @@ class CameraManager(private val context: Context) {
         imageCapture = newImageCapture
         videoCapture = newVideoCapture
         camera = boundCamera
+        exposurePriorityActive = false
+        exposurePrioritySupported = Build.VERSION.SDK_INT >= 36 && runCatching {
+            Camera2CameraInfo.from(boundCamera.cameraInfo)
+                .getCameraCharacteristic(CameraCharacteristics.CONTROL_AE_AVAILABLE_PRIORITY_MODES)
+                ?.contains(CaptureRequest.CONTROL_AE_PRIORITY_MODE_SENSOR_EXPOSURE_TIME_PRIORITY) == true
+        }.getOrDefault(false)
+        applySnapshotControls(false)
         boundCamera.cameraControl.enableTorch(currentFlashMode.uppercase() == "TORCH")
         boundCamera.cameraInfo.exposureState.let { exposure ->
             val step = exposure.exposureCompensationStep.toDouble()
@@ -578,6 +672,7 @@ class CameraManager(private val context: Context) {
 
     fun setZoomCaptureMode(video: Boolean) {
         zoomRequiresVideo = video
+        applySnapshotControls(false)
         refreshZoomCapability()
     }
 

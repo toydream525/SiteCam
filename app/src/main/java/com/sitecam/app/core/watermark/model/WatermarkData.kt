@@ -24,6 +24,7 @@ data class WatermarkData(
     val locationStatus: String = "FRESH",
     val addressText: String = "",
     val userName: String = "",
+    val weatherText: String = "",
     /** Built-in rows enabled by the current template. */
     val enabledSystemFields: Set<String> = BuiltInWatermarkFieldKeys.defaultEnabled,
     /** Optional quick-edit overrides for built-in rows. Blank means use live project/location/time data. */
@@ -78,6 +79,7 @@ data class WatermarkData(
             }
             BuiltInWatermarkFieldKeys.GPS -> formattedGps
             BuiltInWatermarkFieldKeys.USER_NAME -> userName.takeIf { it.isNotBlank() }
+            BuiltInWatermarkFieldKeys.WEATHER -> weatherText.takeIf { it.isNotBlank() }
             else -> null
         }
     }

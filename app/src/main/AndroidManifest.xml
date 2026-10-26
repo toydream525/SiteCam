@@ -31,6 +31,10 @@
         android:name="android.hardware.location.gps"
         android:required="false" />
 
+    <queries>
+        <provider android:authorities="weather" />
+    </queries>
+
     <application
         android:name=".SiteCamApplication"
         android:allowBackup="false"

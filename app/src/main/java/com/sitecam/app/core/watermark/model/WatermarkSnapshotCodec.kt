@@ -36,6 +36,7 @@ object WatermarkSnapshotCodec {
         put("locationStatus", data.locationStatus)
         put("addressText", data.addressText)
         put("userName", data.userName)
+        put("weatherText", data.weatherText)
         put("enabledSystemFields", JSONArray(data.enabledSystemFields.toList()))
         put("systemValueOverrides", JSONObject(data.systemValueOverrides))
         put("customFields", JSONArray().apply {
@@ -136,6 +137,7 @@ object WatermarkSnapshotCodec {
                 ),
                 addressText = root.optString("addressText"),
                 userName = root.optString("userName"),
+                weatherText = root.optString("weatherText"),
                 enabledSystemFields = enabled,
                 systemValueOverrides = overrides,
                 customFields = customFields,

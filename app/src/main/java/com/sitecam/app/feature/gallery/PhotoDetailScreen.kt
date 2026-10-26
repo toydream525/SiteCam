@@ -100,11 +100,18 @@ fun PhotoDetailScreen(
         }
     }
     val item by viewModel.mediaItem.collectAsState()
+    val isDeleting by viewModel.isDeleting.collectAsState()
+    var detailClosed by remember(viewModel) { mutableStateOf(false) }
+    fun closeDetail() {
+        if (detailClosed) return
+        detailClosed = true
+        (onMissingMedia ?: onNavigateBack).invoke()
+    }
     val annotation by viewModel.annotation.collectAsState()
     var hadMedia by remember(viewModel) { mutableStateOf(false) }
-    LaunchedEffect(item) {
+    LaunchedEffect(item, isDeleting) {
         if (item != null) hadMedia = true
-        else if (hadMedia) onMissingMedia?.invoke()
+        else if (hadMedia && !isDeleting) closeDetail()
     }
     var showEdited by rememberSaveable { mutableStateOf(false) }
     var showIssueDialog by remember { mutableStateOf(false) }
@@ -145,7 +152,7 @@ fun PhotoDetailScreen(
                 }
                 PhotoDetailEvent.Deleted -> {
                     Toast.makeText(context, "媒体已删除", Toast.LENGTH_SHORT).show()
-                    onNavigateBack()
+                    closeDetail()
                 }
                 is PhotoDetailEvent.PendingDeleteConsent -> {
                     pendingDeleteItem = event.item
@@ -163,9 +170,10 @@ fun PhotoDetailScreen(
         }
     }
 
-    if (showIssueDialog && item != null) {
+    val issueItem = item
+    if (showIssueDialog && issueItem != null && !isDeleting) {
         com.sitecam.app.feature.issue.IssueDialog(
-            mediaId = item!!.id, existingIssue = issue,
+            mediaId = issueItem.id, existingIssue = issue,
             onDismiss = { showIssueDialog = false },
             onConfirm = { title, severity, description, status -> viewModel.saveIssue(title, severity, description, status); showIssueDialog = false },
             onRemove = if (issue != null) ({ viewModel.removeIssue(); showIssueDialog = false }) else null
@@ -206,7 +214,7 @@ fun PhotoDetailScreen(
                     IconButton(onClick = { viewModel.requestShare(showEdited) }) {
                         Icon(Icons.Default.Share, contentDescription = "分享", tint = Color.White)
                     }
-                    IconButton(onClick = { showDeleteConfirm = true }) {
+                    IconButton(onClick = { showDeleteConfirm = true }, enabled = !isDeleting && item != null) {
                         Icon(Icons.Default.Delete, contentDescription = "删除", tint = ErrorRed)
                     }
                 },
@@ -222,7 +230,7 @@ fun PhotoDetailScreen(
                 Text("媒体不可用，可能已在系统相册删除。请返回相册；从系统回收站恢复后会重新同步。",
                     color = TextSecondaryDark, modifier = Modifier.padding(24.dp))
             }
-            item?.let { media ->
+            item?.takeUnless { isDeleting || detailClosed }?.let { media ->
                 Column(modifier = Modifier.fillMaxSize()) {
                     Box(
                         modifier = Modifier.weight(1f).fillMaxWidth(),

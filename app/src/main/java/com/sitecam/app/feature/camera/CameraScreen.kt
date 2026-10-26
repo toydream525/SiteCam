@@ -273,6 +273,7 @@ fun CameraScreen(
     }
 
     fun handleShutterPressed() {
+        if (uiState.isBurstCapturing) { viewModel.stopBurst(); return }
         // CameraBottomBar filters busy/locked taps before invoking this
         // callback. The token therefore represents an accepted photo tap and
         // remains independent from the optional shutter sound setting.
@@ -442,6 +443,7 @@ fun CameraScreen(
                     180L
                 )
             } else if (event == Lifecycle.Event.ON_STOP) {
+                viewModel.stopBurst()
                 viewModel.stopRecordingForBackground()
                 // Nothing on screen consumes a fix while backgrounded; keeping
                 // GPS/network updates registered would only drain the battery
@@ -456,6 +458,7 @@ fun CameraScreen(
     // Do not let a system back gesture abandon an in-progress recording or
     // watermark transcode.  When idle, NavHost owns the normal back behavior.
     BackHandler(enabled = isCaptureBusy) {
+        viewModel.stopBurst()
         Toast.makeText(
             context,
             if (uiState.isRecordingVideo) "请先结束录像" else "正在保存，请稍候",
@@ -465,6 +468,7 @@ fun CameraScreen(
 
     DisposableEffect(lifecycleOwner) {
         onDispose {
+            viewModel.stopBurst()
             viewModel.stopForegroundServices()
             viewModel.cameraManager.unbindCamera()
         }
@@ -908,6 +912,8 @@ fun CameraScreen(
             publicLenses = uiState.cameraCapability.publicLenses,
             activeCameraId = uiState.cameraCapability.activeCameraId,
             captureMode = uiState.captureMode,
+            burstEnabled = uiState.burstEnabled,
+            onBurstToggle = viewModel::toggleBurstMode,
             onLensSelected = { lens ->
                 val preview = previewViewRef
                 if (preview == null || !viewModel.cameraManager.switchToPublicLens(lens, lifecycleOwner, preview)) {
@@ -957,6 +963,7 @@ fun CameraScreen(
                 onIssueClick = viewModel::toggleQuickIssueMode, issueActive = uiState.isQuickIssueMode,
                 latestThumbnailUri = uiState.latestThumbnailUri,
                 isCapturing = uiState.isCapturing,
+                isBurstCapturing = uiState.isBurstCapturing,
                 captureAllowed = projectCanCapture,
                 captureMode = uiState.captureMode,
                 isRecordingVideo = uiState.isRecordingVideo,
@@ -999,6 +1006,7 @@ fun CameraScreen(
                 onIssueClick = viewModel::toggleQuickIssueMode, issueActive = uiState.isQuickIssueMode,
                 latestThumbnailUri = uiState.latestThumbnailUri,
                 isCapturing = uiState.isCapturing,
+                isBurstCapturing = uiState.isBurstCapturing,
                 captureAllowed = projectCanCapture,
                 captureMode = uiState.captureMode,
                 isRecordingVideo = uiState.isRecordingVideo,

@@ -95,6 +95,7 @@ fun CameraBottomBar(
     isCapturing: Boolean,
     captureMode: CaptureMode,
     isRecordingVideo: Boolean,
+    isBurstCapturing: Boolean = false,
     recordingDurationSeconds: Int,
     zoomPresets: List<Float>,
     currentZoomRatio: Float,
@@ -138,9 +139,9 @@ fun CameraBottomBar(
         // A photo that is still being saved (or a camera that is not ready)
         // must not produce a second, misleading shutter sound. Stopping an
         // active video recording remains allowed while the dock is busy.
-        if (isBusy && !isRecordingVideo) return
-        if (!captureAllowed && !isRecordingVideo) return
-        if (captureMode == CaptureMode.PHOTO && shutterSoundEnabled) {
+        if (isBusy && !isRecordingVideo && !isBurstCapturing) return
+        if (!captureAllowed && !isRecordingVideo && !isBurstCapturing) return
+        if (captureMode == CaptureMode.PHOTO && !isBurstCapturing && shutterSoundEnabled) {
             shutterSound.play(MediaActionSound.SHUTTER_CLICK)
         }
         scope.launch {
@@ -167,6 +168,7 @@ fun CameraBottomBar(
             captureMode = captureMode,
             isCapturing = isCapturing || (!captureAllowed && !isRecordingVideo),
             isRecordingVideo = isRecordingVideo,
+            isBurstCapturing = isBurstCapturing,
             recordingDurationSeconds = recordingDurationSeconds,
             zoomPresets = zoomPresets,
             currentZoomRatio = currentZoomRatio,
@@ -196,6 +198,7 @@ fun CameraBottomBar(
             captureMode = captureMode,
             isCapturing = isCapturing || (!captureAllowed && !isRecordingVideo),
             isRecordingVideo = isRecordingVideo,
+            isBurstCapturing = isBurstCapturing,
             recordingDurationSeconds = recordingDurationSeconds,
             zoomPresets = zoomPresets,
             currentZoomRatio = currentZoomRatio,
@@ -233,6 +236,7 @@ private fun PortraitControlDock(
     captureMode: CaptureMode,
     isCapturing: Boolean,
     isRecordingVideo: Boolean,
+    isBurstCapturing: Boolean = false,
     recordingDurationSeconds: Int,
     zoomPresets: List<Float>,
     currentZoomRatio: Float,
@@ -293,7 +297,7 @@ private fun PortraitControlDock(
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 GalleryButton(latestThumbnailUri, latestMediaType, !isBusy, 48.dp, thumbnailScale, onGalleryClick)
-                ShutterButton(captureMode, isCapturing, isRecordingVideo, shutterScale, shutterSize, onShutterClick)
+                ShutterButton(captureMode, isCapturing, isRecordingVideo, isBurstCapturing, shutterScale, shutterSize, onShutterClick)
                 FlipButton(!isBusy, 48.dp, onFlipCameraClick, onFlipCameraLongClick)
             }
             if (phoneGripSpace) Spacer(Modifier.height(gripHeight))
@@ -313,6 +317,7 @@ private fun LandscapeControlDock(
     captureMode: CaptureMode,
     isCapturing: Boolean,
     isRecordingVideo: Boolean,
+    isBurstCapturing: Boolean = false,
     recordingDurationSeconds: Int,
     zoomPresets: List<Float>,
     currentZoomRatio: Float,
@@ -355,7 +360,7 @@ private fun LandscapeControlDock(
                     GalleryButton(latestThumbnailUri, latestMediaType, !isBusy, 48.dp, thumbnailScale, onGalleryClick)
                     Spacer(Modifier.weight(1f))
                 }
-                ShutterButton(captureMode, isCapturing, isRecordingVideo, shutterScale, shutter, onShutterClick)
+                ShutterButton(captureMode, isCapturing, isRecordingVideo, isBurstCapturing, shutterScale, shutter, onShutterClick)
                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
                     .heightIn(min = phonePanelHeight),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -389,7 +394,7 @@ private fun LandscapeControlDock(
                 else ModeSelector(captureMode, modeVertical, true, !isBusy, onModeChange)
                 GalleryButton(latestThumbnailUri, latestMediaType, !isBusy, if(narrow) 48.dp else 64.dp, thumbnailScale, onGalleryClick)
             }
-            ShutterButton(captureMode, isCapturing, isRecordingVideo, shutterScale, shutter, onShutterClick)
+            ShutterButton(captureMode, isCapturing, isRecordingVideo, isBurstCapturing, shutterScale, shutter, onShutterClick)
             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically)) {
                 FlipButton(!isBusy, 48.dp, onFlipCameraClick, onFlipCameraLongClick)
@@ -486,6 +491,7 @@ private fun ShutterButton(
     captureMode: CaptureMode,
     isCapturing: Boolean,
     isRecordingVideo: Boolean,
+    isBurstCapturing: Boolean = false,
     scale: Float,
     outerSize: Dp,
     onClick: () -> Unit
@@ -497,20 +503,20 @@ private fun ShutterButton(
         modifier = Modifier
             .size(outerSize)
             .testTag("camera-shutter")
-            .semantics { contentDescription = if (video) "录像快门" else "拍照快门" }
+            .semantics { contentDescription = if (isBurstCapturing) "停止连拍" else if (video) "录像快门" else "拍照快门" }
             .scale(scale)
             .clip(CircleShape)
             .border(BorderStroke(3.dp, if (video) ErrorRed else Color.White), CircleShape)
             .padding(5.dp)
             .clip(CircleShape)
             .background(if (video) ErrorRed.copy(alpha = 0.16f) else Color.Transparent)
-            .clickable(enabled = !isCapturing, onClick = onClick),
+            .clickable(enabled = !isCapturing || isBurstCapturing, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Box(
             modifier = Modifier
-                .size(if (video && isRecordingVideo) stopSize else innerSize)
-                .clip(if (video && isRecordingVideo) RoundedCornerShape(5.dp) else CircleShape)
+                .size(if (isBurstCapturing || video && isRecordingVideo) stopSize else innerSize)
+                .clip(if (isBurstCapturing || video && isRecordingVideo) RoundedCornerShape(5.dp) else CircleShape)
                 .background(if (video) ErrorRed else Color.White)
         )
     }

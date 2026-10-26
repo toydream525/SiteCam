@@ -89,6 +89,8 @@ fun SettingsScreen(viewModel: SettingsViewModel, onNavigateBack: () -> Unit,
     @Composable fun groupContent(group: String) {
         when (group) {
             "拍摄与保存" -> SettingsGroup(group) {
+                SettingsToggle("抓拍模式", Icons.Default.Speed, state.snapshotEnabled, viewModel::setSnapshotEnabled)
+                SettingsRow("抓拍快门", Icons.Default.ShutterSpeed, "1/${state.snapshotShutterSpeed}") { page = "抓拍快门" }
                 SettingsRow("照片画质", Icons.Default.Photo, state.photoQualityProfile.label) { page = "照片画质" }
                 SettingsToggle("快门声音", Icons.Default.VolumeUp, state.shutterSoundEnabled, viewModel::setShutterSoundEnabled)
                 SettingsToggle("同时在系统相册显示", Icons.Default.PhotoLibrary, state.saveToSystemGallery, ::toggleAlbum)
@@ -119,6 +121,14 @@ fun SettingsScreen(viewModel: SettingsViewModel, onNavigateBack: () -> Unit,
         Column(Modifier.widthIn(max = 720.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(22.dp)) {
             when (page) {
                 "设置" -> if (wide) groupContent(selectedGroup) else groups.forEach { groupContent(it) }
+                "抓拍快门" -> SettingsGroup("") {
+                    com.sitecam.app.core.camera.SnapshotPolicy.shutterSpeeds.forEach { speed ->
+                        Row(Modifier.fillMaxWidth().clickable { viewModel.setSnapshotShutterSpeed(speed) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("1/$speed", Modifier.weight(1f))
+                            RadioButton(state.snapshotShutterSpeed == speed, { viewModel.setSnapshotShutterSpeed(speed) })
+                        }
+                    }
+                }
                 "照片画质" -> SettingsGroup("") {
                     PhotoQualityProfile.entries.forEach { quality ->
                         Row(Modifier.fillMaxWidth().clickable { viewModel.setPhotoQualityProfile(quality) }.padding(16.dp),

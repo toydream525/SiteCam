@@ -43,6 +43,8 @@ class AppSettingsDataStore(
         val EXPORT_TREE_URI = stringPreferencesKey("export_tree_uri")
         val RECENT_PROJECT_IDS = stringPreferencesKey("recent_project_ids")
         val CAMERA_CONTROL_STYLE = stringPreferencesKey("camera_control_style")
+        val SNAPSHOT_ENABLED = booleanPreferencesKey("snapshot_enabled")
+        val SNAPSHOT_SHUTTER_SPEED = intPreferencesKey("snapshot_shutter_speed")
     }
 
     val projectSelectionCleared = store.data.map { it[PROJECT_SELECTION_CLEARED] ?: false }
@@ -82,6 +84,10 @@ class AppSettingsDataStore(
     }
     val shutterSoundEnabled: Flow<Boolean> = store.data.map { it[SHUTTER_SOUND_ENABLED] ?: true }
     val cameraControlStyle: Flow<String> = store.data.map { it[CAMERA_CONTROL_STYLE] ?: "NORMAL" }
+    val snapshotEnabled = store.data.map { it[SNAPSHOT_ENABLED] ?: true }
+    val snapshotShutterSpeed = store.data.map { com.sitecam.app.core.camera.SnapshotPolicy.shutterSpeed(it[SNAPSHOT_SHUTTER_SPEED] ?: 250) }
+    suspend fun setSnapshotEnabled(value: Boolean) { store.edit { it[SNAPSHOT_ENABLED] = value } }
+    suspend fun setSnapshotShutterSpeed(value: Int) { store.edit { it[SNAPSHOT_SHUTTER_SPEED] = com.sitecam.app.core.camera.SnapshotPolicy.shutterSpeed(value) } }
     suspend fun setPhotoQualityProfile(value: com.sitecam.app.core.media.PhotoQualityProfile) {
         store.edit { it[PHOTO_PROFILE] = value.name }
     }
