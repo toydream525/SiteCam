@@ -30,8 +30,7 @@ import com.sitecam.app.core.watermark.model.WatermarkSnapshotCodec
 import com.sitecam.app.core.watermark.model.resolveWatermarkFields
 import com.sitecam.app.core.watermark.renderer.WatermarkBitmapRenderer
 import com.sitecam.app.core.camera.SnapshotPolicy
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.coroutineScope
+import com.sitecam.app.core.camera.captureAndSaveFrames
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -1110,7 +1109,7 @@ class CameraViewModel(
     }
 
     private data class PhotoFrame(val bitmap: Bitmap, val rotation: Int, val surfaceRotation: Int,
-        val timestamp: Long, val location: CaptureLocation, val watermark: WatermarkData)
+        val timestamp: Long, val location: CaptureLocation, val watermark: WatermarkData, val mirrored: Boolean)
 
     fun capturePhoto() {
         if (_isProjectSwitching.value || _isCapturing.value || cameraManager.videoRecordingState.value != CameraManager.VideoRecordingState.IDLE) return
@@ -1138,40 +1137,24 @@ class CameraViewModel(
                 val profile = SnapshotPolicy.profile(quick, appContainer.settingsDataStore.photoQualityProfile.first())
                 val gallery = appContainer.settingsDataStore.saveToSystemGallery.first()
                 val pattern = appContainer.settingsDataStore.namingPattern.first()
-                // One queued raw frame plus one being captured. Slow storage applies
-                // backpressure; the camera never accumulates an unbounded bitmap list.
-                val frames = Channel<PhotoFrame>(1, onUndeliveredElement = { if (!it.bitmap.isRecycled) it.bitmap.recycle() })
-                try {
-                    coroutineScope {
-                        var failure: Exception? = null
-                        launch {
-                            try {
-                                do {
-                                    if (burst && !_isBurstCapturing.value) break
-                                    if (!cameraManager.isCameraReady.value) break
-                                    val timestamp = System.currentTimeMillis()
-                                    val current = uiState.value
-                                    val location = freshLocation(current, timestamp)
-                                    val watermark = current.watermarkData.copy(captureTimestamp = timestamp,
-                                        captureTimeZoneId = java.util.TimeZone.getDefault().id,
-                                        latitude = location.latitude, longitude = location.longitude,
-                                        altitude = location.altitude, addressText = location.address, locationStatus = location.status)
-                                    val rotation = cameraManager.currentTargetRotation()
-                                    val capture = cameraManager.capturePhoto(rotation)
-                                    frames.send(PhotoFrame(capture.first, capture.second, rotation, timestamp, location, watermark))
-                                    if (burst) delay(SnapshotPolicy.burstIntervalMs)
-                                } while (burst && _isBurstCapturing.value && isActive)
-                            } catch (cancelled: CancellationException) { throw cancelled }
-                            catch (error: Exception) { failure = error }
-                            finally { frames.close() }
-                        }
-                        for (frame in frames) {
-                            lastSaved = savePhotoFrame(frame, project, profile, gallery, pattern, quickIssue, burst)
-                            saved++
-                        }
-                        failure?.let { throw it }
-                    }
-                } finally { frames.cancel() }
+                saved = captureAndSaveFrames(
+                    multiple = burst,
+                    shouldCapture = { (!burst || _isBurstCapturing.value) && cameraManager.isCameraReady.value },
+                    capture = {
+                        val timestamp = System.currentTimeMillis()
+                        val current = uiState.value
+                        val location = freshLocation(current, timestamp)
+                        val watermark = current.watermarkData.copy(captureTimestamp = timestamp,
+                            captureTimeZoneId = java.util.TimeZone.getDefault().id,
+                            latitude = location.latitude, longitude = location.longitude,
+                            altitude = location.altitude, addressText = location.address, locationStatus = location.status)
+                        val rotation = cameraManager.currentTargetRotation()
+                        val capture = cameraManager.capturePhoto(rotation)
+                        PhotoFrame(capture.first, capture.second, rotation, timestamp, location, watermark, cameraManager.previewIsMirrored())
+                    },
+                    save = { frame -> lastSaved = savePhotoFrame(frame, project, profile, gallery, pattern, quickIssue, burst) },
+                    discard = { frame -> if (!frame.bitmap.isRecycled) frame.bitmap.recycle() }
+                )
                 if (burst && saved > 0) _uiEvents.emit(CameraUiEvent.ShowToast("连拍已保存 $saved 张"))
                 if (quickIssue && lastSaved != null) _uiEvents.emit(CameraUiEvent.QuickIssuePrompt(lastSaved!!.first, lastSaved!!.second))
             } catch (cancelled: CancellationException) { throw cancelled }
@@ -1201,7 +1184,8 @@ class CameraViewModel(
                     watermarkData = watermarkData,
                     rotationDegrees = rotationDegrees,
                     targetAspectRatio = if (surfaceRotation == android.view.Surface.ROTATION_90 || surfaceRotation == android.view.Surface.ROTATION_270) 4f / 3f else 3f / 4f,
-                    qualityProfile = profile
+                    qualityProfile = profile,
+                    mirrorHorizontally = frame.mirrored
                 )
                 watermarkedBitmap = renderedBitmap
 

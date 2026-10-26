@@ -19,6 +19,7 @@ export function resolveFields(s: Snapshot): Field[] {
       case 'time': value=watermarkTimeText(s.timestamp); break; case 'address': value=s.address; break;
       case 'gps': value=s.fix ? `${s.fix.latitude.toFixed(6)}, ${s.fix.longitude.toFixed(6)}${s.locationStatus==='STALE'?'（旧定位）':''}` : ''; break;
       case 'user': value=s.watermark.user; break;
+      case 'weather': value=''; break;
     }
     if (value) out.push(new Field(f.key,s.presentationVersion===2 ? (f.label || builtInLabel(f.key,f.label)) : builtInLabel(f.key,f.label),value));
   }
@@ -31,7 +32,7 @@ export function formatElevation(fix: Fix|null,locationStatus: string): string {
   if(locationStatus!=='FRESH'||altitude===null||altitude===undefined||!Number.isFinite(altitude))return '暂不可用';
   return `${altitude.toFixed(1)} m`;
 }
-function builtInLabel(key: string, fallback: string): string { switch(key){case 'project':return '工程名称';case 'category':return '工程类型';case 'time':return '拍摄时间';case 'address':return '现场位置';case 'elevation':return '海拔';case 'gps':return 'GPS定位';case 'user':return '拍摄人员';default:return fallback;} }
+function builtInLabel(key: string, fallback: string): string { switch(key){case 'project':return '工程名称';case 'category':return '工程类型';case 'time':return '拍摄时间';case 'address':return '现场位置';case 'elevation':return '海拔';case 'gps':return 'GPS定位';case 'user':return '拍摄人员';case 'weather':return '天气';default:return fallback;} }
 function rank(k: string,a: string,b: string): number { return k===a?0:k===b?1:2; }
 export function wrapText(ctx: DrawingContext,text: string,width: number): string[] {
   const result: string[]=[];

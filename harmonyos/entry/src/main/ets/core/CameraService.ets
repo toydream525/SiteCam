@@ -107,6 +107,11 @@ export class CameraService {
   private surface: string='';
   private previewRotation: number=-1;
   private displayRotation: number=-1;
+  private snapshotEnabled:boolean=true;
+  private snapshotShutterSpeed:number=250;
+  private shortExposureActive:boolean=false;
+  private lowLightFallback:boolean=false;
+  private exposureRetryAfter:number=0;
   private captureRequest:PhotoRequest|null=null;
   private captureToken:number=0;
   private photoOutputEpoch:number=0;
@@ -445,7 +450,7 @@ export class CameraService {
       if(audio){cfg.audioSourceType=media.AudioSourceType.AUDIO_SOURCE_TYPE_MIC;cfg.profile.audioBitrate=128000;cfg.profile.audioChannels=1;cfg.profile.audioCodec=media.CodecMimeType.AUDIO_AAC;cfg.profile.audioSampleRate=48000;}
       await this.recorder.prepare(cfg);this.requireLifecycle(generation);const recorderSurface=await this.recorder.getInputSurface();this.requireLifecycle(generation);this.video=this.manager.createVideoOutput(profile,recorderSurface);
       if(!this.video)throw new Error('当前设备未提供录像输出');
-    } else {const profiles=caps.photoProfiles.filter(p=>p.format===camera.CameraFormat.CAMERA_FORMAT_JPEG);profiles.sort((a,b)=>{const da=Math.abs(a.size.width/a.size.height-4/3),db=Math.abs(b.size.width/b.size.height-4/3);return Math.abs(da-db)>.02?da-db:b.size.width*b.size.height-a.size.width*a.size.height;});const profile=profiles[0]||caps.photoProfiles[0];if(profile)ratio=profile.size.width/profile.size.height;this.photo=profile?this.manager.createPhotoOutput(profile):this.manager.createPhotoOutput();
+    } else {const profiles=caps.photoProfiles.filter(p=>p.format===camera.CameraFormat.CAMERA_FORMAT_JPEG);profiles.sort((a,b)=>{const da=Math.abs(a.size.width/a.size.height-4/3),db=Math.abs(b.size.width/b.size.height-4/3);return Math.abs(da-db)>.02?da-db:this.snapshotEnabled?Math.abs(a.size.width*a.size.height-2560*1920)-Math.abs(b.size.width*b.size.height-2560*1920):b.size.width*b.size.height-a.size.width*a.size.height;});const profile=profiles[0]||caps.photoProfiles[0];if(profile)ratio=profile.size.width/profile.size.height;this.photo=profile?this.manager.createPhotoOutput(profile):this.manager.createPhotoOutput();
       this.photoSupported=!!this.photo;const outputEpoch=this.photoOutputEpoch;
       this.photo?.on('photoAvailable',async(err,value)=>{
         // The closure belongs to this output. A timed-out output is never reused.
@@ -468,8 +473,13 @@ export class CameraService {
       else if(state===camera.FocusState.FOCUS_STATE_FOCUSED)this.onFocusChanged('focused');
       else if(state===camera.FocusState.FOCUS_STATE_UNFOCUSED)this.onFocusChanged('unfocused');
     });await this.session!.start();this.requireLifecycle(generation);
+    this.lowLightFallback=false;this.shortExposureActive=false;this.applySnapshotControls();
+    if(!videoPath&&this.sdkApiVersion>=24){
+      try{const photoSession=this.session as camera.PhotoSession;const iso=photoSession.getSupportedIsoRange();const maxIso=Math.max(...iso);photoSession.onIsoInfoChange((info:camera.IsoInfo)=>{if(generation!==this.lifecycleGeneration||!this.snapshotEnabled||!info.iso)return;if(this.shortExposureActive&&info.iso>=maxIso*.9){this.lowLightFallback=true;this.exposureRetryAfter=Date.now()+2000;this.applySnapshotControls();}else if(this.lowLightFallback&&Date.now()>=this.exposureRetryAfter&&info.iso<maxIso*.25){this.lowLightFallback=false;this.applySnapshotControls();}});}catch(e){console.info('SITECAM_SNAPSHOT_ISO '+String(e));}
+    }
     for(const capability of this.lensCapabilities)capability.active=false;const activeCapability=this.lensCapabilities[this.index];if(activeCapability){activeCapability.active=true;activeCapability.appAccessible=true;if(videoPath)activeCapability.videoSessionVerified=true;else activeCapability.photoSessionVerified=true;}if(videoPath)this.videoSupported=!!this.video;else this.photoSupported=!!this.photo;console.info('SITECAM_CAMERA rotation0='+this.photoRotation(0));this.sessionZoomMin=1;this.sessionZoomMax=1;this.sessionZoomRatio=1;this.zoomMin=1;this.zoomMax=1;this.zoomRatio=1;this.zoomEquivalentFocalLength=0;this.flash=false;this.flashMode='off';this.flashSupported=false;this.flashOffSupported=false;this.flashAutoSupported=false;this.flashOnSupported=false;this.flashTorchSupported=false;this.flashDiagnostics=`session=${videoPath?'video':'photo'} hasFlash=unknown`;try{const zoom=this.session!.getZoomRatioRange();if(zoom&&zoom.length){this.sessionZoomMin=Number.isFinite(zoom[0])&&zoom[0]>0?zoom[0]:1;this.sessionZoomMax=Number.isFinite(zoom[1])&&zoom[1]>=this.sessionZoomMin?zoom[1]:this.sessionZoomMin;}}catch(e){console.info('SITECAM_ZOOM_RANGE_UNAVAILABLE '+String(e));}this.zoomMin=referenceZoomFromSession(this.sessionZoomMin,this.zoomReferenceFactor);this.zoomMax=referenceZoomFromSession(this.sessionZoomMax,this.zoomReferenceFactor);this.readZoomPointInfos();this.zoomPresets=this.availableZoomPresets();const actualZoom=this.readZoomRatio();if(actualZoom!==null){this.sessionZoomRatio=actualZoom;this.zoomRatio=referenceZoomFromSession(actualZoom,this.zoomReferenceFactor);}this.zoom(wantedZoom);this.readFlashCapabilities();if(wantedFlashMode!=='off'&&!this.setFlashMode(wantedFlashMode,false))console.info('SITECAM_FLASH_RESTORE_UNCONFIRMED requested='+wantedFlashMode);this.updateActiveLensState(this.sessionZoomRatio);this.photoSessionReady=!!this.photo;this.scheduleDiagnosticsWrite();
   }
+  previewIsMirrored():boolean{return this.devices[this.index]?.cameraPosition===camera.CameraPosition.CAMERA_POSITION_FRONT;}
   getActualPreviewRotation(): number { return this.previewRotation; }
   orientPreview(displayRotation: number): void {if(!this.preview||displayRotation===this.displayRotation)return;const rotation=this.preview.getPreviewRotation(displayRotation);console.info(`SITECAM_PREVIEW_ROTATION_UPDATE display=${displayRotation} result=${String(rotation)}`);if(rotation===undefined){console.warn('SITECAM_PREVIEW_ROTATION_UNAVAILABLE');return;}this.preview.setPreviewRotation(rotation,true);this.previewRotation=rotation;this.displayRotation=displayRotation;}
   photoRotation(degrees: number): number {const rotation=this.photo?.getPhotoRotation(degrees);return rotation===undefined?0:rotation;}
@@ -528,6 +538,44 @@ export class CameraService {
     // frame back and make the UI jump to the already-left zoom step.
     if(actual!==null&&this.zoomReadbackTimer<0)this.applyZoomReadback(actual,this.zoomRequestToken,true);
     return this.zoomRatio;
+  }
+  async configureSnapshot(enabled:boolean,shutterSpeed:number):Promise<void>{
+    const reopen=enabled!==this.snapshotEnabled&&!!this.session&&!this.videoMode;
+    this.setSnapshotMode(enabled,shutterSpeed);
+    if(reopen)await this.open(this.surface,'',false,this.displayRotation>=0?this.displayRotation:0);
+  }
+  setSnapshotMode(enabled:boolean,shutterSpeed:number):void {
+    this.snapshotEnabled=enabled;this.snapshotShutterSpeed=[125,250,500,1000].includes(shutterSpeed)?shutterSpeed:250;
+    this.applySnapshotControls();
+  }
+  private applySnapshotControls():void {
+    if(!this.session||this.videoMode)return;
+    const session=this.session as camera.PhotoSession;
+    try{if(session.isFocusModeSupported(camera.FocusMode.FOCUS_MODE_CONTINUOUS_AUTO))session.setFocusMode(camera.FocusMode.FOCUS_MODE_CONTINUOUS_AUTO);}catch(e){}
+    if(this.sdkApiVersion>=21&&this.photo){
+      try{const priority=this.snapshotEnabled?camera.PhotoQualityPrioritization.SPEED:camera.PhotoQualityPrioritization.HIGH_QUALITY;if(this.photo.isPhotoQualityPrioritizationSupported(priority))this.photo.setPhotoQualityPrioritization(priority);}catch(e){console.info('SITECAM_SNAPSHOT_SPEED '+String(e));}
+    }
+    if(this.sdkApiVersion<24)return;
+    try{
+      if(!this.snapshotEnabled||this.lowLightFallback){
+        if(this.shortExposureActive&&session.isExposureModeSupported(camera.ExposureMode.EXPOSURE_MODE_CONTINUOUS_AUTO))session.setExposureMode(camera.ExposureMode.EXPOSURE_MODE_CONTINUOUS_AUTO);
+        this.shortExposureActive=false;return;
+      }
+      const isoRange=session.getSupportedIsoRange();
+      // A device without automatic ISO must retain automatic exposure, rather
+      // than applying a fast shutter that turns a dark scene black.
+      if(!isoRange.includes(0)||!session.isExposureModeSupported(camera.ExposureMode.EXPOSURE_MODE_MANUAL))return;
+      const exposure=session.getSupportedExposureDurationRange();
+      if(exposure.length<2)return;
+      session.setExposureMode(camera.ExposureMode.EXPOSURE_MODE_MANUAL);
+      session.setIso(0);
+      session.setExposureDuration(Math.max(exposure[0],Math.min(exposure[exposure.length-1],Math.round(1000000/this.snapshotShutterSpeed))));
+      this.shortExposureActive=true;
+    }catch(e){
+      this.shortExposureActive=false;
+      try{session.setExposureMode(camera.ExposureMode.EXPOSURE_MODE_CONTINUOUS_AUTO);}catch(restore){}
+      console.info('SITECAM_SNAPSHOT_EXPOSURE '+String(e));
+    }
   }
   async shoot(rotation:number=0,onAccepted?:()=>void):Promise<ArrayBuffer>{
     if(this.photoRecovery)await this.photoRecovery;
@@ -736,6 +784,8 @@ export class CameraService {
   // would erase a just-recorded failure before the recovery open.
   async close():Promise<void>{this.lifecycleGeneration++;this.invalidatePhoto(new Error('相机已关闭'));for(let i=0;i<this.lensSessionUnusable.length;i++)this.lensSessionUnusable[i]=false;await this.enqueueLifecycle(()=>this.closeNow());}
   private async closeNow():Promise<void>{
+    if(this.session&&!this.videoMode&&this.sdkApiVersion>=24){try{(this.session as camera.PhotoSession).offIsoInfoChange();}catch(e){}}
+    this.shortExposureActive=false;
     this.onFocusChanged('idle');
     this.photoSupported=false;this.videoSupported=false;
     const preserveFlash=this.requestedFlashMode;this.zoomSessionToken++;this.zoomRequestToken++;this.clearZoomReadback();this.previewRotation=-1;this.displayRotation=-1;this.invalidatePhoto(new Error('相机已关闭'));

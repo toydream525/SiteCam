@@ -14,6 +14,14 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class WatermarkSnapshotCodecTest {
+    @Test fun weatherIsFrozenInTheCaptureSnapshotAndOldPhotosHaveNoInventedWeather() {
+        val data = WatermarkData(weatherText = "多云 18℃")
+        val restored = WatermarkSnapshotCodec.decode(WatermarkSnapshotCodec.encode(data))!!
+        assertEquals("多云 18℃", restored.builtInValue(BuiltInWatermarkFieldKeys.WEATHER))
+        assertNull(WatermarkSnapshotCodec.decode("""{"version":4}""")!!.builtInValue(BuiltInWatermarkFieldKeys.WEATHER))
+        assertEquals("小雨 16℃", data.copy(systemValueOverrides = mapOf(BuiltInWatermarkFieldKeys.WEATHER to "小雨 16℃"))
+            .builtInValue(BuiltInWatermarkFieldKeys.WEATHER))
+    }
 
     @Test fun frozenCaptureZoneAndSaveTargetSurviveRetryInAnotherSystemZone() {
         val previous = java.util.TimeZone.getDefault()

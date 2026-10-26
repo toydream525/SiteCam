@@ -19,7 +19,8 @@ object WatermarkBitmapRenderer {
         watermarkData: WatermarkData,
         rotationDegrees: Int = 0,
         targetAspectRatio: Float? = null,
-        qualityProfile: com.sitecam.app.core.media.PhotoQualityProfile = com.sitecam.app.core.media.PhotoQualityProfile.ORIGINAL
+        qualityProfile: com.sitecam.app.core.media.PhotoQualityProfile = com.sitecam.app.core.media.PhotoQualityProfile.ORIGINAL,
+        mirrorHorizontally: Boolean = false
     ): Bitmap = withContext(Dispatchers.Default) {
         val orientedBitmap: Bitmap = if (rotationDegrees != 0) {
             val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
@@ -41,10 +42,16 @@ object WatermarkBitmapRenderer {
             sourceBitmap
         }
 
+        val previewBitmap = if (mirrorHorizontally) {
+            Bitmap.createBitmap(orientedBitmap, 0, 0, orientedBitmap.width, orientedBitmap.height,
+                Matrix().apply { setScale(-1f, 1f) }, true).also {
+                if (it !== orientedBitmap) orientedBitmap.recycle()
+            }
+        } else orientedBitmap
         val framedBitmap = targetAspectRatio
             ?.takeIf { it > 0f }
-            ?.let { centerCropToAspectRatio(orientedBitmap, it) }
-            ?: orientedBitmap
+            ?.let { centerCropToAspectRatio(previewBitmap, it) }
+            ?: previewBitmap
 
         val resizedBitmap = com.sitecam.app.core.media.PhotoCompression.resize(framedBitmap, qualityProfile)
         if (resizedBitmap !== framedBitmap) framedBitmap.recycle()

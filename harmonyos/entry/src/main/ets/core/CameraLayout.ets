@@ -78,7 +78,7 @@ export function cameraLayout(width: number, height: number, ratio: number,
     return out;
   }
   const center = creaseTop + creaseHeight / 2;
-  const toolbar= w<284?104:56;
+  const toolbar= w<368+120*(Math.max(1,fontScale)-1)?104:56;
   out.toolbarHeight=toolbar;
   out.hover = halfFolded && creaseTop >= 0 && center > 112 && center + 40 < h - 96;
   out.side = rightCameraDock(w,h,density);

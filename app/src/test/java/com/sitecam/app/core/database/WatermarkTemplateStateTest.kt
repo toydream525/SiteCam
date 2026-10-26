@@ -171,7 +171,7 @@ class WatermarkTemplateStateTest {
                     }
                 }.previewData
                 values.forEach { (key, value) -> assertEquals(value, preview.builtInValue(key)) }
-                assertEquals(values.keys, preview.enabledSystemFields)
+                assertEquals(values.keys + "WEATHER", preview.enabledSystemFields)
                 assertEquals("已填写自定义内容", preview.customFields.single().value)
             }
         } finally {
@@ -351,7 +351,7 @@ class WatermarkTemplateStateTest {
             val dao = database.watermarkDao()
             val id = dao.insertTemplate(WatermarkTemplateEntity(name = "旧模板", isDefault = true))
             val legacy = com.sitecam.app.core.watermark.model.builtInWatermarkFieldsForTemplate(id)
-                .filterNot { it.fieldKey == com.sitecam.app.core.watermark.model.BuiltInWatermarkFieldKeys.ELEVATION }
+                .filterNot { it.fieldKey in setOf("ELEVATION", "WEATHER") }
                 .mapIndexed { index, field ->
                     field.copy(
                         label = "旧标签$index",
@@ -378,16 +378,17 @@ class WatermarkTemplateStateTest {
             val migrated = dao.getFieldsForTemplateSync(id)
 
             assertEquals(
-                listOf("PROJECT_NAME", "PROJECT_CATEGORY", "DATE_TIME", "ADDRESS", "ELEVATION", "GPS", "USER_NAME", "CUSTOM_legacy"),
+                listOf("PROJECT_NAME", "PROJECT_CATEGORY", "DATE_TIME", "ADDRESS", "ELEVATION", "GPS", "USER_NAME", "CUSTOM_legacy", "WEATHER"),
                 migrated.map { it.fieldKey }
             )
-            migrated.filter { it.fieldKey != "ELEVATION" }.forEach { field ->
+            migrated.filter { it.fieldKey !in setOf("ELEVATION", "WEATHER") }.forEach { field ->
                 val original = before.getValue(field.fieldKey)
                 assertEquals(original.label, field.label)
                 assertEquals(original.defaultValue, field.defaultValue)
                 assertEquals(original.isEnabled, field.isEnabled)
             }
             assertEquals(false, migrated.first { it.fieldKey == "ELEVATION" }.isEnabled)
+            assertEquals("", migrated.first { it.fieldKey == "WEATHER" }.defaultValue)
             assertEquals((0 until migrated.size).toList(), migrated.map { it.displayOrder })
 
             // Opening the same template again is idempotent and does not

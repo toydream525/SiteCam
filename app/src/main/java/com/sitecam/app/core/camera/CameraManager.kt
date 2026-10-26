@@ -98,11 +98,13 @@ class CameraManager(private val context: Context) {
     private var pendingDisplayZoom: Float? = null
     private var zoomRequestGeneration = 0L
     private var exposureCompensationEv = 0.0
-    private var snapshotEnabled = true
-    private var snapshotShutterSpeed = 250
-    private var exposurePrioritySupported = false
-    private var exposurePriorityActive = false
-    private var exposurePriorityPausedUntil = 0L
+    @Volatile private var snapshotEnabled = true
+    @Volatile private var snapshotShutterSpeed = 250
+    @Volatile private var exposurePrioritySupported = false
+    @Volatile private var exposurePriorityActive = false
+    @Volatile private var exposurePriorityPausedUntil = 0L
+
+    fun previewIsMirrored(): Boolean = currentLensFacing == CameraSelector.LENS_FACING_FRONT
 
     @SuppressLint("UnsafeOptInUsageError")
     suspend fun configureSnapshot(enabled: Boolean, shutterSpeed: Int) = withContext(Dispatchers.Main) {
@@ -130,7 +132,7 @@ class CameraManager(private val context: Context) {
         if (snapshotEnabled && !zoomRequiresVideo) {
             val info = Camera2CameraInfo.from(active.cameraInfo)
             val ranges = info.getCameraCharacteristic(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES).orEmpty()
-            ranges.filter { it.lower >= 30 && it.upper <= 60 }.minByOrNull { it.lower + it.upper }?.let {
+            ranges.takeIf { shortExposure }.orEmpty().filter { it.lower >= 30 && it.upper <= 60 }.minByOrNull { it.lower + it.upper }?.let {
                 options.setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it)
             }
             if (Build.VERSION.SDK_INT >= 36 && exposurePrioritySupported) {

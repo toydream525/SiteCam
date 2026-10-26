@@ -111,7 +111,7 @@ fun cameraGeometry(width: Float, height: Float, density: Float, smallCover: Bool
     // The button row hugs the status bar: 56dp holds the 48dp project chip with 4dp of breathing
     // room above and below, instead of the 102dp band that used to push the row down and starve the
     // preview. Everything saved here goes to the camera area.
-    val topBar = if (w < 320f + 120f * (fontScale.coerceAtLeast(1f) - 1f)) 104f else 56f
+    val topBar = if (w < 368f + 120f * (fontScale.coerceAtLeast(1f) - 1f)) 104f else 56f
     val referenceBottom = minOf(254f, maxOf(150f, h - topBar - w * 4f / 3f))
     // A phone's dock includes its grip space and the controls' actual text
     // height. Let the 4:3 preview shrink before clipping that measured dock.
