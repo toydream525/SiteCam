@@ -11,11 +11,12 @@ object BuiltInWatermarkFieldKeys {
     const val ELEVATION = "ELEVATION"
     const val GPS = "GPS"
     const val USER_NAME = "USER_NAME"
+    const val WEATHER = "WEATHER"
 
     val defaultLabels: Map<String, String> = mapOf(
         PROJECT_NAME to "工程名称", PROJECT_CATEGORY to "工程类型",
         DATE_TIME to "拍摄时间", ADDRESS to "拍摄地点",
-        ELEVATION to "海拔", GPS to "经纬度", USER_NAME to "拍摄人"
+        ELEVATION to "海拔", GPS to "经纬度", USER_NAME to "拍摄人", WEATHER to "天气"
     )
 
     val all: Set<String> = setOf(
@@ -25,7 +26,8 @@ object BuiltInWatermarkFieldKeys {
         ADDRESS,
         ELEVATION,
         GPS,
-        USER_NAME
+        USER_NAME,
+        WEATHER
     )
 
     /** Defaults for new captures. Elevation is deliberately opt-in. */
@@ -39,7 +41,8 @@ fun builtInWatermarkFieldsForTemplate(templateId: Long): List<WatermarkFieldEnti
     WatermarkFieldEntity(templateId = templateId, fieldKey = BuiltInWatermarkFieldKeys.ADDRESS, label = "拍摄地点", displayOrder = 3),
     WatermarkFieldEntity(templateId = templateId, fieldKey = BuiltInWatermarkFieldKeys.ELEVATION, label = "海拔", displayOrder = 4, isEnabled = false),
     WatermarkFieldEntity(templateId = templateId, fieldKey = BuiltInWatermarkFieldKeys.GPS, label = "经纬度", displayOrder = 5),
-    WatermarkFieldEntity(templateId = templateId, fieldKey = BuiltInWatermarkFieldKeys.USER_NAME, label = "拍摄人", defaultValue = "施工员", displayOrder = 6, isEnabled = false)
+    WatermarkFieldEntity(templateId = templateId, fieldKey = BuiltInWatermarkFieldKeys.USER_NAME, label = "拍摄人", defaultValue = "施工员", displayOrder = 6, isEnabled = false),
+    WatermarkFieldEntity(templateId = templateId, fieldKey = BuiltInWatermarkFieldKeys.WEATHER, label = "天气", displayOrder = 7)
 )
 
 data class ResolvedWatermarkFields(

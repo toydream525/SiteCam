@@ -3,6 +3,9 @@ package com.sitecam.app.feature.camera.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import com.sitecam.app.core.watermark.model.BuiltInWatermarkFieldKeys
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -91,10 +94,24 @@ fun QuickWatermarkEditSheet(
     onAddField: (label: String, defaultValue: String) -> Unit,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
+    var tab by remember { mutableStateOf("内容") }
+    val projectFocus = remember { FocusRequester() }
+    val fieldListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    var projectFocusPending by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(projectFocusPending, tab) {
+        if (projectFocusPending && tab == "内容") {
+            val index = fields.indexOfFirst { it.fieldKey == BuiltInWatermarkFieldKeys.PROJECT_NAME }
+            if (index >= 0) {
+                fieldListState.scrollToItem(index + 2)
+                kotlinx.coroutines.delay(100)
+                projectFocus.requestFocus()
+            }
+            projectFocusPending = false
+        }
+    }
     var showAddDialog by remember { mutableStateOf(false) }
     var focusedFieldId by remember { mutableStateOf<Long?>(null) }
     var showStylePicker by remember { mutableStateOf(false) }
-    var tab by remember { mutableStateOf("内容") }
     val currentStyle = WatermarkStyleCatalog.resolve(activeTemplate?.styleType)
     ModalBottomSheet(onDismissRequest = onDismissRequest, sheetState = sheetState, containerColor = DarkBackground, dragHandle = null) {
         Column(Modifier.fillMaxWidth().heightIn(max = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp * .9f)).imePadding().padding(16.dp)) {
@@ -107,8 +124,17 @@ fun QuickWatermarkEditSheet(
                     androidx.compose.material3.FilterChip(tab == label, { tab = label }, label = { Text(label, color = TextPrimaryDark) })
                 }
             }
-            LazyColumn(Modifier.fillMaxWidth().weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyColumn(Modifier.fillMaxWidth().weight(1f, fill = false), state = fieldListState, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if(tab == "内容") {
+                    item {
+                        val projectField = fields.firstOrNull { it.fieldKey == BuiltInWatermarkFieldKeys.PROJECT_NAME }
+                        TextButton(onClick = {
+                            if (projectField != null) {
+                                if (!projectField.isEnabled) onFieldToggle(projectField.id, true)
+                                projectFocusPending = true
+                            }
+                        }, enabled = projectField != null) { Text("工程名称", color = EngineeringYellow) }
+                    }
                     item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         QUICK_ENGINEERING_TAGS.forEach { tag -> TextButton(onClick = {
                             val field = fields.firstOrNull { it.id == focusedFieldId } ?: fields.firstOrNull { it.isEnabled }
@@ -122,7 +148,7 @@ fun QuickWatermarkEditSheet(
                                 Switch(field.isEnabled, { onFieldToggle(field.id, it) })
                             }
                             OutlinedTextField(field.defaultValue, { onFieldValueChange(field.id, it) }, label = { Text(field.label) }, enabled = field.isEnabled,
-                                modifier = Modifier.fillMaxWidth().onFocusChanged { if(it.isFocused) focusedFieldId = field.id }, colors = OutlinedTextFieldDefaults.colors(focusedTextColor = TextPrimaryDark, unfocusedTextColor = TextPrimaryDark))
+                                modifier = Modifier.fillMaxWidth().then(if (field.fieldKey == BuiltInWatermarkFieldKeys.PROJECT_NAME) Modifier.focusRequester(projectFocus) else Modifier).onFocusChanged { if(it.isFocused) focusedFieldId = field.id }, colors = OutlinedTextFieldDefaults.colors(focusedTextColor = TextPrimaryDark, unfocusedTextColor = TextPrimaryDark))
                         }
                     }
                     item { TextButton(onClick = { showAddDialog = true }) { Text("添加字段", color = EngineeringYellow) } }

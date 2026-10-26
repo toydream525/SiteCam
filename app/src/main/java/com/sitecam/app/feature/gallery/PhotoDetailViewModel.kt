@@ -72,6 +72,8 @@ class PhotoDetailViewModel(
 
     private val _events = MutableSharedFlow<PhotoDetailEvent>()
     val events: SharedFlow<PhotoDetailEvent> = _events.asSharedFlow()
+    private val _isDeleting = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val isDeleting = _isDeleting.asStateFlow()
 
     fun requestShare(edited: Boolean = false) {
         viewModelScope.launch {
@@ -86,8 +88,11 @@ class PhotoDetailViewModel(
     fun retryDeleteAfterConsent(item: MediaItemEntity) = deleteItem(item)
 
     private fun deleteItem(item: MediaItemEntity?) {
+        if (_isDeleting.value) return
+        _isDeleting.value = true
         viewModelScope.launch {
             if (item == null) {
+                _isDeleting.value = false
                 _events.emit(PhotoDetailEvent.Error("媒体记录不存在"))
                 return@launch
             }
@@ -108,6 +113,8 @@ class PhotoDetailViewModel(
                 throw cancelled
             } catch (e: Exception) {
                 _events.emit(PhotoDetailEvent.Error(e.message ?: "媒体删除失败，已保留工程索引"))
+            } finally {
+                _isDeleting.value = false
             }
         }
     }

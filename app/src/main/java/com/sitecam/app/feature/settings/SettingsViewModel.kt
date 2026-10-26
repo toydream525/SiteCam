@@ -27,7 +27,9 @@ data class SettingsUiState(
     val photoQualityProfile: com.sitecam.app.core.media.PhotoQualityProfile = com.sitecam.app.core.media.PhotoQualityProfile.STANDARD,
     val saveToSystemGallery: Boolean = false,
     val shutterSoundEnabled: Boolean = true,
-    val cameraControlStyle: String = "NORMAL"
+    val cameraControlStyle: String = "NORMAL",
+    val snapshotEnabled: Boolean = true,
+    val snapshotShutterSpeed: Int = 250
 )
 
 class SettingsViewModel(
@@ -53,8 +55,10 @@ class SettingsViewModel(
     val uiState: StateFlow<SettingsUiState> = combine(
         baseUiState,
         appContainer.settingsDataStore.shutterSoundEnabled,
-        appContainer.settingsDataStore.cameraControlStyle
-    ) { state, shutterSound, controlStyle -> state.copy(shutterSoundEnabled = shutterSound, cameraControlStyle = controlStyle) }.stateIn(
+        appContainer.settingsDataStore.cameraControlStyle,
+        appContainer.settingsDataStore.snapshotEnabled,
+        appContainer.settingsDataStore.snapshotShutterSpeed
+    ) { state, shutterSound, controlStyle, snapshot, speed -> state.copy(shutterSoundEnabled = shutterSound, cameraControlStyle = controlStyle, snapshotEnabled = snapshot, snapshotShutterSpeed = speed) }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000L),
         initialValue = SettingsUiState()
@@ -78,6 +82,8 @@ class SettingsViewModel(
     fun setCameraControlStyle(style: String) {
         viewModelScope.launch { appContainer.settingsDataStore.setCameraControlStyle(style) }
     }
+    fun setSnapshotEnabled(value: Boolean) { viewModelScope.launch { appContainer.settingsDataStore.setSnapshotEnabled(value) } }
+    fun setSnapshotShutterSpeed(value: Int) { viewModelScope.launch { appContainer.settingsDataStore.setSnapshotShutterSpeed(value) } }
 
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val messages: SharedFlow<String> = _messages.asSharedFlow()
