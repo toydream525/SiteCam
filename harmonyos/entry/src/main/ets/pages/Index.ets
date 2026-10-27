@@ -727,12 +727,12 @@ struct Index {
         // The next frame overlaps the previous save; at most one save and one
         // captured JPEG are in flight. Slow storage cannot grow an unbounded queue.
         if(saving)await saving;
-        if(saveError)throw saveError;
+        if(saveError)throw saveError as Error;
         saving=this.saveCapturedPhoto(bytes,s,quality,p.id,!burst&&albumCopy).then((item:MediaItem)=>{lastItem=item;saved++;if(burst&&albumCopy)albumItems.push(item);}).catch((error:Error)=>{saveError=error;this.burstCapturing=false;});
         if(burst)await new Promise<void>((resolve:()=>void)=>setTimeout(resolve,120));
       }while(burst&&this.burstCapturing&&!saveError);
       if(saving)await saving;
-      if(saveError)throw saveError;
+      if(saveError)throw saveError as Error;
       if(saved>0)this.notify(burst?'连拍已保存 '+saved+' 张':'照片已保存到工程相册');
       if(albumItems.length&&this.foreground&&this.page==='camera'){
         try{
