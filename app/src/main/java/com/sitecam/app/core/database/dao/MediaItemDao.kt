@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import com.sitecam.app.core.database.entity.MediaItemEntity
 import kotlinx.coroutines.flow.Flow
@@ -14,6 +15,8 @@ interface MediaItemDao {
     @Query("SELECT * FROM media_items WHERE isUnavailable = 0 AND projectId = :projectId ORDER BY captureTimestamp DESC")
     fun getMediaItemsByProject(projectId: Long): Flow<List<MediaItemEntity>>
 
+    // Keep window refills on the same snapshot while a batch deletion changes the album.
+    @Transaction
     @Query("SELECT * FROM media_items WHERE isUnavailable = 0 ORDER BY captureTimestamp DESC")
     fun getAllMediaItems(): Flow<List<MediaItemEntity>>
 
