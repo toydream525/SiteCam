@@ -12,15 +12,15 @@
 
 **免费 · 开源 · 无广告**
 
-[⬇️ 下载安卓版 Release（推荐）](https://github.com/toydream525/SiteCam/releases/download/v0.4.2/SiteCam-0.4.2-Android-Release.apk)　
-[🌸 下载鸿蒙原生版](https://github.com/toydream525/SiteCam/releases/download/v0.4.2/SiteCam-0.4.2-HarmonyOS-Release-Unsigned.hap)　
+[⬇️ 下载安卓版 Release（推荐）](https://github.com/toydream525/SiteCam/releases/download/v0.4.3/SiteCam-0.4.3-Android-Release.apk)　
+[🌸 下载鸿蒙原生版](https://github.com/toydream525/SiteCam/releases/download/v0.4.3/SiteCam-0.4.3-HarmonyOS-Release-Unsigned.hap)　
 [🌐 官网](https://yuriaqua.com/sitecam/)　
 [📖 使用说明](docs/USER_GUIDE.md)　
 [💬 反馈问题](https://github.com/toydream525/SiteCam/issues)
 
 </div>
 
-当前公开版本为 **v0.4.2**。默认下载 Android Release，推荐日常自用安装。
+当前公开版本为 **v0.4.3**。默认下载 Android Release，推荐日常自用安装。
 
 ---
 
@@ -38,8 +38,10 @@
 | 现场工作 | 用 SiteCam 怎么做 |
 | --- | --- |
 | 📷 拍施工照片 | 自动加上工程名称、时间、地点等水印，支持拍照和录像 |
+| ⚡ 连续记录现场 | 支持抓拍与连拍，抓拍模式默认开启 |
 | 🗂️ 整理不同项目 | 按工程保存，支持搜索、分类、归档；编辑和导出入口直接可见 |
 | 📍 补充现场信息 | 地址不可用时可手动填写；海拔水印默认关闭，有效读数才会显示 |
+| 🌦️ 天气与工程名称 | 支持快捷输入工程名称和编辑天气水印 |
 | 🔒 安全切换工程 | 可查看、锁定或归档工程；锁定和归档工程不能拍摄，拍摄期间不切换工程 |
 | 📱 多形态设备 | 优化安卓及鸿蒙的各类折叠屏、阔直屏和平板适配（beta），保留普通直屏与阔直屏布局 |
 | 📅 找之前的照片 | 按日期、工程和问题状态筛选，还能批量移动和分享 |
@@ -60,8 +62,8 @@
 
 | 你的设备 | 当前状态 | 下载 |
 | --- | --- | --- |
-| 🤖 安卓手机 | **v0.4.2，可安装使用**，支持 Android 8.0 及以上 | [Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.2/SiteCam-0.4.2-Android-Release.apk) |
-| 🌸 鸿蒙手机 / 平板 | **v0.4.2 原生版**，商店新版本以审核进度为准 | [华为应用市场直接下载（一键拉起）](appmarket://details?id=com.sitecam.app) · [Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.4.2/SiteCam-0.4.2-HarmonyOS-Release-Unsigned.hap) · [签名说明](harmonyos/README.md) |
+| 🤖 安卓手机 | **v0.4.3，可安装使用**，支持 Android 8.0 及以上 | [Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.3/SiteCam-0.4.3-Android-Release.apk) |
+| 🌸 鸿蒙手机 / 平板 | **v0.4.3 原生版**，商店新版本以审核进度为准 | [华为应用市场直接下载（一键拉起）](appmarket://details?id=com.sitecam.app) · [Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.4.3/SiteCam-0.4.3-HarmonyOS-Release-Unsigned.hap) · [签名说明](harmonyos/README.md) |
 | 🍎 iPhone / iPad | 开发中，暂无安装包 | — |
 
 **鸿蒙版说明：** 鸿蒙原生版已正式上架华为应用市场！华为手机及平板用户可点击 [华为应用市场直接下载](appmarket://details?id=com.sitecam.app)（手机端直接唤起华为应用市场详情页）或在应用市场搜索“SiteCam工程水印相机”一键下载安装，无需自行签名。侧载测试用户可使用公开的未签名 Release HAP，需自行签名后安装。鸿蒙版不申请应用联网权限；具体地址由系统服务提供，系统服务可能使用网络，断网时可手动填写地点。
@@ -77,14 +79,13 @@
 
 ## 🆕 最近更新
 
-**v0.4.2：**
+**v0.4.3：**
 
-- 支持导入照片添加工程水印。
-- 文字标注支持拖动和再次编辑。
-- 安卓版支持应用内视频播放。
-- 修复鸿蒙视频回放裁切。
-- 修复旧标注再次编辑时可能丢失的问题。
-- 提升功能指引插图清晰度。
+- 新增默认开启的抓拍模式。
+- 支持连拍，并可点按停止。
+- 修复批量删除照片时可能闪退的问题。
+- 支持快捷输入工程名称。
+- 支持编辑天气水印。
 
 支持拍照加水印、按工程整理照片与视频、标注问题和导出资料。
 

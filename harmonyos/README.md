@@ -1,6 +1,6 @@
 # SiteCam 鸿蒙原生版 beta
 
-当前源码版本 **v0.4.2（22）**，可通过系统定位获取坐标和自动地点地址；工程资料保存在本机。系统地址服务可能使用网络，地址不可用时可手动填写。
+当前源码版本 **v0.4.3（23）**，可通过系统定位获取坐标和自动地点地址；工程资料保存在本机。系统地址服务可能使用网络，地址不可用时可手动填写。
 
 > **公开下载的 Release HAP 未签名，需自行签名后安装。鸿蒙版已上架华为应用市场，可搜索“SiteCam工程水印相机”下载；商店新版本以审核进度为准。** AppGallery 签名包不作为本次公开下载资产；不同设备的镜头、闪光灯和视频能力仍需按设备确认。
 
@@ -23,9 +23,9 @@
 
 ## 构建与安装
 
-v0.4.2 公开下载资产：
+v0.4.3 公开下载资产：
 
-- [鸿蒙版未签名 HAP](https://github.com/toydream525/SiteCam/releases/download/v0.4.2/SiteCam-0.4.2-HarmonyOS-Release-Unsigned.hap)
+- [鸿蒙版未签名 HAP](https://github.com/toydream525/SiteCam/releases/download/v0.4.3/SiteCam-0.4.3-HarmonyOS-Release-Unsigned.hap)
 
 该公开版 HAP 未签名，需自行签名后安装。历史版本保留。
 

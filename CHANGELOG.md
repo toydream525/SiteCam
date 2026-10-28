@@ -1,12 +1,17 @@
 # 更新日志
 
-## v0.4.3（待发布）
+## v0.4.3 — 2026-10-28
 
 - 新增默认开启的抓拍模式。
 - 支持连拍，并可点按停止。
-- 修复删除照片后的页面异常。
+- 修复批量删除照片时可能闪退的问题。
 - 支持快捷输入工程名称。
 - 支持编辑天气水印。
+
+### 下载
+
+- Android：[Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.3/SiteCam-0.4.3-Android-Release.apk) · [Debug APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.3/SiteCam-0.4.3-Android-Debug.apk)
+- HarmonyOS：[Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.4.3/SiteCam-0.4.3-HarmonyOS-Release-Unsigned.hap)，需自行签名后安装；[华为应用市场](appmarket://details?id=com.sitecam.app)的新版本以审核进度为准。
 
 ## v0.4.2 — 2026-10-19
 
