@@ -13,6 +13,7 @@ class SiteCamApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        com.sitecam.app.core.text.FontLibrary.initialize(this)
         appContainer = AppContainer(this)
         normalizeLauncherIconsOnStartup(this)
     }

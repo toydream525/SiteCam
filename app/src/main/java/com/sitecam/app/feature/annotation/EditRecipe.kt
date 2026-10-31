@@ -55,7 +55,7 @@ object EditRecipe {
             is AnnotationElement.Arrow -> { put("type", "arrow"); put("a", point(e.start)); put("b", point(e.end)) }
             is AnnotationElement.Rectangle -> { put("type", "rect"); put("a", point(e.topLeft)); put("b", point(e.bottomRight)) }
             is AnnotationElement.Circle -> { put("type", "circle"); put("a", point(e.center)); put("radius", e.radius) }
-            is AnnotationElement.TextNote -> { put("type", "text"); put("a", point(e.position)); put("text", e.text) }
+            is AnnotationElement.TextNote -> { put("type", "text"); put("a", point(e.position)); put("text", e.text); put("fontId", e.fontId); put("whiteboard", e.whiteboard) }
             is AnnotationElement.Freehand -> { put("type", "pen"); put("points", JSONArray().apply { e.points.forEach { put(point(it)) } }) }
             is AnnotationElement.Mosaic -> { put("type", "mosaic"); put("points", JSONArray().apply { e.points.forEach { put(point(it)) } }) }
         }
@@ -66,7 +66,7 @@ object EditRecipe {
             "arrow" -> AnnotationElement.Arrow(o.point("a"), o.point("b"), c, w)
             "rect" -> AnnotationElement.Rectangle(o.point("a"), o.point("b"), c, w)
             "circle" -> AnnotationElement.Circle(o.point("a"), o.getDouble("radius").toFloat(), c, w)
-            "text" -> AnnotationElement.TextNote(o.point("a"), o.getString("text"), c, w)
+            "text" -> AnnotationElement.TextNote(o.point("a"), o.getString("text"), c, w, o.optString("fontId", ""), o.optBoolean("whiteboard", false))
             else -> { val a = o.getJSONArray("points"); val points = (0 until a.length()).map { val p = a.getJSONArray(it); Offset(p.getDouble(0).toFloat(), p.getDouble(1).toFloat()) }
                 if(o.getString("type") == "mosaic") AnnotationElement.Mosaic(points,c,w) else AnnotationElement.Freehand(points,c,w) }
         }

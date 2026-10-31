@@ -292,6 +292,8 @@ class CameraViewModel(
             fieldOrder = resolvedFields.fieldOrder,
             styleType = template?.styleType ?: "CLASSIC",
             fontSizeScale = template?.fontSizeScale ?: 1.0f,
+            fontId = template?.fontId.orEmpty(),
+            textColor = template?.textColor,
             widthRatio = template?.widthRatio ?: 0.6f,
             opacity = template?.opacity ?: 0.85f,
             marginDp = template?.marginDp ?: 16,
@@ -625,9 +627,10 @@ class CameraViewModel(
     private fun applyFlashMode(next: String) {
         flashModeOverrideVersion += 1L
         _flashModeOverride.value = next
+        // The hardware request must change with the visible state, before disk I/O.
+        cameraManager.setFlashMode(next)
         viewModelScope.launch {
             appContainer.settingsDataStore.setFlashMode(next)
-            cameraManager.setFlashMode(next)
         }
     }
 

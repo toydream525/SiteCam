@@ -125,10 +125,16 @@ class CameraManager(private val context: Context) {
     }
 
     /** Keep AE and its ISO control active; never force a dark manual exposure. */
+    private var captureControlsGeneration = 0L
     @SuppressLint("UnsafeOptInUsageError")
     private fun applySnapshotControls(shortExposure: Boolean) {
         val active = camera ?: return
+        val generation = ++captureControlsGeneration
         val options = CaptureRequestOptions.Builder()
+        if (currentFlashMode.equals("OFF", ignoreCase = true)) {
+            options.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
+            options.setCaptureRequestOption(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_OFF)
+        }
         if (snapshotEnabled && !zoomRequiresVideo) {
             val info = Camera2CameraInfo.from(active.cameraInfo)
             val ranges = info.getCameraCharacteristic(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES).orEmpty()
@@ -149,10 +155,15 @@ class CameraManager(private val context: Context) {
         val future = Camera2CameraControl.from(active.cameraControl).setCaptureRequestOptions(options.build())
         future.addListener({ runCatching { future.get() }.onFailure {
             Log.w("CameraManager", "Snapshot controls unavailable", it)
-            if (camera === active) {
+            if (camera === active && captureControlsGeneration == generation) {
                 exposurePriorityActive = false
                 exposurePrioritySupported = false
-                Camera2CameraControl.from(active.cameraControl).clearCaptureRequestOptions()
+                val fallback = CaptureRequestOptions.Builder()
+                if (currentFlashMode.equals("OFF", ignoreCase = true)) {
+                    fallback.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
+                    fallback.setCaptureRequestOption(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_OFF)
+                }
+                Camera2CameraControl.from(active.cameraControl).setCaptureRequestOptions(fallback.build())
             }
         } }, ContextCompat.getMainExecutor(context))
     }
@@ -812,6 +823,7 @@ class CameraManager(private val context: Context) {
         // torch and an AE flash request are mutually exclusive on Camera2, and
         // some HALs reject the capture request outright.
         imageCapture?.flashMode = mapImageCaptureFlashMode(currentFlashMode)
+        applySnapshotControls(exposurePriorityActive)
     }
 
     fun setTorchEnabled(enabled: Boolean) {
@@ -822,6 +834,7 @@ class CameraManager(private val context: Context) {
         }
         camera?.cameraControl?.enableTorch(enabled)
         imageCapture?.flashMode = mapImageCaptureFlashMode(currentFlashMode)
+        applySnapshotControls(exposurePriorityActive)
     }
 
     /** CameraX may clear hardware torch state while its lifecycle is stopped. */
@@ -829,6 +842,7 @@ class CameraManager(private val context: Context) {
         val torchEnabled = currentFlashMode == "TORCH"
         camera?.cameraControl?.enableTorch(torchEnabled)
         imageCapture?.flashMode = mapImageCaptureFlashMode(currentFlashMode)
+        applySnapshotControls(exposurePriorityActive)
     }
 
     fun setZoomRatio(ratio: Float, exactNativeStop: Boolean = false, requireVideo: Boolean = false) {

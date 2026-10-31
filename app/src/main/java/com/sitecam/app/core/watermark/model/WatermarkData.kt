@@ -35,6 +35,8 @@ data class WatermarkData(
     val fieldOrder: List<String>? = null,
     val styleType: String = "CLASSIC", // CLASSIC, MINIMAL, INFO_BOARD
     val fontSizeScale: Float = 1.0f,
+    val fontId: String = "",
+    val textColor: String? = null,
     val opacity: Float = 0.85f,
     /** Null preserves the width limit of historical capture snapshots. */
     val widthRatio: Float? = 0.6f,

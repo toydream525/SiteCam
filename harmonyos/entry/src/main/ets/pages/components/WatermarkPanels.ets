@@ -1,3 +1,5 @@
+import { FontChoice } from '../../core/FontLibrary';
+import { TextAppearanceControls } from './TextAppearanceControls';
 import { curves } from '@kit.ArkUI';
 import { Snapshot, Field, Style, STYLES } from '../../core/Models';
 import { OFFLINE_BUILD } from '../../core/BuildVariant';
@@ -16,6 +18,22 @@ function styleName(id: string): string { const found=STYLES.find((v: Style)=>v.i
 function fieldDisplayLabel(field: Field): string {
   if (OFFLINE_BUILD && field.key === 'address' && field.label === '现场位置') return '具体地址';
   return field.label || field.key;
+}
+
+@Component
+struct WatermarkStyleEntry {
+  @Prop currentStyle:string='';
+  @Prop dark:boolean=false;
+  @StorageProp('fontSizeScale') systemFontScale:number=1;
+  @State availableWidth:number=390;
+  onOpen:()=>void=()=>{};
+  private stacked():boolean{return this.availableWidth<328||this.systemFontScale>=1.3;}
+  @Builder information(){Column({space:6}){Text('水印样式').fontSize(16).fontWeight(FontWeight.Medium).fontColor(this.dark?SITE_TEXT:PAGE_TEXT);Text(this.currentStyle).fontSize(14).fontColor(this.dark?SITE_MUTED:PAGE_MUTED);}.alignItems(HorizontalAlign.Start);}
+  @Builder action(){Row(){Text('更换样式').fontSize(16).fontWeight(FontWeight.Medium).fontColor('#231A00');}.justifyContent(FlexAlign.Center).constraintSize({minHeight:48}).padding({left:16,right:16,top:12,bottom:12}).backgroundColor(SITE_ACCENT).borderRadius(10);}
+  build(){Column(){
+    if(this.stacked())Column({space:12}){this.information();Row(){this.action();}.width('100%').justifyContent(FlexAlign.Center).backgroundColor(SITE_ACCENT).borderRadius(10);}.width('100%').alignItems(HorizontalAlign.Start);
+    else Row({space:12}){Column(){this.information();}.layoutWeight(1).alignItems(HorizontalAlign.Start);this.action();}.width('100%').alignItems(VerticalAlign.Center);
+  }.width('100%').padding(14).backgroundColor(this.dark?SITE_CARD:PAGE_CARD).borderRadius(14).border({width:1,color:'#B88613'}).accessibilityGroup(true).accessibilityLevel('yes').accessibilityText('水印样式，'+this.currentStyle+'，更换样式').onClick(()=>this.onOpen()).onAreaChange((oldArea,newArea)=>this.availableWidth=Number(newArea.width));}
 }
 
 @Component
@@ -47,19 +65,22 @@ export struct WatermarkStylePickerPanel {
 
 @Component
 export struct WatermarkCustomizationPanel {
+  @Prop fontId:string='';@Prop textColor:string='';@Prop fonts:FontChoice[]=[];
+  onFont:(value:string)=>void=()=>{};onColor:(value:string)=>void=()=>{};onImport:()=>Promise<FontChoice|null>=async()=>null;onMessage:(value:string)=>void=()=>{};
   @Prop saveAtBottom:boolean=false;@State availableHeight:number=640;@Prop previewPath:string='';@Prop pageTitle:string='水印编辑';@Prop actionTitle:string='完成';@Prop submitting:boolean=false;onSave:()=>void=()=>{};
   @Prop snapshot:Snapshot=new Snapshot();@Prop fields:Field[]=[];@Prop selectedStyle:string='CLASSIC';@Prop fontScale:number=1;@Prop widthRatio:number=.6;@Prop wmOpacity:number=.85;@Prop wmPosition:string='BOTTOM_LEFT';
   @State availableWidth:number=390;@State tab:string='内容';@Link pickerVisible:boolean;@Link editorVisible:boolean;@State editingIndex:number=-1;@State draftLabel:string='';@State draftValue:string='';
   onReset:()=>void=()=>{};onBack:()=>void=()=>{};onFontScale:(v:number)=>void=()=>{};onWidthRatio:(v:number)=>void=()=>{};onOpacity:(v:number)=>void=()=>{};onPosition:(v:string)=>void=()=>{};onStyle:(v:string)=>void=()=>{};onFieldChange:(i:number,v:string)=>void=()=>{};onFieldLabelChange:(i:number,v:string)=>void=()=>{};onFieldToggle:(i:number,v:boolean)=>void=()=>{};onMove:(i:number,d:number)=>void=()=>{};onDelete:(i:number)=>void=()=>{};onAddField:(label:string,value:string)=>void=()=>{};
-  preview():Snapshot{const s=snapshotFor(this.snapshot,this.selectedStyle);s.watermark.fontScale=this.fontScale;s.watermark.widthRatio=this.widthRatio;s.watermark.opacity=this.wmOpacity;s.watermark.position=this.wmPosition;s.watermark.fields=this.fields;return s;}
+  preview():Snapshot{const s=snapshotFor(this.snapshot,this.selectedStyle);s.watermark.fontId=this.fontId;s.watermark.textColor=this.textColor;s.watermark.fontScale=this.fontScale;s.watermark.widthRatio=this.widthRatio;s.watermark.opacity=this.wmOpacity;s.watermark.position=this.wmPosition;s.watermark.fields=this.fields;return s;}
   private edit(index:number):void{this.editingIndex=index;this.draftLabel=index<0?'':fieldDisplayLabel(this.fields[index]);this.draftValue='';this.editorVisible=true;}
   @Builder previewPane(){Stack(){if(this.previewPath)Image('file://'+this.previewPath).width('100%').height('100%').objectFit(ImageFit.Contain);else WatermarkEditingPreview({snapshot:this.preview()});}.width('100%').height('100%').backgroundColor('#25323A').borderRadius(14);}
   @Builder controls(){Column({space:12}){
     Row({space:6}){ForEach(['内容','字段','外观'],(t:string)=>Button(t).layoutWeight(1).constraintSize({minHeight:44}).fontColor(this.tab===t?'#231A00':PAGE_TEXT).backgroundColor(this.tab===t?SITE_ACCENT:PAGE_CARD).onClick(()=>this.tab=t),(t:string)=>t);}.width('100%');
     Scroll(){Column({space:12}){
+      WatermarkStyleEntry({currentStyle:styleName(this.selectedStyle),onOpen:()=>this.pickerVisible=true});
       if(this.tab==='内容'){ForEach(this.fields,(field:Field,index:number)=>Column({space:8}){Row(){Text(fieldDisplayLabel(field)).fontSize(16).fontWeight(FontWeight.Bold).fontColor(PAGE_TEXT).layoutWeight(1);Toggle({type:ToggleType.Switch,isOn:field.enabled}).selectedColor(SITE_ACCENT).onChange(v=>this.onFieldToggle(index,v));}.width('100%');TextInput({text:field.value,placeholder:fieldDisplayLabel(field)}).fontColor(PAGE_TEXT).backgroundColor(PAGE_RAISED).enabled(field.enabled).onChange(v=>this.onFieldChange(index,v));}.padding(14).width('100%').backgroundColor(PAGE_CARD).borderRadius(12),(field:Field,index:number)=>field.key+'_'+index);Button('添加字段').fontColor($r('app.color.text_accent')).backgroundColor(PAGE_CARD).onClick(()=>this.edit(-1));}
       else if(this.tab==='字段'){Flex({wrap:FlexWrap.Wrap}){Button('恢复默认').id('watermark-reset').fontColor($r('app.color.text_accent')).backgroundColor(Color.Transparent).onClick(()=>this.onReset());Button('添加字段').fontColor($r('app.color.text_accent')).backgroundColor(Color.Transparent).onClick(()=>this.edit(-1));}.width('100%');ForEach(this.fields,(field:Field,index:number)=>Column(){Row(){Text(fieldDisplayLabel(field)).fontSize(16).fontWeight(FontWeight.Bold).fontColor(PAGE_TEXT).layoutWeight(1);Toggle({type:ToggleType.Switch,isOn:field.enabled}).selectedColor(SITE_ACCENT).onChange(v=>this.onFieldToggle(index,v));}.width('100%');Flex({wrap:FlexWrap.Wrap}){Button('编辑').fontColor(PAGE_TEXT).backgroundColor(Color.Transparent).onClick(()=>this.edit(index));Button('↑').fontColor(PAGE_TEXT).backgroundColor(Color.Transparent).enabled(index>0).onClick(()=>this.onMove(index,-1));Button('↓').fontColor(PAGE_TEXT).backgroundColor(Color.Transparent).enabled(index<this.fields.length-1).onClick(()=>this.onMove(index,1));if(field.key.startsWith('custom_'))Button('删除').fontColor('#E53935').backgroundColor(Color.Transparent).onClick(()=>this.onDelete(index));}.width('100%');}.padding(12).width('100%').backgroundColor(PAGE_CARD).borderRadius(12),(field:Field,index:number)=>field.key+'_'+index);}
-      else{Column({space:12}){Row(){Text('水印样式').fontSize(16).fontColor(PAGE_TEXT).layoutWeight(1);Button(styleName(this.selectedStyle)+' ›').fontColor($r('app.color.text_accent')).backgroundColor(Color.Transparent).onClick(()=>this.pickerVisible=true);}.width('100%');Row(){Text('字号').fontSize(16).fontColor(PAGE_TEXT).layoutWeight(1);Text(this.fontScale.toFixed(1)+'×').fontColor(PAGE_MUTED);}.width('100%');Slider({value:this.fontScale,min:.6,max:2,step:.1}).selectedColor(SITE_ACCENT).trackColor($r('app.color.divider')).onChange(v=>this.onFontScale(v));Row(){Text('水印宽度').fontSize(16).fontColor(PAGE_TEXT).layoutWeight(1);Text(Math.round(this.widthRatio*100)+'%').fontColor(PAGE_MUTED);}.width('100%');Slider({value:this.widthRatio*100,min:30,max:90,step:5}).selectedColor(SITE_ACCENT).trackColor($r('app.color.divider')).onChange(v=>this.onWidthRatio(v/100));Row(){Text('30%').fontColor(PAGE_MUTED);Blank();Text('90%').fontColor(PAGE_MUTED);}.width('100%');Row(){Text('不透明度').fontSize(16).fontColor(PAGE_TEXT).layoutWeight(1);Text(Math.round(this.wmOpacity*100)+'%').fontColor(PAGE_MUTED);}.width('100%');Slider({value:this.wmOpacity,min:.3,max:1,step:.1}).selectedColor(SITE_ACCENT).trackColor($r('app.color.divider')).onChange(v=>this.onOpacity(v));Text('水印位置').fontSize(16).fontColor(PAGE_TEXT).width('100%');Flex({wrap:FlexWrap.Wrap}){ForEach([['BOTTOM_LEFT','左下'],['BOTTOM_RIGHT','右下'],['TOP_LEFT','左上'],['TOP_RIGHT','右上']],(p:string[])=>Button(p[1]).fontColor(this.wmPosition===p[0]?'#231A00':PAGE_TEXT).backgroundColor(this.wmPosition===p[0]?SITE_ACCENT:PAGE_RAISED).margin(4).onClick(()=>this.onPosition(p[0])),(p:string[])=>p[0]);}.width('100%');}.padding(16).width('100%').backgroundColor(PAGE_CARD).borderRadius(14);}
+      else{Column({space:12}){TextAppearanceControls({fontId:this.fontId,textColor:this.textColor,choices:this.fonts,onFont:this.onFont,onColor:this.onColor,onImport:this.onImport,onMessage:this.onMessage});Row(){Text('字号').fontSize(16).fontColor(PAGE_TEXT).layoutWeight(1);Text(this.fontScale.toFixed(1)+'×').fontColor(PAGE_MUTED);}.width('100%');Slider({value:this.fontScale,min:.6,max:2,step:.1}).selectedColor(SITE_ACCENT).trackColor($r('app.color.divider')).onChange(v=>this.onFontScale(v));Row(){Text('水印宽度').fontSize(16).fontColor(PAGE_TEXT).layoutWeight(1);Text(Math.round(this.widthRatio*100)+'%').fontColor(PAGE_MUTED);}.width('100%');Slider({value:this.widthRatio*100,min:30,max:90,step:5}).selectedColor(SITE_ACCENT).trackColor($r('app.color.divider')).onChange(v=>this.onWidthRatio(v/100));Row(){Text('30%').fontColor(PAGE_MUTED);Blank();Text('90%').fontColor(PAGE_MUTED);}.width('100%');Row(){Text('不透明度').fontSize(16).fontColor(PAGE_TEXT).layoutWeight(1);Text(Math.round(this.wmOpacity*100)+'%').fontColor(PAGE_MUTED);}.width('100%');Slider({value:this.wmOpacity,min:.3,max:1,step:.1}).selectedColor(SITE_ACCENT).trackColor($r('app.color.divider')).onChange(v=>this.onOpacity(v));Text('水印位置').fontSize(16).fontColor(PAGE_TEXT).width('100%');Flex({wrap:FlexWrap.Wrap}){ForEach([['BOTTOM_LEFT','左下'],['BOTTOM_RIGHT','右下'],['TOP_LEFT','左上'],['TOP_RIGHT','右上']],(p:string[])=>Button(p[1]).fontColor(this.wmPosition===p[0]?'#231A00':PAGE_TEXT).backgroundColor(this.wmPosition===p[0]?SITE_ACCENT:PAGE_RAISED).margin(4).onClick(()=>this.onPosition(p[0])),(p:string[])=>p[0]);}.width('100%');}.padding(16).width('100%').backgroundColor(PAGE_CARD).borderRadius(14);}
     }.width('100%').padding({bottom:16});}.edgeEffect(EdgeEffect.Spring).width('100%').layoutWeight(1).scrollBar(BarState.Off).align(Alignment.Top);
   }.padding(16).width('100%').height('100%');}
   build(){Stack(){Column(){Row(){Button('‹').width(48).height(48).fontSize(30).fontColor(PAGE_TEXT).backgroundColor(Color.Transparent).onClick(()=>this.onBack());Text(this.pageTitle).fontSize(20).fontWeight(FontWeight.Bold).fontColor(PAGE_TEXT).layoutWeight(1);if(!this.saveAtBottom)Button(this.actionTitle).enabled(!this.submitting).fontColor($r('app.color.text_accent')).backgroundColor(Color.Transparent).onClick(()=>{if(this.previewPath)this.onSave();else this.onBack();});}.width('100%').constraintSize({minHeight:56}).flexShrink(this.saveAtBottom?0:1);
@@ -86,7 +107,6 @@ export struct QuickWatermarkPanel {
   @Link pickerVisible:boolean;
   @State focused: number = 0;
   private fieldScroll:Scroller=new Scroller();
-  private editProjectName():void{const index=this.fields.findIndex((field:Field)=>field.key==='project');if(index<0)return;if(!this.fields[index].enabled)this.onFieldToggle(index,true);this.focused=index;this.fieldScroll.scrollEdge(Edge.Bottom);setTimeout(()=>{focusControl.requestFocus('quick-watermark-project');},100);}
   @Link addVisible:boolean;
   @State addLabel: string = '';
   @State addValue: string = '';
@@ -102,8 +122,7 @@ export struct QuickWatermarkPanel {
   onAddFieldValue: (label: string,value: string) => void = (label: string,value: string) => { this.onAddField(label); };
   build() {
     Stack(){Column({space:10}){Row(){Text('现场快速修改水印').fontSize(this.panelWidth<320?14:18).fontWeight(FontWeight.Bold).fontColor(SITE_TEXT).layoutWeight(1);Button('完成').fontColor('#231A00').backgroundColor(SITE_ACCENT).onClick(()=>this.onDismiss());}.width('100%');
-      Button('工程名称').fontColor(SITE_ACCENT).backgroundColor(SITE_CARD_RAISED).onClick(()=>this.editProjectName());
-      Scroll(this.fieldScroll){Column({space:10}){Row(){Text('当前水印样式').fontSize(13).fontColor(SITE_MUTED).layoutWeight(1);Button(styleName(this.selectedStyle)).fontColor(SITE_ACCENT).backgroundColor(Color.Transparent).onClick(()=>this.pickerVisible=true);}.width('100%').padding(10).backgroundColor(SITE_CARD).borderRadius(10);
+      Scroll(this.fieldScroll){Column({space:10}){WatermarkStyleEntry({currentStyle:styleName(this.selectedStyle),dark:true,onOpen:()=>this.pickerVisible=true});
       Text('⚡ 常用工程部位 / 施工标签').fontSize(12).fontColor(SITE_MUTED);
       Scroll(){Row({space:6}){ForEach(TAGS,(tag:string)=>Button('+ '+tag).fontSize(12).fontColor(SITE_ACCENT).backgroundColor(SITE_CARD_RAISED).borderRadius(14).onClick(()=>{const i=Math.min(this.focused,this.fields.length-1);if(i>=0)this.onFieldChange(i,this.fields[i].value?this.fields[i].value+' '+tag:tag);}), (tag:string)=>tag);}}.edgeEffect(EdgeEffect.Spring).scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).width('100%');
       Row(){Text('字号缩放比例').fontSize(12).fontColor(SITE_MUTED).layoutWeight(1);Text(this.fontScale.toFixed(1)+'×').fontColor(SITE_ACCENT);}.width('100%');Slider({value:this.fontScale,min:.6,max:2,step:.1}).selectedColor('#FFB300').trackColor('#505050').blockColor('#FFFFFF').onChange((v:number)=>this.onScale(v));

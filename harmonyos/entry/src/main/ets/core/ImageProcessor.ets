@@ -1,11 +1,12 @@
 import { LengthMetricsUnit } from '@kit.ArkUI';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { image } from '@kit.ImageKit';
-import { Snapshot, MediaItem, QUALITY_EDGES, QUALITY_JPEG, safeName, timeText, hydrateMediaFromSnapshot } from './Models';
+import { Snapshot, MediaItem, QUALITY_EDGES, QUALITY_JPEG, safeName, timeText, hydrateMediaFromSnapshot, fontFamily } from './Models';
 import { paintWatermark } from './WatermarkRenderer';
 
 /** Normalized coordinates are in the actual image rectangle (0..1), never in a letterbox view. */
 export class Mark {
+  fontId:string='';whiteboard:boolean=false;
   kind: string='arrow'; x: number=.2; y: number=.2; endX: number=.7; endY: number=.7; text: string='';
   color: string='#FFB300'; strokeWidth: number=0; points: number[]=[]; radius: number=0;
 }
@@ -46,6 +47,7 @@ function validEditMark(mark:Mark,kind:string):boolean {
   // original baseline outside 0..1; that clipped history is valid renderer input.
   if(kind==='text'){if(typeof mark.x!=='number'||!Number.isFinite(mark.x)||typeof mark.y!=='number'||!Number.isFinite(mark.y))return false;}else if(!finiteCoordinate(mark.x)||!finiteCoordinate(mark.y))return false;
   if(mark.color!==undefined&&typeof mark.color!=='string')return false;
+  if(mark.fontId!==undefined&&typeof mark.fontId!=='string')return false;if(mark.whiteboard!==undefined&&typeof mark.whiteboard!=='boolean')return false;
   for(const n of [mark.strokeWidth,mark.radius])if(n!==undefined&&(typeof n!=='number'||!Number.isFinite(n)||n<0))return false;
   if(mark.points!==undefined&&(!Array.isArray(mark.points)||mark.points.length%2!==0||!mark.points.every((v:number)=>finiteCoordinate(v))))return false;
   if(kind==='text')return typeof mark.text==='string';
@@ -102,8 +104,8 @@ export function markPointFromOutput(recipe:EditRecipe,stepIndex:number,x:number,
 /** The text renderer uses bold max(18, width/28) pixels; keep hit testing in normalized image units. */
 export function hitTextMark(mark:Mark,x:number,y:number,imageWidth:number,imageHeight:number):boolean {
   const font=Math.max(18,imageWidth/28),left=mark.x*imageWidth,baseline=mark.y*imageHeight;
-  const width=textInkWidth(mark.text,font),pad=Math.max(12,font*.35);
-  return x*imageWidth>=left-pad&&x*imageWidth<=left+width+pad&&y*imageHeight>=baseline-font-pad&&y*imageHeight<=baseline+pad;
+  const ink=textInk(mark,font),width=ink.width,pad=Math.max(12,font*.35);
+  return x*imageWidth>=left-pad&&x*imageWidth<=left+width+pad&&y*imageHeight>=baseline-ink.ascent-pad&&y*imageHeight<=baseline+ink.descent+pad;
 }
 export function canonicalRecipe(recipe:EditRecipe):EditRecipe {
   const out=deserializeEditRecipe(JSON.stringify(recipe));const prefix:EditStep[]=[];
@@ -118,14 +120,17 @@ export function textStepAt(recipe:EditRecipe,x:number,y:number,width:number,heig
   for(const step of recipe.steps){widths.push(w);heights.push(h);if(step.kind==='rotate'){const old=w;w=h;h=old;}else if(step.kind==='crop'){w=Math.max(1,Math.floor(w*Math.abs(step.mark.endX-step.mark.x)));h=Math.max(1,Math.floor(h*Math.abs(step.mark.endY-step.mark.y)));}}
   for(let i=recipe.steps.length-1;i>=0;i--){const mark=recipe.steps[i].mark;if(recipe.steps[i].kind!=='text')continue;const p=markPointFromOutput(recipe,i,x,y);if(hitTextMark(mark,p.x,p.y,widths[i],heights[i]))return i;}return -1;
 }
-function textInkWidth(text:string,font:number):number {
-  const ctx=new OffscreenCanvas(1,1,LengthMetricsUnit.PX).getContext('2d');ctx.font=`bold ${font}px sans-serif`;return Math.max(font*.7,ctx.measureText(text).width);
+class MarkInk {width:number=0;ascent:number=0;descent:number=0;}
+function textInk(mark:Mark,font:number):MarkInk {
+  const ctx=new OffscreenCanvas(1,1,LengthMetricsUnit.PX).getContext('2d');ctx.font=`bold ${font}px ${fontFamily(mark.fontId)}`;
+  const metrics=ctx.measureText(mark.text),result=new MarkInk();result.width=Math.max(font*.7,metrics.width);result.ascent=Math.max(font,metrics.actualBoundingBoxAscent||0);result.descent=Math.max(font*.25,metrics.actualBoundingBoxDescent||0);return result;
 }
+
 export class TextBounds {left:number=0;top:number=0;right:number=0;bottom:number=0;}
 export function textStepBounds(recipe:EditRecipe,index:number,width:number,height:number):TextBounds {
   let w=width,h=height;for(let i=0;i<index;i++){const step=recipe.steps[i];if(step.kind==='rotate'){const old=w;w=h;h=old;}else if(step.kind==='crop'){w=Math.max(1,Math.floor(w*Math.abs(step.mark.endX-step.mark.x)));h=Math.max(1,Math.floor(h*Math.abs(step.mark.endY-step.mark.y)));}}
-  const mark=recipe.steps[index].mark,font=Math.max(18,w/28),right=mark.x+textInkWidth(mark.text,font)/w,top=mark.y-font/h,bottom=mark.y+font*.25/h;
-  const points=[markPointInOutput(recipe,index,mark.x,top),markPointInOutput(recipe,index,right,top),markPointInOutput(recipe,index,mark.x,bottom),markPointInOutput(recipe,index,right,bottom)];
+  const mark=recipe.steps[index].mark,font=Math.max(18,w/28),ink=textInk(mark,font),pad=mark.whiteboard?Math.max(12,font*.35):0,right=mark.x+(ink.width+pad)/w,top=mark.y-(ink.ascent+pad)/h,bottom=mark.y+(ink.descent+pad)/h;
+  const points=[markPointInOutput(recipe,index,mark.x-pad/w,top),markPointInOutput(recipe,index,right,top),markPointInOutput(recipe,index,mark.x-pad/w,bottom),markPointInOutput(recipe,index,right,bottom)];
   const bounds=new TextBounds();bounds.left=Math.min(...points.map(p=>p.x));bounds.right=Math.max(...points.map(p=>p.x));bounds.top=Math.min(...points.map(p=>p.y));bounds.bottom=Math.max(...points.map(p=>p.y));return bounds;
 }
 /** Constrain translation in the displayed frame, then invert back into the original drawing step. */
@@ -134,7 +139,7 @@ export function moveTextStep(recipe:EditRecipe,index:number,dx:number,dy:number,
   const x=Math.max(-bounds.left,Math.min(1-bounds.right,dx)),y=Math.max(-bounds.top,Math.min(1-bounds.bottom,dy));
   const a=markPointFromOutput(recipe,index,0,0),b=markPointFromOutput(recipe,index,x,y);mark.x+=b.x-a.x;mark.y+=b.y-a.y;
 }
-function markFrom(v: Mark): Mark { const m=new Mark();m.kind=v.kind||'arrow';m.x=Number(v.x||0);m.y=Number(v.y||0);m.endX=Number(v.endX===undefined?1:v.endX);m.endY=Number(v.endY===undefined?1:v.endY);m.text=v.text||'';m.color=v.color||'#FFB300';m.strokeWidth=Number(v.strokeWidth||0);m.radius=Number(v.radius||0);m.points=Array.isArray(v.points)?v.points.map((n: number)=>Number(n)):[];return m; }
+function markFrom(v: Mark): Mark { const m=new Mark();m.kind=v.kind||'arrow';m.x=Number(v.x||0);m.y=Number(v.y||0);m.endX=Number(v.endX===undefined?1:v.endX);m.endY=Number(v.endY===undefined?1:v.endY);m.text=v.text||'';m.fontId=v.fontId||'';m.whiteboard=v.whiteboard===true;m.color=v.color||'#FFB300';m.strokeWidth=Number(v.strokeWidth||0);m.radius=Number(v.radius||0);m.points=Array.isArray(v.points)?v.points.map((n: number)=>Number(n)):[];return m; }
 function stepFrom(v: EditStep): EditStep { const s=new EditStep(v.kind||'arrow');s.mark=markFrom(v.mark||new Mark());return s; }
 
 export function parseImportTime(value:string,offset:string=''):number {
@@ -149,7 +154,7 @@ export function parseImportTimeField(value:string):number {
   return parseImportTime(`${match[1]}:${match[2]}:${match[3]} ${match[4]}:${match[5]}:${match[6]}`);
 }
 export function importOrientation(value:string):number {const code=Number(value);if(Number.isInteger(code)&&code>=1&&code<=8)return code;const labels=['top-left','top-right','bottom-right','bottom-left','left-top','right-top','right-bottom','left-bottom'];return Math.max(1,labels.indexOf(value.toLowerCase().replace(/_/g,'-'))+1);}
-async function orientImported(pm:image.PixelMap,code:number):Promise<void>{
+async function orientPhotoPixels(pm:image.PixelMap,code:number):Promise<void>{
   if(code===2)await pm.flip(true,false);else if(code===3)await pm.rotate(180);else if(code===4)await pm.flip(false,true);else if(code===5){await pm.rotate(90);await pm.flip(true,false);}else if(code===6)await pm.rotate(90);else if(code===7){await pm.rotate(90);await pm.flip(false,true);}else if(code===8)await pm.rotate(270);
 }
 export class ImportedPhoto {path:string='';timestamp:number=0;width:number=0;height:number=0;}
@@ -162,7 +167,12 @@ export class ImageProcessor {
   async write(path: string,data: ArrayBuffer): Promise<void>{const f=await fs.open(path,fs.OpenMode.CREATE|fs.OpenMode.READ_WRITE|fs.OpenMode.TRUNC);try{let done=0;while(done<data.byteLength){const n=await fs.write(f.fd,data.slice(done));if(n<=0)throw new Error('文件写入不完整');done+=n;}}finally{await fs.close(f);}}
   async captureLocal(bytes: ArrayBuffer,s: Snapshot,quality: number,rotation: number): Promise<MediaItem>{
     const target=this.path(`${safeName(s.project)}_${s.timestamp}.jpg`);let src:image.ImageSource|null=null,pm:image.PixelMap|null=null;const m=new MediaItem();m.timestamp=s.timestamp;m.snapshot=JSON.stringify(s);m.name=`${safeName(s.project)}_${s.timestamp}.jpg`;m.path=target;hydrateMediaFromSnapshot(m,s);
-    try{src=image.createImageSource(bytes);pm=await src.createPixelMap({editable:true});if(rotation)await pm!.rotate(rotation);if(s.mirrorPreview)await pm!.flip(true,false);if(s.captureRatio>0){const size=(await pm!.getImageInfo()).size;const width=Math.min(size.width,Math.floor(size.height*s.captureRatio));const height=Math.min(size.height,Math.floor(size.width/s.captureRatio));await pm!.crop({x:Math.floor((size.width-width)/2),y:Math.floor((size.height-height)/2),size:{width:width,height:height}});}await this.resize(pm!,quality);const info=await pm!.getImageInfo();m.width=info.size.width;m.height=info.size.height;const canvas=new OffscreenCanvas(m.width,m.height,LengthMetricsUnit.PX),ctx=canvas.getContext('2d');ctx.drawImage(pm!,0,0,m.width,m.height);paintWatermark(ctx,m.width,m.height,s);const result=ctx.getPixelMap(0,0,m.width,m.height);try{await this.encode(result,target,quality);}finally{await result.release();}
+    try{src=image.createImageSource(bytes);let orientation='1';try{orientation=await src.getImageProperty(image.PropertyKey.ORIENTATION);}catch(e){}
+      pm=await src.createPixelMap({editable:true});
+      // Camera rotation may be stored only in EXIF. Normalize pixels before
+      // mirroring, cropping or painting; the final JPEG is tagged upright.
+      const code=importOrientation(orientation);await orientPhotoPixels(pm,code);
+      if(rotation)await pm.rotate(rotation);if(s.mirrorPreview)await pm.flip(true,false);if(s.captureRatio>0){const size=(await pm.getImageInfo()).size;const width=Math.min(size.width,Math.floor(size.height*s.captureRatio));const height=Math.min(size.height,Math.floor(size.width/s.captureRatio));await pm.crop({x:Math.floor((size.width-width)/2),y:Math.floor((size.height-height)/2),size:{width:width,height:height}});}await this.resize(pm,quality);const info=await pm.getImageInfo();m.width=info.size.width;m.height=info.size.height;console.info(`SITECAM_CAPTURE_ORIENTATION exif=${code} extra=${rotation} mirror=${s.mirrorPreview} output=${m.width}x${m.height}`);const canvas=new OffscreenCanvas(m.width,m.height,LengthMetricsUnit.PX),ctx=canvas.getContext('2d');ctx.drawImage(pm,0,0,m.width,m.height);paintWatermark(ctx,m.width,m.height,s);const result=ctx.getPixelMap(0,0,m.width,m.height);try{await this.encode(result,target,quality);}finally{await result.release();}
     }catch(e){await this.removePath(target);throw e as Error;}finally{try{await pm?.release();}finally{await src?.release();}}
     // The encoded file is the only copy of the photo; EXIF must not take it down.
     await this.exifQuiet(target,s);return m;
@@ -185,7 +195,7 @@ export class ImageProcessor {
       const finalW=Math.max(1,Math.floor((swap?original.height:original.width)*finalScale)),finalH=Math.max(1,Math.floor((swap?original.width:original.height)*finalScale));
       const decodeScale=preview?Math.min(finalScale,1280/Math.max(original.width,original.height),1):finalScale;
       pm=await src.createPixelMap({editable:true,desiredSize:{width:Math.max(1,Math.floor(original.width*decodeScale)),height:Math.max(1,Math.floor(original.height*decodeScale))}});
-      await orientImported(pm,code);const size=(await pm.getImageInfo()).size;m.width=size.width;m.height=size.height;
+      await orientPhotoPixels(pm,code);const size=(await pm.getImageInfo()).size;m.width=size.width;m.height=size.height;
       const canvas=new OffscreenCanvas(m.width,m.height,LengthMetricsUnit.PX),ctx=canvas.getContext('2d');ctx.drawImage(pm,0,0,m.width,m.height);ctx.save();ctx.scale(m.width/finalW,m.height/finalH);paintWatermark(ctx,finalW,finalH,s);ctx.restore();const result=ctx.getPixelMap(0,0,m.width,m.height);try{await this.encode(result,target,quality);}finally{await result.release();}}
     catch(e){await this.removePath(target);throw e as Error;}finally{try{await pm?.release();}finally{await src?.release();}}
     await this.exifQuiet(target,s);return m;
@@ -229,6 +239,10 @@ function drawMark(ctx:OffscreenCanvasRenderingContext2D,mark:Mark,cw:number,ch:n
   else if(mark.kind==='rect'||mark.kind==='rectangle'){ctx.strokeRect(left,top,ww,hh);}
   else if(mark.kind==='circle'){ctx.beginPath();ctx.arc((sx+ex)/2,(sy+ey)/2,mark.radius>0?mark.radius*cw:Math.sqrt(ww*ww+hh*hh)/2,0,Math.PI*2);ctx.stroke();}
   else if(mark.kind==='freehand'||mark.kind==='pen'){const pts=mark.points;ctx.beginPath();if(pts.length>=2){ctx.moveTo(pts[0]*cw,pts[1]*ch);for(let i=2;i+1<pts.length;i+=2)ctx.lineTo(pts[i]*cw,pts[i+1]*ch);ctx.stroke();}else{ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(ex,ey);ctx.stroke();}}
-  else if(mark.kind==='text'){ctx.font=`bold ${Math.max(18,cw/28)}px sans-serif`;ctx.fillText(mark.text,sx,sy);}
+  else if(mark.kind==='text'){
+    const font=Math.max(18,cw/28);ctx.font=`bold ${font}px ${fontFamily(mark.fontId)}`;
+    if(mark.whiteboard){const ink=textInk(mark,font),pad=Math.max(12,font*.35),ascent=ink.ascent,descent=ink.descent;ctx.fillStyle='#FAFAF7';ctx.fillRect(sx-pad,sy-ascent-pad,ink.width+pad*2,ascent+descent+pad*2);ctx.strokeStyle='#17212B';ctx.lineWidth=Math.max(1,cw/540);ctx.strokeRect(sx-pad,sy-ascent-pad,ink.width+pad*2,ascent+descent+pad*2);ctx.fillStyle=mark.color||'#17212B';}
+    ctx.fillText(mark.text,sx,sy);
+  }
   else if(mark.kind==='mosaic'){const tile=Math.max(8,cw/60),pts=mark.points.length>=2?mark.points:[mark.x,mark.y,mark.endX,mark.endY];for(let i=0;i+1<pts.length;i+=2){const px=pts[i]*cw,py=pts[i+1]*ch;const nextX=i+2<pts.length?pts[i+2]*cw:px,nextY=i+3<pts.length?pts[i+3]*ch:py;const distance=Math.max(1,Math.hypot(nextX-px,nextY-py)),count=Math.ceil(distance/tile);for(let j=0;j<=count;j++){const xx=px+(nextX-px)*j/count,yy=py+(nextY-py)*j/count;const d=ctx.getImageData(Math.max(0,Math.min(cw-1,xx)),Math.max(0,Math.min(ch-1,yy)),1,1).data;ctx.fillStyle=`rgb(${d[0]},${d[1]},${d[2]})`;ctx.fillRect(xx-tile/2,yy-tile/2,tile,tile);}}}
 }

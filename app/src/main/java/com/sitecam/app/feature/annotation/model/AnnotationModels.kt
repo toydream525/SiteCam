@@ -42,7 +42,9 @@ sealed class AnnotationElement {
         val position: Offset,
         val text: String,
         override val color: Color,
-        override val strokeWidth: Float
+        override val strokeWidth: Float,
+        val fontId: String = "",
+        val whiteboard: Boolean = false
     ) : AnnotationElement()
 
     data class Mosaic(

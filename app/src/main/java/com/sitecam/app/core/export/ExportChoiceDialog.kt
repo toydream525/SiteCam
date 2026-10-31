@@ -12,6 +12,8 @@ import com.sitecam.app.core.media.PhotoQualityProfile
 @Composable
 fun ExportChoiceDialog(onDismiss: () -> Unit, onZip: (ExportOptions) -> Unit, onFolder: (ExportOptions) -> Unit) {
     var profile by remember { mutableStateOf<PhotoQualityProfile?>(null) }
+    var manageArchives by remember { mutableStateOf(false) }
+    if (manageArchives) ExportArchiveManager { manageArchives = false }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("导出工程档案") }, text = {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("导出质量", style = MaterialTheme.typography.titleSmall)
@@ -21,6 +23,7 @@ fun ExportChoiceDialog(onDismiss: () -> Unit, onZip: (ExportOptions) -> Unit, on
             }
             Button(onClick = { onZip(ExportOptions(profile)) }, modifier = Modifier.fillMaxWidth()) { Text("导出 ZIP 压缩包") }
             OutlinedButton(onClick = { onFolder(ExportOptions(profile)) }, modifier = Modifier.fillMaxWidth()) { Text("导出到文件夹") }
+            TextButton(onClick = { manageArchives = true }, modifier = Modifier.fillMaxWidth()) { Text("管理压缩包") }
         }
     }, confirmButton = { TextButton(onClick = onDismiss) { Text("取消") } })
 }

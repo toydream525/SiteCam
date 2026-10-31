@@ -21,10 +21,10 @@ object WatermarkCanvasPainter {
         layout.accentBarRect?.let { canvas.drawRect(it,paint) }
         layout.decorations.forEach { fill(it.color); canvas.drawRect(it.rect,paint) }
         for(line in layout.lines) {
-            val labelPaint=watermarkPaint(line.textSize,line.labelColor,true).apply { this.alpha = alpha }
+            val labelPaint=watermarkPaint(line.textSize,line.labelColor,true,layout.fontId).apply { this.alpha = alpha }
             if(line.label.isNotEmpty()) canvas.drawText(line.label,line.x,line.y,labelPaint)
             canvas.drawText(line.value,line.x+labelPaint.measureText(line.label),line.y,
-                watermarkPaint(line.textSize,line.textColor,line.isBold).apply { this.alpha = alpha })
+                watermarkPaint(line.textSize,line.textColor,line.isBold,layout.fontId).apply { this.alpha = alpha })
         }
     }
 }

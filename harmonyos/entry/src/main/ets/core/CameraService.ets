@@ -477,12 +477,12 @@ export class CameraService {
     if(!videoPath&&this.sdkApiVersion>=24){
       try{const photoSession=this.session as camera.PhotoSession;const iso=photoSession.getSupportedIsoRange();const maxIso=Math.max(...iso);photoSession.onIsoInfoChange((info:camera.IsoInfo)=>{if(generation!==this.lifecycleGeneration||!this.snapshotEnabled||!info.iso)return;if(this.shortExposureActive&&info.iso>=maxIso*.9){this.lowLightFallback=true;this.exposureRetryAfter=Date.now()+2000;this.applySnapshotControls();}else if(this.lowLightFallback&&Date.now()>=this.exposureRetryAfter&&info.iso<maxIso*.25){this.lowLightFallback=false;this.applySnapshotControls();}});}catch(e){console.info('SITECAM_SNAPSHOT_ISO '+String(e));}
     }
-    for(const capability of this.lensCapabilities)capability.active=false;const activeCapability=this.lensCapabilities[this.index];if(activeCapability){activeCapability.active=true;activeCapability.appAccessible=true;if(videoPath)activeCapability.videoSessionVerified=true;else activeCapability.photoSessionVerified=true;}if(videoPath)this.videoSupported=!!this.video;else this.photoSupported=!!this.photo;console.info('SITECAM_CAMERA rotation0='+this.photoRotation(0));this.sessionZoomMin=1;this.sessionZoomMax=1;this.sessionZoomRatio=1;this.zoomMin=1;this.zoomMax=1;this.zoomRatio=1;this.zoomEquivalentFocalLength=0;this.flash=false;this.flashMode='off';this.flashSupported=false;this.flashOffSupported=false;this.flashAutoSupported=false;this.flashOnSupported=false;this.flashTorchSupported=false;this.flashDiagnostics=`session=${videoPath?'video':'photo'} hasFlash=unknown`;try{const zoom=this.session!.getZoomRatioRange();if(zoom&&zoom.length){this.sessionZoomMin=Number.isFinite(zoom[0])&&zoom[0]>0?zoom[0]:1;this.sessionZoomMax=Number.isFinite(zoom[1])&&zoom[1]>=this.sessionZoomMin?zoom[1]:this.sessionZoomMin;}}catch(e){console.info('SITECAM_ZOOM_RANGE_UNAVAILABLE '+String(e));}this.zoomMin=referenceZoomFromSession(this.sessionZoomMin,this.zoomReferenceFactor);this.zoomMax=referenceZoomFromSession(this.sessionZoomMax,this.zoomReferenceFactor);this.readZoomPointInfos();this.zoomPresets=this.availableZoomPresets();const actualZoom=this.readZoomRatio();if(actualZoom!==null){this.sessionZoomRatio=actualZoom;this.zoomRatio=referenceZoomFromSession(actualZoom,this.zoomReferenceFactor);}this.zoom(wantedZoom);this.readFlashCapabilities();if(wantedFlashMode!=='off'&&!this.setFlashMode(wantedFlashMode,false))console.info('SITECAM_FLASH_RESTORE_UNCONFIRMED requested='+wantedFlashMode);this.updateActiveLensState(this.sessionZoomRatio);this.photoSessionReady=!!this.photo;this.scheduleDiagnosticsWrite();
+    for(const capability of this.lensCapabilities)capability.active=false;const activeCapability=this.lensCapabilities[this.index];if(activeCapability){activeCapability.active=true;activeCapability.appAccessible=true;if(videoPath)activeCapability.videoSessionVerified=true;else activeCapability.photoSessionVerified=true;}if(videoPath)this.videoSupported=!!this.video;else this.photoSupported=!!this.photo;console.info('SITECAM_CAMERA rotation0='+this.photoRotation(0));this.sessionZoomMin=1;this.sessionZoomMax=1;this.sessionZoomRatio=1;this.zoomMin=1;this.zoomMax=1;this.zoomRatio=1;this.zoomEquivalentFocalLength=0;this.flash=false;this.flashMode='off';this.flashSupported=false;this.flashOffSupported=false;this.flashAutoSupported=false;this.flashOnSupported=false;this.flashTorchSupported=false;this.flashDiagnostics=`session=${videoPath?'video':'photo'} hasFlash=unknown`;try{const zoom=this.session!.getZoomRatioRange();if(zoom&&zoom.length){this.sessionZoomMin=Number.isFinite(zoom[0])&&zoom[0]>0?zoom[0]:1;this.sessionZoomMax=Number.isFinite(zoom[1])&&zoom[1]>=this.sessionZoomMin?zoom[1]:this.sessionZoomMin;}}catch(e){console.info('SITECAM_ZOOM_RANGE_UNAVAILABLE '+String(e));}this.zoomMin=referenceZoomFromSession(this.sessionZoomMin,this.zoomReferenceFactor);this.zoomMax=referenceZoomFromSession(this.sessionZoomMax,this.zoomReferenceFactor);this.readZoomPointInfos();this.zoomPresets=this.availableZoomPresets();const actualZoom=this.readZoomRatio();if(actualZoom!==null){this.sessionZoomRatio=actualZoom;this.zoomRatio=referenceZoomFromSession(actualZoom,this.zoomReferenceFactor);}this.zoom(wantedZoom);this.readFlashCapabilities();if(this.flashSupported&&!this.setFlashMode(wantedFlashMode,false))console.info('SITECAM_FLASH_RESTORE_UNCONFIRMED requested='+wantedFlashMode);this.updateActiveLensState(this.sessionZoomRatio);this.photoSessionReady=!!this.photo;this.scheduleDiagnosticsWrite();
   }
   previewIsMirrored():boolean{return this.devices[this.index]?.cameraPosition===camera.CameraPosition.CAMERA_POSITION_FRONT;}
   getActualPreviewRotation(): number { return this.previewRotation; }
   orientPreview(displayRotation: number): void {if(!this.preview||displayRotation===this.displayRotation)return;const rotation=this.preview.getPreviewRotation(displayRotation);console.info(`SITECAM_PREVIEW_ROTATION_UPDATE display=${displayRotation} result=${String(rotation)}`);if(rotation===undefined){console.warn('SITECAM_PREVIEW_ROTATION_UNAVAILABLE');return;}this.preview.setPreviewRotation(rotation,true);this.previewRotation=rotation;this.displayRotation=displayRotation;}
-  photoRotation(degrees: number): number {const rotation=this.photo?.getPhotoRotation(degrees);return rotation===undefined?0:rotation;}
+  photoRotation(deviceDegrees: number): number {const rotation=this.photo?.getPhotoRotation(deviceDegrees);console.info(`SITECAM_PHOTO_ROTATION device=${deviceDegrees} result=${String(rotation)}`);return rotation===undefined?0:rotation;}
   private readZoomRatio(): number|null {
     if(!this.session)return null;
     try {
@@ -545,8 +545,12 @@ export class CameraService {
     if(reopen)await this.open(this.surface,'',false,this.displayRotation>=0?this.displayRotation:0);
   }
   setSnapshotMode(enabled:boolean,shutterSpeed:number):void {
-    this.snapshotEnabled=enabled;this.snapshotShutterSpeed=[125,250,500,1000].includes(shutterSpeed)?shutterSpeed:250;
-    this.applySnapshotControls();
+    const speed=[125,250,500,1000].includes(shutterSpeed)?shutterSpeed:250;
+    const changed=enabled!==this.snapshotEnabled||speed!==this.snapshotShutterSpeed;
+    this.snapshotEnabled=enabled;this.snapshotShutterSpeed=speed;
+    // Re-applying manual exposure before every frame disturbs the running
+    // session; only a real mode change needs to touch the controls.
+    if(changed)this.applySnapshotControls();
   }
   private applySnapshotControls():void {
     if(!this.session||this.videoMode)return;
@@ -581,7 +585,7 @@ export class CameraService {
     if(this.photoRecovery)await this.photoRecovery;
     if(!this.photoSessionReady||!this.photo||this.captureRequest)throw new Error('相机尚未就绪');
     const photo=this.photo,token=++this.captureToken,outputEpoch=this.photoOutputEpoch;
-    console.info(`SITECAM_FLASH_CAPTURE mode=${this.flashMode} supported=${this.flashSupported}`);
+    console.info(`SITECAM_FLASH_CAPTURE mode=${this.flashMode} supported=${this.flashSupported} rotation=${rotation} display=${this.displayRotation} preview=${this.previewRotation}`);
     return new Promise<ArrayBuffer>((resolve,reject)=>{
       const request:PhotoRequest={token:token,outputEpoch:outputEpoch,timeout:-1,resolve:resolve,reject:reject};this.captureRequest=request;
       request.timeout=setTimeout(()=>this.failCapture(request,new Error('拍摄超时，请重试')),15000);

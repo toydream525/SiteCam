@@ -1,6 +1,6 @@
 import { LengthMetricsUnit } from '@kit.ArkUI';
 import { image } from '@kit.ImageKit';
-import { Snapshot, STYLES, Field, Style, Fix, watermarkTimeText } from './Models';
+import { Snapshot, STYLES, Field, Style, Fix, watermarkTimeText, fontFamily } from './Models';
 
 export class InkLine { text: string=''; x: number=0; y: number=0; width: number=0; size: number=0; color: string=''; bold: boolean=false; key: string=''; role: string='value'; ascent: number=0; descent: number=0; }
 export class InkRect { x: number=0; y: number=0; w: number=0; h: number=0; color: string=''; }
@@ -48,12 +48,12 @@ export function layoutWatermark(ctx: DrawingContext,w: number,h: number,s: Snaps
 }
 function build(ctx: DrawingContext,w: number,h: number,snap: Snapshot,scale: number,margin: number): Layout {
   const cfg=snap.watermark,id=cfg.style==='SITE_PHOTO'?'MINIMAL':cfg.style,style=STYLES.find((v: Style)=>v.id===id)||STYLES[0];
-  const light=['ENGINEERING_BLUE','CONSTRUCTION_TABLE','ACCEPTANCE'].includes(id),legacy=['CLASSIC','MINIMAL','INFO_BOARD'].includes(id);
+  const light=['ENGINEERING_BLUE','CONSTRUCTION_TABLE','ACCEPTANCE','WHITEBOARD'].includes(id),legacy=['CLASSIC','MINIMAL','INFO_BOARD'].includes(id);
   const fontScale=cfg.fontScale>=.5&&cfg.fontScale<=2.2?cfg.fontScale:1; const base=Math.max(.45,Math.min(w,h)/1080)*fontScale*scale;
   const pad=22*base,gap=(legacy?14:7)*base,size=(legacy?26:30)*base;
   const fields=resolveFields(snap);
   const title=id==='INFO_BOARD'?'工程施工现场留档记录':id==='CONSTRUCTION_TABLE'?'施工记录':id==='INSPECTION'?'巡检记录':id==='ACCEPTANCE'?'工程验收 · 现场记录':'';
-  const inkWidth=(text:string,font:number,bold:boolean=false):number=>{ctx.font=`${bold?'bold':'normal'} ${font}px sans-serif`;let width=0;for(const part of text.split('\n'))width=Math.max(width,ctx.measureText(part).width);return width;};
+  const inkWidth=(text:string,font:number,bold:boolean=false):number=>{ctx.font=`${bold?'bold':'normal'} ${font}px ${fontFamily(cfg.fontId)}`;let width=0;for(const part of text.split('\n'))width=Math.max(width,ctx.measureText(part).width);return width;};
   let naturalWidth=title?inkWidth(title,id==='INFO_BOARD'?32*base:size*1.12,true):0;
   for(let i=0;i<fields.length;i++){
     const f=fields[i],blue=id==='ENGINEERING_BLUE'&&(f.key==='project'||f.key==='time'),big=id==='TIME_LOCATION'&&f.key==='time',highlight=id==='CLASSIC'&&i===0,font=highlight?34*base:size*(big?1.75:blue?1.12:1);
@@ -67,9 +67,9 @@ function build(ctx: DrawingContext,w: number,h: number,snap: Snapshot,scale: num
   // Missing width in parsed media snapshots retains the historical style limit.
   const widthRatio=cfg.widthRatio===undefined?(light?.82:.9):(Number.isFinite(cfg.widthRatio)?Math.max(.3,Math.min(.9,cfg.widthRatio)):.6);
   const cardW=Math.max(pad*3,Math.min(w-margin*2,Math.min(w,h)*widthRatio,naturalWidth+pad*2+1)),inner=Math.max(.001,cardW-pad*2);
-  const r=new Layout();r.w=cardW;r.background=light?'#F5F8FB':(id==='MINIMAL'?'#18232C':'#16212B');r.accent=id==='ENGINEERING_BLUE'?'#1262AE':id==='CONSTRUCTION_TABLE'?'#455F78':id==='INSPECTION'?'#168D80':id==='ACCEPTANCE'?'#173C68':'#FFB300';
+  const r=new Layout();r.w=cardW;r.background=id==='WHITEBOARD'?'#FAFAF7':light?'#F5F8FB':(id==='MINIMAL'?'#18232C':'#16212B');r.accent=id==='ENGINEERING_BLUE'?'#1262AE':id==='CONSTRUCTION_TABLE'?'#455F78':id==='INSPECTION'?'#168D80':id==='ACCEPTANCE'?'#173C68':'#FFB300';
   const fg=light?'#172D42':'#FFFFFF',label=light?'#315776':'#CFD8DC';let y=pad;let header=0;
-  const add=(text: string,x: number,top: number,maxW: number,font: number,color: string,bold: boolean,key: string,role: string): number=>{ctx.font=`${bold?'bold':'normal'} ${font}px sans-serif`;let cursor=top;for(const part of wrapText(ctx,text,Math.max(.001,maxW))){const mt=ctx.measureText(part||'国');const asc=Math.max(mt.fontBoundingBoxAscent||0,mt.actualBoundingBoxAscent||0,font*.9);const desc=Math.max(mt.fontBoundingBoxDescent||0,mt.actualBoundingBoxDescent||0,font*.25);const l=new InkLine();l.text=part;l.x=x;l.y=cursor+asc;l.width=mt.width;l.size=font;l.color=color;l.bold=bold;l.key=key;l.role=role;l.ascent=asc;l.descent=desc;r.lines.push(l);cursor+=asc+desc+gap;}return cursor;};
+  const add=(text: string,x: number,top: number,maxW: number,font: number,color: string,bold: boolean,key: string,role: string): number=>{ctx.font=`${bold?'bold':'normal'} ${font}px ${fontFamily(cfg.fontId)}`;let cursor=top;for(const part of wrapText(ctx,text,Math.max(.001,maxW))){const mt=ctx.measureText(part||'国');const asc=Math.max(mt.fontBoundingBoxAscent||0,mt.actualBoundingBoxAscent||0,font*.9);const desc=Math.max(mt.fontBoundingBoxDescent||0,mt.actualBoundingBoxDescent||0,font*.25);const l=new InkLine();l.text=part;l.x=x;l.y=cursor+asc;l.width=mt.width;l.size=font;l.color=color;l.bold=bold;l.key=key;l.role=role;l.ascent=asc;l.descent=desc;r.lines.push(l);cursor+=asc+desc+gap;}return cursor;};
   if(title){y=add(title,pad,y,inner,id==='INFO_BOARD'?32*base:size*1.12,id==='INFO_BOARD'?'#17212A':'#FFFFFF',true,'','heading')+pad*.5;header=y;y+=pad*.5;}
   for(let i=0;i<fields.length;i++){const f=fields[i],rowTop=y,blue=id==='ENGINEERING_BLUE'&&(f.key==='project'||f.key==='time'),big=id==='TIME_LOCATION'&&f.key==='time',highlight=id==='CLASSIC'&&i===0,font=highlight?34*base:size*(big?1.75:blue?1.12:1);
     if(blue){if(snap.presentationVersion===2){const top=y;y=add(f.label+': '+f.value,pad,y,inner,font,'#FFFFFF',true,f.key,'value');const bg=new InkRect();bg.x=pad-gap;bg.y=top-gap/2;bg.w=inner+gap*2;bg.h=y-top+gap/2;bg.color=r.accent;r.rects.push(bg);}else{y=add(f.value,pad,y,inner,font,'#FFFFFF',true,f.key,'value');header=y+gap;}}
@@ -77,10 +77,10 @@ function build(ctx: DrawingContext,w: number,h: number,snap: Snapshot,scale: num
     else if(id==='MINIMAL'||id==='TIME_LOCATION'){if((snap.presentationVersion===2||!['project','category','time','address','gps','user'].includes(f.key))&&f.label)y=add(f.label,pad,y,inner,size*.85,label,true,f.key,'label');y=add(f.value,pad,y,inner,font,fg,big,f.key,'value');}
     else {
       const labelText=f.label+': ';
-      ctx.font='bold '+font+'px sans-serif';
+      ctx.font='bold '+font+'px '+fontFamily(cfg.fontId);
       const labelMetrics: TextMetrics=ctx.measureText(labelText);
       const labelWidth=labelMetrics.width;
-      ctx.font=(highlight?'bold':'normal')+' '+font+'px sans-serif';
+      ctx.font=(highlight?'bold':'normal')+' '+font+'px '+fontFamily(cfg.fontId);
       const valueMetrics: TextMetrics=ctx.measureText(f.value);
       const valueWidth=valueMetrics.width;
       const fits=labelWidth+valueWidth<=inner && f.value.indexOf('\n')<0;
@@ -101,5 +101,5 @@ function build(ctx: DrawingContext,w: number,h: number,snap: Snapshot,scale: num
 }
 function roundedPath(ctx: DrawingContext,x:number,y:number,w:number,h:number,radius:number): void { const r0=Math.min(radius,Math.min(w,h)/2);ctx.beginPath();ctx.moveTo(x+r0,y);ctx.lineTo(x+w-r0,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r0);ctx.lineTo(x+w,y+h-r0);ctx.quadraticCurveTo(x+w,y+h,x+w-r0,y+h);ctx.lineTo(x+r0,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r0);ctx.lineTo(x,y+r0);ctx.quadraticCurveTo(x,y,x+r0,y);ctx.closePath(); }
 function line(r: Layout,x: number,y: number,w: number,h: number,color: string): void {const d=new InkRect();d.x=x;d.y=y;d.w=w;d.h=h;d.color=color;r.rects.push(d);}
-export function paintWatermark(ctx: DrawingContext,w: number,h: number,s: Snapshot): Layout {const r=layoutWatermark(ctx,w,h,s);ctx.save();ctx.globalAlpha=Math.max(0,Math.min(1,s.watermark.opacity));ctx.fillStyle=r.background;roundedPath(ctx,r.x,r.y,r.w,r.h,r.radius);ctx.fill();ctx.globalAlpha=1;if(r.header){ctx.fillStyle=r.accent;ctx.fillRect(r.x,r.y,r.w,r.header);}if(s.watermark.style==='CLASSIC'){ctx.fillStyle=r.accent;ctx.fillRect(r.x,r.y,r.accentWidth,r.h);}for(const d of r.rects){ctx.fillStyle=d.color;ctx.fillRect(d.x,d.y,d.w,d.h);}for(const l of r.lines){ctx.font=`${l.bold?'bold':'normal'} ${l.size}px sans-serif`;ctx.fillStyle=l.color;ctx.fillText(l.text,l.x,l.y);}ctx.restore();return r;}
+export function paintWatermark(ctx: DrawingContext,w: number,h: number,s: Snapshot): Layout {const r=layoutWatermark(ctx,w,h,s);ctx.save();ctx.globalAlpha=Math.max(0,Math.min(1,s.watermark.opacity));ctx.fillStyle=r.background;roundedPath(ctx,r.x,r.y,r.w,r.h,r.radius);ctx.fill();ctx.globalAlpha=1;if(r.header){ctx.fillStyle=r.accent;ctx.fillRect(r.x,r.y,r.w,r.header);}if(s.watermark.style==='CLASSIC'){ctx.fillStyle=r.accent;ctx.fillRect(r.x,r.y,r.accentWidth,r.h);}for(const d of r.rects){ctx.fillStyle=d.color;ctx.fillRect(d.x,d.y,d.w,d.h);}for(const l of r.lines){ctx.font=`${l.bold?'bold':'normal'} ${l.size}px ${fontFamily(s.watermark.fontId)}`;ctx.fillStyle=s.watermark.textColor||l.color;ctx.fillText(l.text,l.x,l.y);}if(s.watermark.style==='WHITEBOARD'){ctx.strokeStyle='#17212B';ctx.lineWidth=Math.max(1,Math.min(w,h)/540);ctx.strokeRect(r.x,r.y,r.w,r.h);}ctx.restore();return r;}
 export function watermarkPixelMap(w: number,h: number,s: Snapshot): image.PixelMap {const canvas=new OffscreenCanvas(w,h,LengthMetricsUnit.PX);const ctx=canvas.getContext('2d');paintWatermark(ctx,w,h,s);return ctx.getPixelMap(0,0,w,h);}

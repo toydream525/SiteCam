@@ -103,7 +103,7 @@ class WatermarkWidthTest {
         val context = RuntimeEnvironment.getApplication()
         val name = "watermark-width-migration-test.db"
         context.deleteDatabase(name)
-        fun open() = Room.databaseBuilder(context, AppDatabase::class.java, name).allowMainThreadQueries().addMigrations(AppDatabase.MIGRATION_5_6).build()
+        fun open() = Room.databaseBuilder(context, AppDatabase::class.java, name).allowMainThreadQueries().addMigrations(AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7).build()
         var db = open()
         try {
             val first = db.watermarkDao().insertTemplate(WatermarkTemplateEntity(name = "甲", widthRatio = .3f))

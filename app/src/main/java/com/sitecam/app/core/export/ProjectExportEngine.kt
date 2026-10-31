@@ -17,6 +17,8 @@ import com.sitecam.app.core.media.NamingEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import org.json.JSONObject
 import java.io.BufferedOutputStream
 import java.io.File
@@ -81,21 +83,26 @@ class ProjectExportEngine(
             withContext(Dispatchers.IO) {
                 val staged = stage(projectIds, mediaIds, options, onProgress)
                 try {
-                    val name = "工程档案_${System.currentTimeMillis()}.zip"
+                    val name = exportZipName(staged.projectNames, System.currentTimeMillis())
                     val target = createExportTarget(name)
                     try {
                         ZipOutputStream(BufferedOutputStream(target.outputStream)).use { zip ->
                             val files = staged.root.walkTopDown().filter { it.isFile }.toList()
                             files.forEachIndexed { index, file ->
                                 onProgress(index + 1, files.size, "写入压缩包：${file.name}")
+                                currentCoroutineContext().ensureActive()
                                 zip.putNextEntry(ZipEntry(file.relativeTo(staged.root).invariantSeparatorsPath))
                                 file.inputStream().use { it.copyTo(zip) }
                                 zip.closeEntry()
                             }
                         }
+                        currentCoroutineContext().ensureActive()
                         target.finishSuccess()
-                    } catch (t: Throwable) { target.cleanupFailure(); throw t }
-                    ExportResult(target.uri, name, staged.photos, staged.videos, staged.issues,
+                    } catch (t: Throwable) {
+                        runCatching { target.cleanupFailure() }.exceptionOrNull()?.let(t::addSuppressed)
+                        throw t
+                    }
+                    ExportResult(target.uri, target.displayName, staged.photos, staged.videos, staged.issues,
                         staged.copied, staged.missing, staged.annotations, staged.missingAnnotations)
                 } finally { staged.root.deleteRecursively() }
             }
@@ -173,7 +180,7 @@ class ProjectExportEngine(
             }
         }
 
-    private data class Staged(val root: File, var photos: Int = 0, var videos: Int = 0, var issues: Int = 0,
+    private data class Staged(val root: File, var projectNames: List<String> = emptyList(), var photos: Int = 0, var videos: Int = 0, var issues: Int = 0,
         var copied: Int = 0, var missing: Int = 0, var annotations: Int = 0, var missingAnnotations: Int = 0)
 
     private suspend fun stage(projectIds: Set<Long>, mediaIds: Set<Long>?, options: ExportOptions,
@@ -184,6 +191,7 @@ class ProjectExportEngine(
         val result = Staged(root)
         try {
             val projects = projectIds.sorted().map { database.projectDao().getProjectById(it) ?: error("工程 $it 已不存在") }
+            result.projectNames = projects.map { it.name }
             val all = database.mediaItemDao().getAllMediaItems().first()
             val chosen = selectExportMedia(all, projectIds, mediaIds)
             require(mediaIds == null || chosen.size == mediaIds.size) { "部分选中媒体已删除或移动，请刷新后重试" }
@@ -346,6 +354,7 @@ class ProjectExportEngine(
 
     private data class ExportTarget(
         val uri: Uri,
+        val displayName: String,
         val outputStream: OutputStream,
         val finishSuccess: () -> Unit,
         val cleanupFailure: () -> Unit
@@ -365,13 +374,20 @@ class ProjectExportEngine(
             }
             val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
                 ?: throw IllegalStateException("无法创建导出文件")
-            val output = resolver.openOutputStream(uri, "w")
-                ?: run {
-                    resolver.delete(uri, null, null)
-                    throw IllegalStateException("无法写入导出文件")
+            val output = try {
+                resolver.openOutputStream(uri, "w") ?: error("无法写入导出文件")
+            } catch (t: Throwable) {
+                runCatching { resolver.delete(uri, null, null) }.exceptionOrNull()?.let(t::addSuppressed)
+                throw t
+            }
+            val actualName = runCatching {
+                resolver.query(uri, arrayOf(MediaStore.Downloads.DISPLAY_NAME), null, null, null)?.use {
+                    if (it.moveToFirst()) it.getString(0) else null
                 }
+            }.getOrNull()?.takeIf { it.isNotBlank() } ?: displayName
             ExportTarget(
                 uri = uri,
+                displayName = actualName,
                 outputStream = output,
                 finishSuccess = {
                     val published = resolver.update(
@@ -399,10 +415,13 @@ class ProjectExportEngine(
             }
             val exportDir = File(baseDir, "SiteCam/Exports").apply { mkdirs() }
             val file = collisionSafeFile(exportDir, displayName)
-            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            val uri = try { FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file) }
+                catch (t: Throwable) { file.delete(); throw t }
+            val output = try { FileOutputStream(file) } catch (t: Throwable) { file.delete(); throw t }
             ExportTarget(
                 uri = uri,
-                outputStream = FileOutputStream(file),
+                displayName = file.name,
+                outputStream = output,
                 finishSuccess = {},
                 cleanupFailure = { file.delete() }
             )
@@ -422,7 +441,7 @@ class ProjectExportEngine(
         for (index in 0..100) {
             val candidate = if (index == 0) baseName else "$stem ($index)$extension"
             val file = File(parent, candidate)
-            if (!file.exists()) return file
+            if (file.createNewFile()) return file
         }
         throw IllegalStateException("无法创建不重复的导出文件: $baseName")
     }

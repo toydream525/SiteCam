@@ -588,7 +588,7 @@ fun ProjectListScreen(
                                 if (project.isCaptureLocked) Icon(Icons.Default.Lock, "已锁定拍摄", tint = AccentText, modifier = Modifier.padding(start = 6.dp).size(18.dp))
                                 if (project.isArchived) Icon(Icons.Default.Archive, "已归档", tint = TextSecondaryDark, modifier = Modifier.padding(start = 6.dp).size(18.dp))
                             }
-                            Text(listOf(project.categoryName.ifBlank { "未分类" }, project.routeName).filter { it.isNotBlank() }.joinToString(" · "),
+                            Text(listOf(project.categoryName.ifBlank { "未分类" }, "创建于 " + java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date(project.createdAt)), project.routeName).filter { it.isNotBlank() }.joinToString(" · "),
                                 color = TextSecondaryDark, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             ProjectCountSummary(row.statistics.photos, row.statistics.videos, row.statistics.issues)
                             if (project.isArchived) Text(row.statistics.dateLabel(), color = TextSecondaryDark, fontSize = 12.sp)

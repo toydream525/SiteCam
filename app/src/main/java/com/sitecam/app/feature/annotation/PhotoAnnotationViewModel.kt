@@ -40,7 +40,8 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 
-data class TextEditorState(val target: TextEditTarget?, val position: Offset, val text: String, val width: Float, val height: Float)
+data class TextEditorState(val target: TextEditTarget?, val position: Offset, val text: String, val width: Float, val height: Float,
+    val fontId: String = "", val color: Color = Color(0xFFF44336), val whiteboard: Boolean = false)
 
 data class AnnotationUiState(
     val mediaItem: MediaItemEntity? = null,
@@ -386,8 +387,12 @@ class PhotoAnnotationViewModel(
     }
     fun openTextEditor(target: TextEditTarget?, position: Offset, width: Float, height: Float) {
         if (_uiState.value.loadError != null) return
-        _uiState.value = _uiState.value.copy(textEditor = TextEditorState(target, position, target?.note?.text.orEmpty(), width, height))
+        _uiState.value = _uiState.value.copy(textEditor = TextEditorState(target, position, target?.note?.text.orEmpty(), width, height,
+            target?.note?.fontId.orEmpty(), target?.note?.color ?: _uiState.value.selectedColor, target?.note?.whiteboard ?: false))
     }
+    fun textFontChanged(fontId: String) { _uiState.value.textEditor?.let { _uiState.value = _uiState.value.copy(textEditor = it.copy(fontId = fontId)) } }
+    fun textColorChanged(value: String?) { if (value != null) _uiState.value.textEditor?.let { _uiState.value = _uiState.value.copy(textEditor = it.copy(color = Color(android.graphics.Color.parseColor(value)))) } }
+    fun textBoardChanged(value: Boolean) { _uiState.value.textEditor?.let { _uiState.value = _uiState.value.copy(textEditor = it.copy(whiteboard = value)) } }
     fun textDraftChanged(text: String) {
         if (_uiState.value.loadError != null) return
         _uiState.value.textEditor?.let { _uiState.value = _uiState.value.copy(textEditor = it.copy(text = text)) }
@@ -398,8 +403,8 @@ class PhotoAnnotationViewModel(
     fun confirmTextEditor() {
         val editor = _uiState.value.textEditor ?: return
         if (_uiState.value.loadError != null || _uiState.value.isSaving || editor.text.isBlank()) return
-        val note = editor.target?.note?.copy(text = editor.text) ?: AnnotationElement.TextNote(editor.position,
-            editor.text, _uiState.value.selectedColor, _uiState.value.selectedStrokeWidth)
+        val note = editor.target?.note?.copy(text = editor.text, color = editor.color, fontId = editor.fontId, whiteboard = editor.whiteboard) ?: AnnotationElement.TextNote(editor.position,
+            editor.text, editor.color, _uiState.value.selectedStrokeWidth, editor.fontId, editor.whiteboard)
         when {
             editor.target != null -> updateText(editor.target, note) { dismissTextEditor() }
             viewportWidth == editor.width && viewportHeight == editor.height -> {
@@ -715,7 +720,8 @@ class PhotoAnnotationViewModel(
                 val layout = TextNoteGeometry.layout(
                     position = element.position,
                     text = element.text,
-                    contentRect = contentRect.rect
+                    contentRect = contentRect.rect,
+                    fontId = element.fontId
                 )
                 val bubbleTopLeft = map(layout.bubbleRect.topLeft)
                 val bubbleBottomRight = map(layout.bubbleRect.bottomRight)
@@ -723,11 +729,11 @@ class PhotoAnnotationViewModel(
                 val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = element.color.toArgb()
                     textSize = TextNoteGeometry.TEXT_SIZE * avgScale
-                    typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                    typeface = com.sitecam.app.core.text.FontLibrary.typeface(element.fontId); isFakeBoldText = true
                 }
                 // Background bubble for high contrast
                 val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = android.graphics.Color.parseColor("#CC121212")
+                    color = android.graphics.Color.parseColor(if (element.whiteboard) "#FAFAF7" else "#CC121212")
                     style = Paint.Style.FILL
                 }
                 canvas.drawRoundRect(
@@ -739,6 +745,11 @@ class PhotoAnnotationViewModel(
                     8f * avgScale,
                     bgPaint
                 )
+                if (element.whiteboard) {
+                    bgPaint.style = Paint.Style.STROKE; bgPaint.strokeWidth = 2f * avgScale
+                    bgPaint.color = android.graphics.Color.parseColor("#17212B")
+                    canvas.drawRoundRect(bubbleTopLeft.x, bubbleTopLeft.y, bubbleBottomRight.x, bubbleBottomRight.y, 4f * avgScale, 4f * avgScale, bgPaint)
+                }
                 canvas.drawText(layout.text, baseline.x, baseline.y, textPaint)
             }
             is AnnotationElement.Mosaic -> {

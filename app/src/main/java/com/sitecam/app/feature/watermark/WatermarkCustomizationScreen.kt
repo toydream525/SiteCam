@@ -46,6 +46,7 @@ fun WatermarkCustomizationScreen(viewModel: WatermarkEditorViewModel, onNavigate
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("内容", "字段", "外观").forEach { label -> FilterChip(tab == label, { tab = label }, label = { Text(label) }) }
             }
+            WatermarkStyleEntry(WatermarkStyleCatalog.resolve(state.template?.styleType).name, { styles = true })
             when(tab) {
                 "内容" -> {
                     state.fields.forEach { field ->
@@ -85,12 +86,8 @@ fun WatermarkCustomizationScreen(viewModel: WatermarkEditorViewModel, onNavigate
                     }
                 }
                 "外观" -> {
-                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                        TextButton(onClick = { styles = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp)) {
-                            Text("水印样式", Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface)
-                            Text(WatermarkStyleCatalog.resolve(state.template?.styleType).name, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
+                    com.sitecam.app.core.text.TextAppearanceControls(state.template?.fontId.orEmpty(), state.template?.textColor,
+                        viewModel::updateFont, viewModel::updateTextColor)
                     WatermarkControl("字号", "%.1f×".format(state.template?.fontSizeScale ?: 1f)) {
                         Slider(state.template?.fontSizeScale ?: 1f, viewModel::updateFontSizeScale, valueRange = .6f..2f, steps = 13)
                     }

@@ -1,5 +1,25 @@
 # 更新日志
 
+## v0.4.4 — 2026-10-31
+
+- 单工程压缩包使用工程名称和导出日期命名。
+- 新增导出压缩包管理，支持删除历史压缩包。
+- 工程列表显示创建日期。
+- 支持导入字体和设置水印及文字标注颜色。
+- 新增水印和文字标注白板框样式。
+- 优化快速编辑和设置中的水印样式入口。
+- 精简鸿蒙快速水印编辑面板。
+- 提升鸿蒙版连续拍摄速度，拍完可立即拍摄下一张。
+- 修复鸿蒙设置子页面返回时分组和滚动位置丢失的问题。
+- 修复鸿蒙照片画面方向与预览不一致的问题。
+- 修复关闭闪光灯后仍可能自动闪光的问题。
+- 修复导出失败或取消后残留未完成压缩包的问题。
+
+### 下载
+
+- Android：[Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.4/SiteCam-0.4.4-Android-Release.apk) · [Debug APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.4/SiteCam-0.4.4-Android-Debug.apk)
+- HarmonyOS：[Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.4.4/SiteCam-0.4.4-HarmonyOS-Release-Unsigned.hap)，需自行签名后安装；[华为应用市场](appmarket://details?id=com.sitecam.app)的新版本以审核进度为准。
+
 ## v0.4.3 — 2026-10-28
 
 - 新增默认开启的抓拍模式。

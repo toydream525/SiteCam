@@ -37,23 +37,34 @@ object TextNoteGeometry {
         position: Offset,
         text: String,
         contentRect: Rect,
-        textSize: Float = TEXT_SIZE
+        textSize: Float = TEXT_SIZE,
+        fontId: String = ""
     ): TextNoteLayout {
+        val paint = if (fontId.isNotEmpty()) android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            this.textSize = textSize; typeface = com.sitecam.app.core.text.FontLibrary.typeface(fontId); isFakeBoldText = true
+        } else null
+        fun width(value: String) = paint?.measureText(value) ?: estimateTextWidth(value, textSize)
         val safeWidth = contentRect.width.coerceAtLeast(textSize)
         val textMaxWidth = (safeWidth - HORIZONTAL_PADDING * 2).coerceAtLeast(textSize)
-        val visibleText = ellipsize(text, textMaxWidth, textSize)
-        val bubbleWidth = (estimateTextWidth(visibleText, textSize) + HORIZONTAL_PADDING * 2)
+        val visibleText = if (paint == null) ellipsize(text, textMaxWidth, textSize) else if (width(text) <= textMaxWidth) text else {
+            var value = ""
+            for (character in text) { if (width(value + character + "…") > textMaxWidth) break; value += character }
+            value + "…"
+        }
+        val topPadding = maxOf(TOP_PADDING, paint?.fontMetrics?.top?.let { -it + 4f } ?: TOP_PADDING)
+        val bottomPadding = maxOf(BOTTOM_PADDING, paint?.fontMetrics?.bottom?.let { it + 4f } ?: BOTTOM_PADDING)
+        val bubbleWidth = (width(visibleText) + HORIZONTAL_PADDING * 2)
             .coerceAtMost(safeWidth)
         val left = (position.x - HORIZONTAL_PADDING).coerceIn(
             contentRect.left,
             (contentRect.right - bubbleWidth).coerceAtLeast(contentRect.left)
         )
         val baselineY = position.y.coerceIn(
-            contentRect.top + TOP_PADDING,
-            (contentRect.bottom - BOTTOM_PADDING).coerceAtLeast(contentRect.top + TOP_PADDING)
+            contentRect.top + topPadding,
+            (contentRect.bottom - bottomPadding).coerceAtLeast(contentRect.top + topPadding)
         )
-        val top = (baselineY - TOP_PADDING).coerceAtLeast(contentRect.top)
-        val bottom = (baselineY + BOTTOM_PADDING).coerceAtMost(contentRect.bottom)
+        val top = (baselineY - topPadding).coerceAtLeast(contentRect.top)
+        val bottom = (baselineY + bottomPadding).coerceAtMost(contentRect.bottom)
         return TextNoteLayout(
             text = visibleText,
             baseline = Offset(left + HORIZONTAL_PADDING, baselineY),

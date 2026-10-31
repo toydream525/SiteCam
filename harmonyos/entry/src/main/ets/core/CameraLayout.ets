@@ -148,6 +148,11 @@ export function captureDegrees(mode: string, displayDegrees: number, last: numbe
   return displayDegrees === 180 ? last : displayDegrees;
 }
 
+/** PhotoOutput takes a gravity/device angle, opposite to the displayed screen rotation. */
+export function photoDeviceDegrees(displayDegrees: number): number {
+  return ((360 - displayDegrees) % 360 + 360) % 360;
+}
+
 /**
  * The capture lock follows the orientation that is already visible on screen.
  * It deliberately does not translate capture metadata degrees into a window

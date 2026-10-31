@@ -58,9 +58,13 @@ fun SettingsScreen(viewModel: SettingsViewModel, onNavigateBack: () -> Unit,
     val iconPicker = remember(context) { AppIconPicker(context.applicationContext) }
     var selectedIcon by remember { mutableStateOf(iconPicker.selectedChoice()) }
     var page by rememberSaveable { mutableStateOf("设置") }
+    var authorSupport by rememberSaveable { mutableStateOf(false) }
+    if (authorSupport) AuthorSupportDialog { authorSupport = false }
     var selectedGroup by rememberSaveable { mutableStateOf(groups.first()) }
     var cameraAppearanceExpanded by rememberSaveable { mutableStateOf(false) }
     var showEasterEgg by remember { mutableStateOf(false) }
+    var manageArchives by rememberSaveable { mutableStateOf(false) }
+    if (manageArchives) com.sitecam.app.core.export.ExportArchiveManager { manageArchives = false }
     var versionTapCount by remember { mutableIntStateOf(0) }
     var versionTapAt by remember { mutableLongStateOf(0L) }
     val legacyPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -94,6 +98,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, onNavigateBack: () -> Unit,
                 SettingsRow("照片画质", Icons.Default.Photo, state.photoQualityProfile.label) { page = "照片画质" }
                 SettingsToggle("快门声音", Icons.Default.VolumeUp, state.shutterSoundEnabled, viewModel::setShutterSoundEnabled)
                 SettingsToggle("同时在系统相册显示", Icons.Default.PhotoLibrary, state.saveToSystemGallery, ::toggleAlbum)
+                SettingsRow("导出压缩包", Icons.Default.FolderZip) { manageArchives = true }
             }
             "水印" -> SettingsGroup(group) {
                 SettingsRow("水印样式与字段", Icons.Default.WaterDrop) { onNavigateToWatermarkEditor(state.activeTemplateId) }
@@ -169,6 +174,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, onNavigateBack: () -> Unit,
                         SettingsRow("使用指南", Icons.Default.MenuBook, onClick = onNavigateToHelp)
                         SettingsRow("隐私政策", Icons.Default.Lock) { open(PRIVACY) }
                         SettingsRow("官网与下载", Icons.Default.OpenInNew) { open(WEBSITE) }
+                        SettingsRow("支持作者", Icons.Default.FavoriteBorder) { authorSupport = true }
                         SettingsRow("设备诊断", Icons.Default.ContentCopy) {
                             viewModel.copyDiagnostics(context)
                         }

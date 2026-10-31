@@ -18,14 +18,15 @@ data class WatermarkLayoutResult(
     val cardRect: RectF, val accentBarRect: RectF?, val headerRect: RectF?,
     val lines: List<WatermarkTextLine>, val cardColor: Int,
     val accentColor: Int = Color.parseColor("#FFB300"), val opacity: Float,
-    val decorations: List<WatermarkDecoration> = emptyList(), val cornerRadius: Float = 0f
+    val decorations: List<WatermarkDecoration> = emptyList(), val cornerRadius: Float = 0f,
+    val fontId: String = ""
 )
 
 /** Layout and drawing share this exact paint, including synthetic bold and font top/bottom. */
-fun watermarkPaint(size: Float, color: Int = Color.WHITE, bold: Boolean = false) =
+fun watermarkPaint(size: Float, color: Int = Color.WHITE, bold: Boolean = false, fontId: String = "") =
     Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = size; this.color = color
-        typeface = Typeface.DEFAULT; isFakeBoldText = bold
+        typeface = com.sitecam.app.core.text.FontLibrary.typeface(fontId); isFakeBoldText = bold
     }
 
 object WatermarkLayoutEngine {
@@ -40,6 +41,8 @@ object WatermarkLayoutEngine {
     fun measureStringWidth(text: String, textSize: Float): Float = watermarkPaint(textSize).measureText(text)
 
     fun calculateLayout(canvasWidth: Float, canvasHeight: Float, data: WatermarkData): WatermarkLayoutResult {
+        fun watermarkPaint(size: Float, color: Int = Color.WHITE, bold: Boolean = false) =
+            com.sitecam.app.core.watermark.engine.watermarkPaint(size, color, bold, data.fontId)
         val width = canvasWidth.coerceAtLeast(1f); val height = canvasHeight.coerceAtLeast(1f)
         val style = WatermarkStyleCatalog.resolve(data.styleType).id
         val fields = listOf(
@@ -68,7 +71,7 @@ object WatermarkLayoutEngine {
         val margin = (data.marginDp.coerceAtLeast(0) * 3f * base).coerceAtMost(min(width,height) * .08f)
         val availableWidth = width - margin * 2
         val availableHeight = height - margin * 2
-        val light = style in setOf("ENGINEERING_BLUE", "CONSTRUCTION_TABLE", "ACCEPTANCE")
+        val light = style in setOf("ENGINEERING_BLUE", "CONSTRUCTION_TABLE", "ACCEPTANCE", "WHITEBOARD")
         val table = light
         val accent = color(when(style) {
             "ENGINEERING_BLUE" -> "#1262AE"; "CONSTRUCTION_TABLE" -> "#455F78"
@@ -196,10 +199,17 @@ object WatermarkLayoutEngine {
                 }
             }
             val cardHeight = y + pad
+            if (style == "WHITEBOARD") {
+                val border = color("#17212B")
+                decorations += WatermarkDecoration(RectF(0f, 0f, cardWidth, s * 2), border)
+                decorations += WatermarkDecoration(RectF(0f, cardHeight - s * 2, cardWidth, cardHeight), border)
+                decorations += WatermarkDecoration(RectF(0f, 0f, s * 2, cardHeight), border)
+                decorations += WatermarkDecoration(RectF(cardWidth - s * 2, 0f, cardWidth, cardHeight), border)
+            }
             val x = if(data.position.endsWith("RIGHT")) width-margin-cardWidth else margin
             val top = if(data.position.startsWith("TOP")) margin else height-margin-cardHeight
             fun shifted(rect: RectF) = RectF(rect).apply { offset(x,top) }
-            val bg = if(light) color("#F5F8FB") else color(if(style == "MINIMAL") "#18232C" else "#16212B")
+            val bg = if(style == "WHITEBOARD") color("#FAFAF7") else if(light) color("#F5F8FB") else color(if(style == "MINIMAL") "#18232C" else "#16212B")
             // Opacity travels as one value on the result and is applied once by
             // the painter, so the card fill is never faded twice and the bars,
             // dividers and text fade together with it.
@@ -207,9 +217,12 @@ object WatermarkLayoutEngine {
             return WatermarkLayoutResult(RectF(x,top,x+cardWidth,top+cardHeight),
                 if(style == "CLASSIC") shifted(RectF(0f,0f,5f*s,cardHeight)) else null,
                 headerBottom?.let { shifted(RectF(0f,0f,cardWidth,it)) },
-                lines.map { it.copy(x=it.x+x,y=it.y+top) },
+                lines.map { line ->
+                    val customColor = data.textColor?.let { runCatching { Color.parseColor(it) }.getOrNull() }
+                    line.copy(x=line.x+x,y=line.y+top,textColor=customColor ?: line.textColor,labelColor=customColor ?: line.labelColor)
+                },
                 bg,accent,opacity,
-                decorations.map { it.copy(rect=shifted(it.rect)) },if(style == "MINIMAL") 12f*s else 3f*s)
+                decorations.map { it.copy(rect=shifted(it.rect)) },if(style == "MINIMAL") 12f*s else 3f*s,data.fontId)
         }
         val normal = build(1f)
         if(normal.cardRect.height() <= availableHeight) return normal
