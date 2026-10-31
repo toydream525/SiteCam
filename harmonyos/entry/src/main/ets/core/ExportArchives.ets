@@ -1,7 +1,6 @@
 import { common } from '@kit.AbilityKit';
-import { fileIo as fs, fileUri, fileShare, picker } from '@kit.CoreFileKit';
+import { fileIo as fs, fileUri, picker } from '@kit.CoreFileKit';
 import { preferences } from '@kit.ArkData';
-import { deviceInfo } from '@kit.BasicServicesKit';
 
 export class ExportArchive { id:string='';name:string='';size:number=0;date:number=0; }
 class ArchiveLocation {uri:string='';directory:boolean=false;}
@@ -12,12 +11,14 @@ export class ExportArchives {
   constructor(context:common.UIAbilityContext){this.context=context;}
   private async prefs():Promise<preferences.Preferences>{return preferences.getPreferences(this.context,{name:'sitecam_export_archives'});}
   private async locations():Promise<ArchiveLocation[]>{const p=await this.prefs();const value=await p.get('locations','[]');return JSON.parse(value as string) as ArchiveLocation[];}
-  private mode():number{return fileShare.OperationMode.READ_MODE|fileShare.OperationMode.WRITE_MODE|(deviceInfo.sdkApiVersion>=20?fileShare.OperationMode.DELETE_MODE:0);}
   private path(uri:string):string{return uri.startsWith('file://')?new fileUri.FileUri(uri).path:uri;}
   private async remember(uri:string,directory:boolean):Promise<void>{
-    try{await fileShare.persistPermission([{uri:uri,operationMode:this.mode()}]);}catch(e){console.info('SITECAM_ARCHIVE_PERSIST '+String(e));}
     const p=await this.prefs(),values=await this.locations();
     if(!values.some((v:ArchiveLocation)=>v.uri===uri&&v.directory===directory)){const entry=new ArchiveLocation();entry.uri=uri;entry.directory=directory;values.push(entry);await p.put('locations',JSON.stringify(values));await p.flush();}
+  }
+  private async forget(uri:string):Promise<void>{
+    const p=await this.prefs(),values=(await this.locations()).filter((v:ArchiveLocation)=>v.uri!==uri);
+    await p.put('locations',JSON.stringify(values));await p.flush();
   }
   async rememberFile(uri:string):Promise<void>{await this.remember(uri,false);}
   async chooseDirectory():Promise<boolean>{
@@ -37,8 +38,8 @@ export class ExportArchives {
     for(const root of roots){try{if(!fs.accessSync(root))continue;for(const name of await fs.listFile(root))await add(root+'/'+name);}catch(e){result.unreadable++;}}
     for(const location of await this.locations()){
       try{
-        try{await fileShare.activatePermission([{uri:location.uri,operationMode:this.mode()}]);}catch(e){console.info('SITECAM_ARCHIVE_ACTIVATE '+String(e));}
-        const path=this.path(location.uri);if(!fs.accessSync(path))continue;
+        const path=this.path(location.uri);
+        if(!fs.accessSync(path)){await this.forget(location.uri);continue;}
         if(location.directory){for(const name of await fs.listFile(path))await add(path+'/'+name);}else await add(path);
       }catch(e){result.unreadable++;}
     }
