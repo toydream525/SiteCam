@@ -72,10 +72,6 @@ fun ExportArchiveManager(onDismiss: () -> Unit) {
                 }, actions = {
                     IconButton(onClick = ::refresh, enabled = !loading) { Icon(Icons.Default.Refresh, "刷新") }
                 })
-            }, bottomBar = {
-                Button(onClick = { confirmDelete = true }, enabled = selected.isNotEmpty() && !loading,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp)) { Text("删除所选") }
             }) { padding ->
                 Column(Modifier.padding(padding).fillMaxSize().padding(horizontal = 16.dp)) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -83,6 +79,8 @@ fun ExportArchiveManager(onDismiss: () -> Unit) {
                             enabled = files.isNotEmpty() && !loading) { Text(if (files.isNotEmpty() && selected.size == files.size) "取消全选" else "全选") }
                         TextButton(onClick = { chooseDirectory.launch(null) }, enabled = !loading) { Text("添加旧包") }
                         Text("已选 ${selected.size} 个", modifier = Modifier.padding(vertical = 12.dp))
+                        TextButton(onClick = { confirmDelete = true }, enabled = selected.isNotEmpty() && !loading,
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("删除所选") }
                     }
                     if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
                     if (files.isEmpty() && !loading) Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { Text("暂无压缩包") }
