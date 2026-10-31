@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1344" height="900" viewBox="0 0 1344 900">
+<style>text{font-family:'PingFang SC','Noto Sans CJK SC',sans-serif;font-size:16px;fill:#fff}.title{font-size:21px;font-weight:600}.label{font-weight:600}.muted{fill:#b0bec5;font-size:14px}.accent{fill:#ffb300}.ink{fill:#231a00;font-weight:600}.dark{fill:#1e1e1e}.light-accent{fill:#8f5c00}.light-muted{fill:#607d8b;font-size:14px}</style>
+<rect width="1344" height="900" fill="#10171d"/>
+<g transform="translate(24 24)"><rect width="416" height="852" rx="20" fill="#121212"/>
+<text class="title" x="24" y="48">水印编辑</text><text class="accent" x="350" y="48">完成</text>
+<rect x="20" y="76" width="72" height="40" rx="12" fill="#3d321a"/><text x="40" y="102">内容</text><text class="muted" x="122" y="102">外观</text>
+<rect x="20" y="136" width="376" height="88" rx="14" fill="#282828" stroke="#b88613"/>
+<text class="label" x="34" y="168">水印样式</text><text class="muted" x="34" y="198">经典工程水印</text>
+<rect x="250" y="156" width="132" height="48" rx="10" fill="#ffb300"/><text class="ink" x="276" y="186">更换样式</text>
+<text class="accent" x="32" y="268">工程名称</text><text class="accent" x="32" y="320">主体结构　　基础工程　　安全巡检</text>
+<rect x="20" y="350" width="376" height="140" rx="12" fill="#282828"/><text class="label" x="34" y="380">工程名称</text><rect x="330" y="362" width="50" height="28" rx="14" fill="#ffb300"/><circle cx="366" cy="376" r="11" fill="#fff"/><rect x="34" y="406" width="348" height="58" rx="6" fill="none" stroke="#667078"/><text x="48" y="442">滨江路雨水工程</text>
+<rect x="20" y="510" width="376" height="140" rx="12" fill="#282828"/><text class="label" x="34" y="540">拍摄地点</text><rect x="34" y="566" width="348" height="58" rx="6" fill="none" stroke="#667078"/><text x="48" y="602">施工现场</text>
+</g>
+<g transform="translate(464 24)"><rect width="416" height="852" rx="20" fill="#f5f5f5"/>
+<path d="M35 28l-12 12 12 12" fill="none" stroke="#1e1e1e" stroke-width="2"/><text class="title dark" x="56" y="48">水印编辑</text><text class="light-accent" x="350" y="48">完成</text>
+<rect x="20" y="78" width="376" height="184" rx="16" fill="#1e2830"/>
+<rect x="46" y="108" width="324" height="122" rx="8" fill="#16212b"/><path d="M48 112v112" stroke="#ffb300" stroke-width="5"/><text class="accent" x="64" y="142">工程：滨江路雨水工程</text><text x="64" y="176">拍摄地点：施工现场</text><text x="64" y="208">2026.10.31 13:30</text>
+<rect x="20" y="282" width="72" height="40" rx="12" fill="#ffb300"/><text class="ink" x="40" y="308">内容</text><text class="dark" x="120" y="308">字段</text><text class="dark" x="208" y="308">外观</text>
+<rect x="20" y="342" width="376" height="88" rx="14" fill="#fff" stroke="#b88613"/>
+<text class="label dark" x="34" y="374">水印样式</text><text class="light-muted" x="34" y="404">经典工程水印</text><rect x="250" y="362" width="132" height="48" rx="10" fill="#ffb300"/><text class="ink" x="276" y="392">更换样式</text>
+<rect x="20" y="450" width="376" height="118" rx="12" fill="#fff"/><text class="dark" x="34" y="480">工程名称</text><rect x="34" y="494" width="300" height="50" rx="6" fill="none" stroke="#b0bec5"/><text class="dark" x="48" y="526">滨江路雨水工程</text>
+<rect x="20" y="586" width="376" height="118" rx="12" fill="#fff"/><text class="dark" x="34" y="616">拍摄地点</text><rect x="34" y="630" width="300" height="50" rx="6" fill="none" stroke="#b0bec5"/>
+</g>
+<g transform="translate(904 24)"><rect width="416" height="852" rx="20" fill="#121212"/>
+<text class="title" x="24" y="48">水印编辑</text><text class="accent" x="350" y="48">完成</text>
+<rect x="56" y="104" width="304" height="160" rx="14" fill="#282828" stroke="#b88613"/>
+<text class="label" x="72" y="140" style="font-size:21px">水印样式</text><text class="muted" x="72" y="174" style="font-size:19px">大字时间地点</text><rect x="72" y="194" width="272" height="52" rx="10" fill="#ffb300"/><text class="ink" x="162" y="228" style="font-size:21px">更换样式</text>
+<text x="56" y="322" style="font-size:21px">字号　1.0×</text><path d="M66 354h284" stroke="#505050" stroke-width="4"/><circle cx="204" cy="354" r="10" fill="#ffb300"/>
+<text x="56" y="416" style="font-size:21px">水印宽度　60%</text><path d="M66 450h284" stroke="#505050" stroke-width="4"/><circle cx="228" cy="450" r="10" fill="#ffb300"/>
+<text x="56" y="512" style="font-size:21px">不透明度　85%</text><path d="M66 548h284" stroke="#505050" stroke-width="4"/><circle cx="310" cy="548" r="10" fill="#ffb300"/>
+</g></svg>

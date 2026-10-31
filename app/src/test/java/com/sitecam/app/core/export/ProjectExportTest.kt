@@ -9,6 +9,12 @@ import java.util.zip.ZipOutputStream
 
 class ProjectExportTest {
 
+    @Test fun projectZipUsesLocalExportDateAndBatchKeepsExistingName() {
+        val calendar = java.util.GregorianCalendar(2026, 9, 31, 23, 59, 0)
+        assertEquals("新区工程_2026-10-31.zip", exportZipName(listOf("新区工程"), calendar.timeInMillis))
+        assertEquals("工程档案_123.zip", exportZipName(listOf("甲", "乙"), 123))
+    }
+
     @Test
     fun csvEscapesQuotesAndCommasAsOneField() {
         assertEquals("\"工程, \"\"甲方\"\"\"", CsvEncoder.field("工程, \"甲方\""))

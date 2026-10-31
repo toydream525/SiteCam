@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1344" height="940" viewBox="0 0 1344 940">
+<style>text{font-family:'PingFang SC','Noto Sans CJK SC',sans-serif;fill:#ECEFF1;font-size:16px}.title{font-size:22px;font-weight:600}.muted{fill:#B0BEC5;font-size:14px}.accent{fill:#FFB300}.small{font-size:14px}.button{fill:#231A00;font-weight:600}.line{stroke:#465159;stroke-width:1}</style>
+<rect width="1344" height="940" fill="#10171D"/>
+<g transform="translate(24 24)">
+ <rect width="416" height="892" rx="20" fill="#121212"/>
+ <path d="M33 32l-10 10 10 10M24 42h22" stroke="#ECEFF1" fill="none" stroke-width="2"/>
+ <text class="title" x="63" y="48">工程包</text><text class="accent" x="352" y="48">新建</text>
+ <rect x="16" y="82" width="384" height="50" rx="12" fill="#252525"/><text class="muted" x="32" y="113">搜索工程 / 线路</text>
+ <rect x="16" y="148" width="120" height="44" rx="10" fill="#FFB300"/><text class="button" x="52" y="177">进行中</text><text class="muted" x="184" y="177">已归档</text><text class="muted" x="328" y="177">全部</text>
+ <text x="24" y="228">排序 · 最近拍摄</text><text class="accent" x="314" y="228">批量管理</text>
+ <g transform="translate(16 252)"><rect width="384" height="156" rx="14" fill="#252525" stroke="#465159"/><text x="16" y="31" font-size="18" font-weight="600">滨江路雨水工程</text><text class="muted" x="16" y="60">建筑 · 创建于 2026-10-21 · 一标段</text><text class="muted" x="16" y="88">照片 32 · 视频 4 · 问题 3</text><rect x="16" y="103" width="92" height="40" rx="10" fill="#FFB300"/><text class="button small" x="41" y="129">去拍摄</text><text x="141" y="129">编辑</text><text x="218" y="129">导出</text><circle cx="331" cy="124" r="2" fill="#ECEFF1"/><circle cx="340" cy="124" r="2" fill="#ECEFF1"/><circle cx="349" cy="124" r="2" fill="#ECEFF1"/></g>
+ <g transform="translate(16 420)"><rect width="384" height="156" rx="14" fill="#252525" stroke="#465159"/><text x="16" y="31" font-size="18" font-weight="600">新区综合楼</text><text class="muted" x="16" y="60">建筑 · 创建于 2026-10-18</text><text class="muted" x="16" y="88">照片 18 · 视频 2 · 问题 1</text><rect x="16" y="103" width="92" height="40" rx="10" fill="#FFB300"/><text class="button small" x="41" y="129">去拍摄</text><text x="141" y="129">编辑</text><text x="218" y="129">导出</text></g>
+</g>
+<g transform="translate(464 24)">
+ <rect width="416" height="892" rx="20" fill="#121212"/><path d="M33 32l-10 10 10 10M24 42h22" stroke="#ECEFF1" fill="none" stroke-width="2"/><text class="title" x="63" y="48">设置</text>
+ <text class="muted" x="24" y="102">拍摄与保存</text><rect x="16" y="120" width="384" height="390" rx="16" fill="#252525"/>
+ <text x="32" y="160">抓拍模式</text><rect x="330" y="140" width="48" height="28" rx="14" fill="#FFB300"/><circle cx="364" cy="154" r="11" fill="#FFF"/>
+ <text x="32" y="224">抓拍快门</text><text class="muted" x="315" y="224">1/250</text>
+ <text x="32" y="288">照片画质</text><text class="muted" x="282" y="288">标准省空间</text>
+ <text x="32" y="352">快门声音</text><text x="32" y="416">另存到系统相册</text>
+ <text x="32" y="480">导出压缩包</text><path d="M367 464l8 8-8 8" stroke="#B0BEC5" fill="none" stroke-width="2"/>
+ <text class="muted" x="24" y="562">水印</text><rect x="16" y="580" width="384" height="64" rx="16" fill="#252525"/><text x="32" y="619">水印样式与字段</text>
+</g>
+<g transform="translate(904 24)">
+ <rect width="416" height="892" rx="20" fill="#121212"/><path d="M33 32l-10 10 10 10M24 42h22" stroke="#ECEFF1" fill="none" stroke-width="2"/><text class="title" x="60" y="48">导出压缩包</text><text class="accent small" x="328" y="48">添加旧包</text>
+ <text class="accent" x="20" y="105">全选</text><text class="muted" x="88" y="105">已选 1 个</text>
+ <g transform="translate(16 132)"><rect width="384" height="100" rx="14" fill="#252525" stroke="#FFB300"/><rect x="16" y="26" width="22" height="22" rx="4" fill="#FFB300"/><path d="M20 36l5 5 10-13" stroke="#231A00" fill="none" stroke-width="2"/><text class="small" x="52" y="35">滨江路雨水工程_2026-10-30.zip</text><text class="muted" x="52" y="66">2026-10-30 09:30 · 126.8 MB</text></g>
+ <g transform="translate(16 244)"><rect width="384" height="100" rx="14" fill="#252525" stroke="#465159"/><rect x="16" y="26" width="22" height="22" rx="4" fill="none" stroke="#B0BEC5"/><text class="small" x="52" y="35">新区综合楼_2026-10-29.zip</text><text class="muted" x="52" y="66">2026-10-29 16:20 · 84.5 MB</text></g>
+ <g transform="translate(16 356)"><rect width="384" height="100" rx="14" fill="#252525" stroke="#465159"/><rect x="16" y="26" width="22" height="22" rx="4" fill="none" stroke="#B0BEC5"/><text class="small" x="52" y="35">SiteCam_1793052600000.zip</text><text class="muted" x="52" y="66">2026-10-27 08:10 · 63.1 MB</text></g>
+ <rect x="16" y="808" width="384" height="52" rx="12" fill="#C64242"/><text x="157" y="841" fill="#FFF">删除所选</text>
+</g>
+</svg>

@@ -76,6 +76,7 @@ export function usableAltitude(altitude: number, altitudeAccuracy: number | unde
   return altitude;
 }
 export class Watermark {
+  fontId:string='';textColor:string='';
   style: string = 'CLASSIC';
   fontScale: number = 1;
   widthRatio: number = .6;
@@ -86,6 +87,7 @@ export class Watermark {
   fields: Field[] = defaultWatermarkFields();
 }
 export class WatermarkTemplate {
+  fontId:string='';textColor:string='';
   id: number=0;name: string='默认模板';config: string='';updated: number=Date.now();
   styleType: string = 'CLASSIC'; fontSizeScale: number = 1; opacity: number = .85;
   widthRatio: number = .6;
@@ -190,12 +192,14 @@ export const STYLES: Style[] = [
   new Style('CONSTRUCTION_TABLE','施工表格','#456A86','#EDF3F7'),
   new Style('INSPECTION','巡检记录','#26A69A','#173A36'),
   new Style('ACCEPTANCE','验收记录','#214A72','#F3F7FB'),
-  new Style('TIME_LOCATION','大字时间地点','#FFCC66','#17232C')
+  new Style('TIME_LOCATION','大字时间地点','#FFCC66','#17232C'),
+  new Style('WHITEBOARD','白板框','#17212B','#FAFAF7')
 ];
 export const QUALITY_NAMES: string[] = ['更小文件','标准省空间','较清晰','原尺寸高清'];
 export const QUALITY_EDGES: number[] = [1280,1920,2560,0];
 export const QUALITY_JPEG: number[] = [65,75,85,95];
 export function pad(n: number): string { return n.toString().padStart(2,'0'); }
+export function fontFamily(id:string=''):string{return id?'sitecam_'+id.replace(/[^a-zA-Z0-9]/g,'_'):'sans-serif';}
 export function dateText(t: number): string { const d=new Date(t); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
 export function timeText(t: number): string { const d=new Date(t); return `${dateText(t)} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
 export function watermarkTimeText(t: number): string { const d=new Date(t); return `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
@@ -207,6 +211,10 @@ export function safeName(s: string): string {
   const dot=cleaned.lastIndexOf('.'),ext=dot>0?cleaned.slice(dot):'';
   const kept=ext.length>1&&ext.length<=12?cleaned.slice(0,100-ext.length)+ext:cleaned.slice(0,100);
   return kept||'工程';
+}
+export function exportZipName(projects:Project[], timestamp:number):string {
+  if(!projects.length)throw new Error('请选择工程');
+  return projects.length===1?safeName(projects[0].name)+'_'+dateText(timestamp)+'.zip':'SiteCam_'+timestamp+'.zip';
 }
 /** The same current-fix boundary is used by capture output and address availability. */
 export function isCaptureFreshFix(fix: Fix|null, now: number = Date.now()): boolean {

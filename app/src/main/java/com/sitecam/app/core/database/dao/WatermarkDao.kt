@@ -15,6 +15,11 @@ import androidx.room.Transaction
 
 @Dao
 interface WatermarkDao {
+    @Query("UPDATE watermark_templates SET fontId = :fontId WHERE id = :id")
+    suspend fun updateTemplateFont(id: Long, fontId: String)
+    @Query("UPDATE watermark_templates SET textColor = :color WHERE id = :id")
+    suspend fun updateTemplateTextColor(id: Long, color: String?)
+
     @Query("SELECT * FROM watermark_templates ORDER BY isDefault DESC, id ASC")
     fun getAllTemplates(): Flow<List<WatermarkTemplateEntity>>
 

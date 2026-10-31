@@ -3,7 +3,7 @@ import { canonicalRecipe, loadEditableRecipe, textStepAt, textStepBounds, moveTe
 import { FoldCoverControls } from './components/FoldCoverControls';
 import { WindowEnvironment } from '../core/WindowEnvironment';
 import { WindowRect, availablePanes, intersectRect, splitContentFits } from '../core/WindowGeometry';
- import { CameraLayout, cameraLayout, captureDegrees, windowOrientationTarget, floatingZoomBounds } from '../core/CameraLayout';
+ import { CameraLayout, cameraLayout, captureDegrees, photoDeviceDegrees, windowOrientationTarget, floatingZoomBounds } from '../core/CameraLayout';
 import { util } from '@kit.ArkTS';
 import { abilityAccessCtrl, common, Permissions } from '@kit.AbilityKit';
 import { promptAction, display, window, curves } from '@kit.ArkUI';
@@ -23,6 +23,9 @@ import { LocationService } from '../core/LocationService';
 import { OFFLINE_BUILD } from '../core/BuildVariant';
 import { openExternalLink } from '../core/ExternalLinkService';
 import { ExportService } from '../core/ExportService';
+import { ExportArchives } from '../core/ExportArchives';
+import { FontLibrary, FontChoice } from '../core/FontLibrary';
+import { ExportArchivesPage } from './components/ExportArchivesPage';
 import { VideoService } from '../core/VideoService';
 import { WatermarkView } from '../components/WatermarkView';
 import { SITE_BG, SITE_CARD, SITE_CARD_RAISED, SITE_ACCENT, SITE_TEXT, SITE_MUTED } from './components/UiPrimitives';
@@ -68,6 +71,9 @@ struct Index {
   @State thumbnailScale: number=1;
   @State shutterFlash: number=0;
   private captureInFlight: boolean=false;
+  /** Serial background writer: the shutter never waits for encoding or storage. */
+  private saveQueue:Promise<void>=Promise.resolve();
+  private savingCount:number=0;
   @State burstEnabled:boolean=false;
   @State burstCapturing:boolean=false;
   @State deletingDetail:boolean=false;
@@ -201,6 +207,14 @@ struct Index {
   @State exportMediaIds: number[]=[];
   @StorageLink('foreground') @Watch('foregroundChanged') foreground: boolean=true;
   private context: common.UIAbilityContext=getContext(this) as common.UIAbilityContext;
+  private archivesReturn:string='settings';
+  private archives:ExportArchives=new ExportArchives(this.context);
+  private fonts:FontLibrary=new FontLibrary(this.context);
+  @State fontChoices:FontChoice[]=[];
+  private markFont:string='';private markWhiteboard:boolean=false;
+  private async importFont():Promise<FontChoice|null>{const choice=await this.fonts.importFont();this.fontChoices=await this.fonts.list();return choice;}
+  private openArchives():void{this.archivesReturn=this.page;this.task(async()=>this.navigate('archives','forward'));}
+  private appVersionName():string{try{return bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT).versionName;}catch(e){return '';}}
   private galleryStack: NavPathStack=new NavPathStack();
   private projectStack:NavPathStack=new NavPathStack();
   private files: MediaService|null=null;
@@ -277,6 +291,7 @@ struct Index {
     this.animationTimers.push(setTimeout(()=>this.getUIContext().animateTo({duration:90},()=>this.thumbnailScale=1),110));
   }
   private cameraSurfaceLost(): void {
+    console.info('SITECAM_SURFACE_LOST');
     this.lifecycleToken++;
     this.surface='';this.cameraReady=false;
     this.syncFlashUi();
@@ -285,13 +300,15 @@ struct Index {
   }
 
   async aboutToAppear(): Promise<void> {
-    try {this.location.onChange=()=>this.locationChanged();this.location.onListenFailed=(reason:string)=>{console.warn('SITECAM_LOCATION_LISTEN '+reason);this.notify('定位监听未启动，正在重试');};await store.open(this.context);this.settings=store.settings;this.files=new MediaService(this.context);await this.files.recoverDeletions();this.exporter=new ExportService(this.context,this.files);await this.refresh();await this.permissions(false);this.syncLocationUi();this.ready=true;this.message='';if(!this.settings.guideDone)this.page='guide';else if(!this.settings.permissionHandled){this.permissionsReturn=this.settings.currentProject?'camera':'projects';this.permissionManagement=false;this.page='permissions';}else this.page='camera';this.updateCameraSystemBars();
+    try {this.location.onChange=()=>this.locationChanged();this.location.onListenFailed=(reason:string)=>{console.warn('SITECAM_LOCATION_LISTEN '+reason);this.notify('定位监听未启动，正在重试');};await store.open(this.context);await this.fonts.init();this.fontChoices=await this.fonts.list();this.settings=store.settings;this.files=new MediaService(this.context);await this.files.recoverDeletions();this.exporter=new ExportService(this.context,this.files);await this.refresh();await this.permissions(false);this.syncLocationUi();this.ready=true;this.message='';if(!this.settings.guideDone)this.page='guide';else if(!this.settings.permissionHandled){this.permissionsReturn=this.settings.currentProject?'camera':'projects';this.permissionManagement=false;this.page='permissions';}else this.page='camera';this.updateCameraSystemBars();
       this.environmentChanged();
       const bytes=await this.context.resourceManager.getRawFileContent('USER_GUIDE.md');this.help=String.fromCharCode();const decoder=new util.TextDecoder('utf-8');this.help=decoder.decodeToString(bytes);
     }catch(e){this.message=`打开失败：${(e as Error).message}`;}
   }
   aboutToDisappear(): void {this.burstCapturing=false;if(this.focusTimer>=0)clearTimeout(this.focusTimer);for(const timer of this.animationTimers)clearTimeout(timer);if(this.timer>=0)clearInterval(this.timer);if(this.projectUndoTimer>=0)clearTimeout(this.projectUndoTimer);this.lifecycleToken++;this.projectSwitchOpen=false;this.cameraReady=false;this.syncFlashUi();this.location.onChange=null;this.location.stop();void this.restoreWindowOrientation();void this.camera?.close().catch((e:Error)=>console.warn('SITECAM_CLOSE '+e.message));this.shutterSound.release().catch(()=>{});this.video.cancel();}
   @State settingsSubPage:string='设置';
+  @State settingsGroup:string='拍摄与保存';
+  @State settingsScrollOffset:number=0;
   @State galleryFilters:boolean=false;
   @State gallerySelecting:boolean=false;
   @State watermarkPicker:boolean=false;
@@ -307,6 +324,7 @@ struct Index {
     if((this.page==='watermark'||this.page==='import')&&this.watermarkPicker){this.watermarkPicker=false;return true;}
     if(this.page==='gallery'&&this.galleryFilters){this.galleryFilters=false;return true;}
     if(this.page==='gallery'&&(this.gallerySelecting||this.mediaSelection.length>0)){this.gallerySelecting=false;this.mediaSelection=[];return true;}
+    if(this.page==='archives'){this.task(async()=>this.navigate(this.archivesReturn,'backward'));return true;}
     if(this.page==='settings'&&this.settingsSubPage!=='设置'){this.settingsSubPage='设置';return true;}
     if(this.quickSheet){void this.closeQuickWatermark();return true;}
     if(this.exportRunning){this.cancelExport();return true;}
@@ -706,50 +724,76 @@ struct Index {
       finally{this.cameraReady=!!this.camera?.photoSupported;this.syncFlashUi();}
     });
   }
+  /** Save one edited photo after the shutter. Calls are serialized by enqueueSave. */
+  private enqueueSave(save:()=>Promise<MediaItem>):Promise<MediaItem>{
+    this.savingCount++;
+    const run=this.saveQueue.then(save).finally(()=>{this.savingCount--;});
+    this.saveQueue=run.then(()=>{},()=>{});
+    return run;
+  }
   private async shoot(): Promise<void> {
     const p=await this.captureProject();
     if(!this.cameraReady||!this.camera?.photoSupported)throw new Error('相机尚未就绪');
     const burst=this.burstEnabled,quick=this.settings.snapshotEnabled||burst,albumCopy=this.settings.albumCopy;
     const albumItems:MediaItem[]=[];
-    const quality=quick?2:this.settings.photoQuality,degrees=this.effectiveDegrees();
-    const soundToken=this.lifecycleToken,orientationMode=this.settings.orientation,captureSurface=this.surface;
-    let saving:Promise<void>|null=null,saveError:Error|null=null,lastItem:MediaItem|null=null,saved=0;
+    const quality=quick?2:this.settings.photoQuality;
+    const soundToken=this.lifecycleToken,captureSurface=this.surface;
+    const saveTasks:Promise<void>[]=[];
+    let saveError:Error|null=null,lastItem:MediaItem|null=null,saved=0;
     this.captureInFlight=true;this.burstCapturing=burst;
     try {
       await this.camera.configureSnapshot(quick,this.settings.snapshotShutterSpeed);
-      if(!await this.applyWindowOrientation(orientationMode,true))throw new Error('无法锁定拍摄方向');
       do {
         if(!this.captureContextValid(soundToken,captureSurface)||burst&&!this.burstCapturing)break;
+        // Read the direction per frame. The window already shows the selected
+        // direction, so capture must not rotate the window and rebuild the
+        // preview surface before the next shot.
+        const degrees=this.effectiveDegrees();
         const s=captureSnapshot(p,this.settings,this.location.snapshotFixForWatermark());s.captureRatio=degrees%180===0?3/4:4/3;s.mirrorPreview=this.camera!.previewIsMirrored();this.snapshot=s;
         this.animateShutter(true);
         const soundEnabled=this.settings.shutterSoundEnabled;
-        const bytes=await this.camera!.shoot(this.camera!.photoRotation(degrees),()=>{if(soundEnabled&&this.foreground&&this.page==='camera'&&this.lifecycleToken===soundToken)void this.shutterSound.play(this.context);});
-        // The next frame overlaps the previous save; at most one save and one
-        // captured JPEG are in flight. Slow storage cannot grow an unbounded queue.
-        if(saving)await saving;
-        if(saveError)throw saveError as Error;
-        saving=this.saveCapturedPhoto(bytes,s,quality,p.id,!burst&&albumCopy).then((item:MediaItem)=>{lastItem=item;saved++;if(burst&&albumCopy)albumItems.push(item);}).catch((error:Error)=>{saveError=error;this.burstCapturing=false;});
+        const captureStarted=Date.now();
+        const bytes=await this.camera!.shoot(this.camera!.photoRotation(photoDeviceDegrees(degrees)),()=>{if(soundEnabled&&this.foreground&&this.page==='camera'&&this.lifecycleToken===soundToken)void this.shutterSound.play(this.context);});
+        console.info('SITECAM_CAPTURE_MS '+(Date.now()-captureStarted));
+        // Encoding, watermarking and storage continue after the shutter is
+        // free. At most three frames may wait, so memory stays bounded.
+        const saveTask=this.enqueueSave(async():Promise<MediaItem>=>{
+          const saveStarted=Date.now();
+          const item=await this.saveCapturedPhoto(bytes,s,quality,p.id,!burst&&albumCopy);
+          console.info('SITECAM_SAVE_MS '+(Date.now()-saveStarted));
+          lastItem=item;saved++;
+          if(burst&&albumCopy)albumItems.push(item);
+          return item;
+        });
+        saveTasks.push(saveTask.then((item:MediaItem)=>{
+          if(burst)return;
+          if(this.foreground&&this.page==='camera'){
+            this.notify('照片已保存到工程相册');
+            if(this.quickIssueEnabled)this.openIssue(item);
+          }
+        }).catch((error:Error)=>{saveError=error;this.burstCapturing=false;if(!burst)this.notify(error.message||'照片保存失败，请重试');}));
+        if(this.savingCount>=3)await this.saveQueue;
         if(burst)await new Promise<void>((resolve:()=>void)=>setTimeout(resolve,120));
       }while(burst&&this.burstCapturing&&!saveError);
-      if(saving)await saving;
-      if(saveError)throw saveError as Error;
-      if(saved>0)this.notify(burst?'连拍已保存 '+saved+' 张':'照片已保存到工程相册');
-      if(albumItems.length&&this.foreground&&this.page==='camera'){
-        try{
-          for(let offset=0;offset<albumItems.length;offset+=20){
-            const batch=albumItems.slice(offset,offset+20),uris=await this.files!.albumCopies(batch);
-            if(!uris.length)break;
-            for(let i=0;i<uris.length;i++)await store.updateMediaAlbumUri(batch[i].id,uris[i]);
-          }
-        }catch(e){this.notify('连拍照片已保存，另存系统相册未完成');}
-      }
-      if(lastItem&&this.quickIssueEnabled&&this.foreground&&this.page==='camera')this.openIssue(lastItem);
     } finally {
       this.burstCapturing=false;
-      if(saving)await saving;
-      if(this.captureContextValid(soundToken,captureSurface))await this.restoreWindowOrientation(this.settings.orientation===orientationMode?orientationMode:this.settings.orientation);
-      this.captureInFlight=false;if(this.captureContextValid(soundToken,captureSurface))this.updateFrameRatio();
+      this.captureInFlight=false;
+      if(this.captureContextValid(soundToken,captureSurface))this.updateFrameRatio();
     }
+    if(!burst)return;
+    await Promise.all(saveTasks);
+    if(saveError)throw saveError as Error;
+    if(saved>0)this.notify('连拍已保存 '+saved+' 张');
+    if(albumItems.length&&this.foreground&&this.page==='camera'){
+      try{
+        for(let offset=0;offset<albumItems.length;offset+=20){
+          const batch=albumItems.slice(offset,offset+20),uris=await this.files!.albumCopies(batch);
+          if(!uris.length)break;
+          for(let i=0;i<uris.length;i++)await store.updateMediaAlbumUri(batch[i].id,uris[i]);
+        }
+      }catch(e){this.notify('连拍照片已保存，另存系统相册未完成');}
+    }
+    if(lastItem&&this.quickIssueEnabled&&this.foreground&&this.page==='camera')this.openIssue(lastItem);
   }
   private async saveCapturedPhoto(bytes:ArrayBuffer,s:Snapshot,quality:number,projectId:number,copyToAlbum:boolean):Promise<MediaItem>{
     const item=await this.files!.capture(bytes,s,quality,0);item.projectId=projectId;
@@ -873,7 +917,7 @@ struct Index {
       }
     });}}});
   }
-  private exportStart(ids: number[],mediaIds: number[]=[]): void {this.exportIds=ids.slice();this.exportMediaIds=mediaIds.slice();this.exportMediaProjectIds=this.exportMediaIds.map(id=>this.items.find((m:MediaItem)=>m.id===id)?.projectId||0);this.actionDialog=new CustomDialogController({customStyle:true,builder:ExportChoiceDialog({onZip:(quality:number)=>{this.exportFolder=false;this.exportQuality=quality;this.startExport();},onFolder:(quality:number)=>{this.exportFolder=true;this.exportQuality=quality;this.startExport();},onCancel:()=>{}})});this.actionDialog!.open();}
+  private exportStart(ids: number[],mediaIds: number[]=[]): void {this.exportIds=ids.slice();this.exportMediaIds=mediaIds.slice();this.exportMediaProjectIds=this.exportMediaIds.map(id=>this.items.find((m:MediaItem)=>m.id===id)?.projectId||0);this.actionDialog=new CustomDialogController({customStyle:true,builder:ExportChoiceDialog({onManage:()=>this.openArchives(),onZip:(quality:number)=>{this.exportFolder=false;this.exportQuality=quality;this.startExport();},onFolder:(quality:number)=>{this.exportFolder=true;this.exportQuality=quality;this.startExport();},onCancel:()=>{}})});this.actionDialog!.open();}
   private startExport():void {if(this.busy){this.notify('当前操作尚未完成，请稍后重试');return;}this.exportRunning=true;this.exportCancelRequested=false;this.message='正在整理资料';void this.task(async()=>{try{await this.exportNow();}finally{this.exportRunning=false;this.message='';}});}
   private cancelExport():void {if(!this.exportRunning)return;this.exportCancelRequested=true;if(this.exporter)this.exporter.cancelled=true;this.message='正在取消导出';}
   private async exportNow(): Promise<void> {const selectedMediaIds=this.exportMediaIds.slice();const selectedProjectIds=this.exportIds.slice();const liveItems=await store.media();const items=liveItems.filter(m=>selectedMediaIds.length?selectedMediaIds.includes(m.id):selectedProjectIds.includes(m.projectId));if(selectedMediaIds.length!==0){if(items.length!==selectedMediaIds.length)throw new Error('选中的资料已变化，请刷新后重试');for(let i=0;i<selectedMediaIds.length;i++){const live=items.find((m:MediaItem)=>m.id===selectedMediaIds[i]);if(!live||this.exportMediaProjectIds[i]!==live.projectId)throw new Error('选中的资料已移动，请刷新后重试');}}const projectIds=selectedMediaIds.length?Array.from(new Set(items.map(m=>m.projectId))):selectedProjectIds;const liveProjects=await store.projects('UPDATED',false,'ALL');const projects=liveProjects.filter(p=>projectIds.includes(p.id));if(!projects.length)throw new Error('请先选择工程');if(this.exportCancelRequested)throw new Error('已取消导出');const path=await this.exporter!.run(projects,items,this.exportFolder,this.exportQuality,v=>this.message=v);this.notify(this.exporter!.failures?`导出完成，${this.exporter!.failures} 项未成功，请查看报告`:'导出完成：'+path);}
@@ -942,7 +986,12 @@ struct Index {
       const index=this.selectedTextStep;this.selectedTextStep=-1;
       if(index>=0&&this.textMoved){
         this.pushEdit();moveTextStep(this.recipe,index,x-this.touchX,y-this.touchY,this.editTarget?.width||1,this.editTarget?.height||1);await this.task(async()=>this.renderEdit());
-      }else{const initial=index>=0?this.recipe.steps[index].mark.text:this.markText;this.textDialog=new CustomDialogController({customStyle:true,builder:TextMarkDialog({maxHeight:Math.max(160,this.windowHeight-48),initial:initial,onConfirm:(value:string)=>{if(index>=0&&this.recipe.steps[index].mark.text===value)return;this.pushEdit();if(index>=0)this.recipe.steps[index].mark.text=value;else{const step=new EditStep('text');step.mark.kind='text';step.mark.x=this.touchX;step.mark.y=this.touchY;step.mark.color=this.markColor;step.mark.text=value;this.recipe.steps=this.recipe.steps.concat(step);}this.markText=value;this.task(async()=>this.renderEdit());}})});this.textDialog.open();}this.strokePoints=[];return;
+      }else{const initial=index>=0?this.recipe.steps[index].mark.text:this.markText;this.textDialog=new CustomDialogController({customStyle:true,builder:TextMarkDialog({maxHeight:Math.max(160,this.windowHeight-48),initial:initial,initialFont:index>=0?this.recipe.steps[index].mark.fontId||'':this.markFont,initialColor:index>=0?this.recipe.steps[index].mark.color:this.markColor,initialBoard:index>=0?this.recipe.steps[index].mark.whiteboard===true:this.markWhiteboard,fonts:this.fontChoices,onImport:()=>this.importFont(),onMessage:(message:string)=>this.notify(message),onConfirm:(value:string,fontId:string,color:string,whiteboard:boolean)=>{
+        if(index>=0){const old=this.recipe.steps[index].mark;if(old.text===value&&(old.fontId||'')===fontId&&old.color===color&&(old.whiteboard===true)===whiteboard)return;}
+        this.pushEdit();
+        if(index>=0){const mark=this.recipe.steps[index].mark;mark.text=value;mark.fontId=fontId;mark.color=color;mark.whiteboard=whiteboard;}
+        else{const step=new EditStep('text');step.mark.kind='text';step.mark.x=this.touchX;step.mark.y=this.touchY;step.mark.color=color;step.mark.text=value;step.mark.fontId=fontId;step.mark.whiteboard=whiteboard;this.recipe.steps=this.recipe.steps.concat(step);}
+        this.markText=value;this.markFont=fontId;this.markColor=color;this.markWhiteboard=whiteboard;this.task(async()=>this.renderEdit());}})});this.textDialog.open();}this.strokePoints=[];return;
     }
     if(this.cropMode&&(Math.abs(x-this.touchX)<.03||Math.abs(y-this.touchY)<.03)){this.strokePoints=[];return;}
     const mark=new Mark();mark.kind=this.cropMode?'crop':this.markTool;mark.color=this.markColor;mark.x=this.touchX;mark.y=this.touchY;mark.endX=x;mark.endY=y;mark.text=this.markText.trim();mark.points=(mark.kind==='freehand'||mark.kind==='mosaic')?this.strokePoints.concat([x,y]):[];
@@ -1258,13 +1307,13 @@ Row({space:8}){ForEach(['#F44336','#FFB300','#FFC107','#4CAF50','#FFFFFF'],(colo
 this.editorToolsScroll();
 }.layoutWeight(1).width('100%');}.width('100%').height('100%');}
   @Builder
-  watermarkPanelPage() {WatermarkCustomizationPanel({pickerVisible:$watermarkPicker,editorVisible:$watermarkEditor,snapshot:this.snapshot,fields:this.styleDraft.fields,selectedStyle:this.styleDraft.style,fontScale:this.styleDraft.fontScale,widthRatio:this.styleDraft.widthRatio,wmOpacity:this.styleDraft.opacity,wmPosition:this.styleDraft.position,onReset:()=>{this.styleDraft=resetWatermarkFields(this.styleDraft);},onBack:()=>this.task(async()=>{await this.persistWatermarkBeforeLeave();await this.navigate(this.styleReturn,'modal');}),onFontScale:(v:number)=>this.styleDraft.fontScale=v,onWidthRatio:(v:number)=>this.updateWatermark((draft:Watermark)=>draft.widthRatio=v),onOpacity:(v:number)=>this.styleDraft.opacity=v,onPosition:(v:string)=>this.styleDraft.position=v,onStyle:(v:string)=>this.styleDraft.style=v,onFieldChange:(i:number,v:string)=>this.updateField(i,'value',v),onFieldLabelChange:(i:number,v:string)=>this.updateField(i,'label',v),onFieldToggle:(i:number,v:boolean)=>this.updateField(i,'enabled','',v),onMove:(i:number,d:number)=>{const a=this.styleDraft.fields.slice();const j=i+d;if(j>=0&&j<a.length){const t=a[i];a[i]=a[j];a[j]=t;this.updateWatermark((draft:Watermark)=>draft.fields=a);}},onDelete:(i:number)=>{this.updateWatermark((draft:Watermark)=>draft.fields=draft.fields.filter((f:Field,index:number)=>index!==i));},onAddField:(label:string,value:string)=>{this.updateWatermark((draft:Watermark)=>draft.fields=draft.fields.concat(new Field('custom_'+Date.now(),label,value)));}});}
+  watermarkPanelPage() {WatermarkCustomizationPanel({pickerVisible:$watermarkPicker,editorVisible:$watermarkEditor,snapshot:this.snapshot,fields:this.styleDraft.fields,fontId:this.styleDraft.fontId||'',textColor:this.styleDraft.textColor||'',fonts:this.fontChoices,onFont:(value:string)=>this.updateWatermark((draft:Watermark)=>draft.fontId=value),onColor:(value:string)=>this.updateWatermark((draft:Watermark)=>draft.textColor=value),onImport:()=>this.importFont(),onMessage:(message:string)=>this.notify(message),selectedStyle:this.styleDraft.style,fontScale:this.styleDraft.fontScale,widthRatio:this.styleDraft.widthRatio,wmOpacity:this.styleDraft.opacity,wmPosition:this.styleDraft.position,onReset:()=>{this.styleDraft=resetWatermarkFields(this.styleDraft);},onBack:()=>this.task(async()=>{await this.persistWatermarkBeforeLeave();await this.navigate(this.styleReturn,'modal');}),onFontScale:(v:number)=>this.styleDraft.fontScale=v,onWidthRatio:(v:number)=>this.updateWatermark((draft:Watermark)=>draft.widthRatio=v),onOpacity:(v:number)=>this.styleDraft.opacity=v,onPosition:(v:string)=>this.styleDraft.position=v,onStyle:(v:string)=>this.styleDraft.style=v,onFieldChange:(i:number,v:string)=>this.updateField(i,'value',v),onFieldLabelChange:(i:number,v:string)=>this.updateField(i,'label',v),onFieldToggle:(i:number,v:boolean)=>this.updateField(i,'enabled','',v),onMove:(i:number,d:number)=>{const a=this.styleDraft.fields.slice();const j=i+d;if(j>=0&&j<a.length){const t=a[i];a[i]=a[j];a[j]=t;this.updateWatermark((draft:Watermark)=>draft.fields=a);}},onDelete:(i:number)=>{this.updateWatermark((draft:Watermark)=>draft.fields=draft.fields.filter((f:Field,index:number)=>index!==i));},onAddField:(label:string,value:string)=>{this.updateWatermark((draft:Watermark)=>draft.fields=draft.fields.concat(new Field('custom_'+Date.now(),label,value)));}});}
   @Builder
-  importPanelPage() {WatermarkCustomizationPanel({saveAtBottom:true,pickerVisible:$watermarkPicker,editorVisible:$watermarkEditor,previewPath:this.importPreview,pageTitle:'添加水印 · '+this.importSnapshot.project,actionTitle:'保存',submitting:this.importSaving,onSave:()=>this.task(async()=>this.saveImport()),snapshot:this.importSnapshot,fields:this.styleDraft.fields,selectedStyle:this.styleDraft.style,fontScale:this.styleDraft.fontScale,widthRatio:this.styleDraft.widthRatio,wmOpacity:this.styleDraft.opacity,wmPosition:this.styleDraft.position,onReset:()=>{if(this.importSaving)return;this.styleDraft=resetWatermarkFields(this.styleDraft);const time=this.styleDraft.fields.find((f:Field)=>f.key==='time');if(time)time.label=this.importTimeMissing?'导入时间':'拍摄时间';this.queueImportPreview();},onBack:()=>{if(!this.importSaving)this.task(async()=>this.navigate('gallery','backward'));},onFontScale:(v:number)=>this.updateWatermark((d:Watermark)=>d.fontScale=v),onWidthRatio:(v:number)=>this.updateWatermark((draft:Watermark)=>draft.widthRatio=v),onOpacity:(v:number)=>this.updateWatermark((d:Watermark)=>d.opacity=v),onPosition:(v:string)=>this.updateWatermark((d:Watermark)=>d.position=v),onStyle:(v:string)=>this.updateWatermark((d:Watermark)=>d.style=v),onFieldChange:(i:number,v:string)=>this.updateField(i,'value',v),onFieldLabelChange:(i:number,v:string)=>this.updateField(i,'label',v),onFieldToggle:(i:number,v:boolean)=>this.updateField(i,'enabled','',v),onMove:(i:number,d:number)=>{const a=this.styleDraft.fields.slice();const j=i+d;if(j>=0&&j<a.length){const t=a[i];a[i]=a[j];a[j]=t;this.updateWatermark((draft:Watermark)=>draft.fields=a);}},onDelete:(i:number)=>{this.updateWatermark((draft:Watermark)=>draft.fields=draft.fields.filter((f:Field,index:number)=>index!==i));},onAddField:(label:string,value:string)=>{this.updateWatermark((draft:Watermark)=>draft.fields=draft.fields.concat(new Field('custom_'+Date.now(),label,value)));}});}
+  importPanelPage() {WatermarkCustomizationPanel({saveAtBottom:true,pickerVisible:$watermarkPicker,editorVisible:$watermarkEditor,previewPath:this.importPreview,pageTitle:'添加水印 · '+this.importSnapshot.project,actionTitle:'保存',submitting:this.importSaving,onSave:()=>this.task(async()=>this.saveImport()),snapshot:this.importSnapshot,fields:this.styleDraft.fields,fontId:this.styleDraft.fontId||'',textColor:this.styleDraft.textColor||'',fonts:this.fontChoices,onFont:(value:string)=>this.updateWatermark((draft:Watermark)=>draft.fontId=value),onColor:(value:string)=>this.updateWatermark((draft:Watermark)=>draft.textColor=value),onImport:()=>this.importFont(),onMessage:(message:string)=>this.notify(message),selectedStyle:this.styleDraft.style,fontScale:this.styleDraft.fontScale,widthRatio:this.styleDraft.widthRatio,wmOpacity:this.styleDraft.opacity,wmPosition:this.styleDraft.position,onReset:()=>{if(this.importSaving)return;this.styleDraft=resetWatermarkFields(this.styleDraft);const time=this.styleDraft.fields.find((f:Field)=>f.key==='time');if(time)time.label=this.importTimeMissing?'导入时间':'拍摄时间';this.queueImportPreview();},onBack:()=>{if(!this.importSaving)this.task(async()=>this.navigate('gallery','backward'));},onFontScale:(v:number)=>this.updateWatermark((d:Watermark)=>d.fontScale=v),onWidthRatio:(v:number)=>this.updateWatermark((draft:Watermark)=>draft.widthRatio=v),onOpacity:(v:number)=>this.updateWatermark((d:Watermark)=>d.opacity=v),onPosition:(v:string)=>this.updateWatermark((d:Watermark)=>d.position=v),onStyle:(v:string)=>this.updateWatermark((d:Watermark)=>d.style=v),onFieldChange:(i:number,v:string)=>this.updateField(i,'value',v),onFieldLabelChange:(i:number,v:string)=>this.updateField(i,'label',v),onFieldToggle:(i:number,v:boolean)=>this.updateField(i,'enabled','',v),onMove:(i:number,d:number)=>{const a=this.styleDraft.fields.slice();const j=i+d;if(j>=0&&j<a.length){const t=a[i];a[i]=a[j];a[j]=t;this.updateWatermark((draft:Watermark)=>draft.fields=a);}},onDelete:(i:number)=>{this.updateWatermark((draft:Watermark)=>draft.fields=draft.fields.filter((f:Field,index:number)=>index!==i));},onAddField:(label:string,value:string)=>{this.updateWatermark((draft:Watermark)=>draft.fields=draft.fields.concat(new Field('custom_'+Date.now(),label,value)));}});}
   @Builder
   permissionRootPage() {PermissionGuidePageView({management:this.permissionManagement,onPermission:(id:string,needsSettings:boolean)=>this.task(async()=>{const ids:Permissions[]=id==='camera'?['ohos.permission.CAMERA']:id==='microphone'?['ohos.permission.MICROPHONE']:['ohos.permission.APPROXIMATELY_LOCATION','ohos.permission.LOCATION'];this.permissionRequesting=true;try{if(needsSettings)await this.openAppSettings(ids);else await this.permissions(true,ids);}finally{this.permissionRequesting=false;}}),permissions:this.permissionRows(),hasRequested:this.settings.systemPermissionsRequested,requesting:this.permissionRequesting,fontScale:this.fontScale,viewportHeight:this.windowHeight,onBack:()=>this.task(async()=>this.navigate(this.permissionsReturn||'camera','backward')),onRequest:()=>this.task(async()=>{this.permissionRequesting=true;try{await this.permissions(true);}finally{this.permissionRequesting=false;}}),onContinue:()=>this.task(async()=>{this.settings.permissionHandled=true;await this.persist();await this.navigate(this.permissionsReturn||'camera','backward');}),onOpenSettings:()=>this.task(async()=>this.openAppSettings())});}
   @Builder
-  settingsRootPage() {SettingsPageView({page:$settingsSubPage,snapshotEnabled:this.settings.snapshotEnabled,snapshotShutterSpeed:this.settings.snapshotShutterSpeed,onSnapshot:(v:boolean)=>this.saveSetting((next:Settings)=>next.snapshotEnabled=v),onSnapshotShutter:(v:number)=>this.saveSetting((next:Settings)=>next.snapshotShutterSpeed=v),quality:this.settings.photoQuality,albumCopy:this.settings.albumCopy,shutterSoundEnabled:this.settings.shutterSoundEnabled,cameraControlStyle:this.settings.cameraControlStyle||'NORMAL',icon:this.settings.icon||'D',apiVersion:deviceInfo.sdkApiVersion,diagnostics:(this.camera?.flashDiagnostics||'')+(this.message?'\n'+this.message:''),templateId:this.settings.templateId,onBack:()=>this.task(async()=>this.navigate('camera','backward')),onHelp:()=>this.task(async()=>this.navigate('help','forward')),onWatermark:()=>this.openStyles('settings'),onQuality:(v:number)=>this.saveSetting((next:Settings)=>{next.photoQuality=v;next.editQuality=v;}),onAlbumCopy:(v:boolean)=>this.saveSetting((next:Settings)=>next.albumCopy=v),onShutterSound:(v:boolean)=>this.saveSetting((next:Settings)=>next.shutterSoundEnabled=v),onCameraControlStyle:(v:string)=>this.saveSetting((next:Settings)=>next.cameraControlStyle=v==='BLUR'?'BLUR':'NORMAL'),onIcon:(v:string)=>this.task(async()=>{if(deviceInfo.sdkApiVersion<26)return;await bundleManager.setAlternateIcon(v==='D'?'':v);this.settings.icon=v;await this.persist();}),onCopyDiagnostics:()=>this.task(async()=>this.copyDiagnostics()),onOpenLink:(url:string)=>this.task(async()=>this.openExternal(url)),onOpenEasterEgg:()=>this.openSiteCamEasterEgg(),onPermissions:()=>this.task(async()=>this.navigate('permissions','forward'))});}
+  settingsRootPage() {SettingsPageView({page:$settingsSubPage,selectedGroup:$settingsGroup,homeOffset:$settingsScrollOffset,versionName:this.appVersionName(),onContact:(email:string)=>this.task(async()=>{await pasteboard.getSystemPasteboard().setData(pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN,email));this.notify('邮箱已复制');}),onArchives:()=>this.openArchives(),snapshotEnabled:this.settings.snapshotEnabled,snapshotShutterSpeed:this.settings.snapshotShutterSpeed,onSnapshot:(v:boolean)=>this.saveSetting((next:Settings)=>next.snapshotEnabled=v),onSnapshotShutter:(v:number)=>this.saveSetting((next:Settings)=>next.snapshotShutterSpeed=v),quality:this.settings.photoQuality,albumCopy:this.settings.albumCopy,shutterSoundEnabled:this.settings.shutterSoundEnabled,cameraControlStyle:this.settings.cameraControlStyle||'NORMAL',icon:this.settings.icon||'D',apiVersion:deviceInfo.sdkApiVersion,diagnostics:(this.camera?.flashDiagnostics||'')+(this.message?'\n'+this.message:''),templateId:this.settings.templateId,onBack:()=>this.task(async()=>this.navigate('camera','backward')),onHelp:()=>this.task(async()=>this.navigate('help','forward')),onWatermark:()=>this.openStyles('settings'),onQuality:(v:number)=>this.saveSetting((next:Settings)=>{next.photoQuality=v;next.editQuality=v;}),onAlbumCopy:(v:boolean)=>this.saveSetting((next:Settings)=>next.albumCopy=v),onShutterSound:(v:boolean)=>this.saveSetting((next:Settings)=>next.shutterSoundEnabled=v),onCameraControlStyle:(v:string)=>this.saveSetting((next:Settings)=>next.cameraControlStyle=v==='BLUR'?'BLUR':'NORMAL'),onIcon:(v:string)=>this.task(async()=>{if(deviceInfo.sdkApiVersion<26)return;await bundleManager.setAlternateIcon(v==='D'?'':v);this.settings.icon=v;await this.persist();}),onCopyDiagnostics:()=>this.task(async()=>this.copyDiagnostics()),onOpenLink:(url:string)=>this.task(async()=>this.openExternal(url)),onOpenEasterEgg:()=>this.openSiteCamEasterEgg(),onPermissions:()=>this.task(async()=>this.navigate('permissions','forward'))});}
   @Builder
   helpRootPage() {HelpPageView({offlineMode:OFFLINE_BUILD,onBack:()=>this.task(async()=>this.navigate('settings','backward')),onReplayGuide:()=>this.task(async()=>{this.guideStep=0;this.guideReturn='help';await this.navigate('guide','forward');})});}
   @Builder
@@ -1286,6 +1335,8 @@ Text('照片导出质量').fontColor($r('app.color.text_primary'));Select([{valu
           Stack(){this.projectEditPage();}.width('100%').height('100%').transition(this.getPageTransition('projectEdit'));
         }else if(this.page==='camera'){
           Stack(){this.cameraPage();}.width('100%').height('100%').transition(this.getPageTransition('camera'));
+        }else if(this.page==='archives'){
+          ExportArchivesPage({service:this.archives,onBack:()=>this.task(async()=>this.navigate(this.archivesReturn,'backward')),onMessage:(message:string)=>this.notify(message)});
         }else if(this.page==='gallery'){
           Stack(){this.galleryRootPage();}.width('100%').height('100%').transition(this.getPageTransition('gallery'));
         }else if(this.page==='detail'){

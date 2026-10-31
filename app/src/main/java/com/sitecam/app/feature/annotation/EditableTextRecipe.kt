@@ -15,11 +15,11 @@ data class TextEditTarget(val stepIndex: Int?, val elementIndex: Int, val note: 
     fun contains(point: Offset): Boolean {
         if (!imageRect.contains(point)) return false
         val inverse = Matrix(); if (!toView.invert(inverse)) return false
-        return TextNoteGeometry.layout(note.position, note.text, contentRect).bubbleRect.contains(map(point, inverse))
+        return TextNoteGeometry.layout(note.position, note.text, contentRect, fontId = note.fontId).bubbleRect.contains(map(point, inverse))
     }
     fun moved(delta: Offset): AnnotationElement.TextNote {
         val inverse = Matrix(); if (!toView.invert(inverse)) return note
-        val box = TextNoteGeometry.layout(note.position, note.text, contentRect).bubbleRect
+        val box = TextNoteGeometry.layout(note.position, note.text, contentRect, fontId = note.fontId).bubbleRect
         val bounds = android.graphics.RectF(box.left, box.top, box.right, box.bottom)
         toView.mapRect(bounds)
         val dx = delta.x.coerceIn(imageRect.left - bounds.left,
@@ -27,8 +27,8 @@ data class TextEditTarget(val stepIndex: Int?, val elementIndex: Int, val note: 
         val dy = delta.y.coerceIn(imageRect.top - bounds.top,
             (imageRect.bottom - bounds.bottom).coerceAtLeast(imageRect.top - bounds.top))
         val localDelta = map(Offset(dx, dy), inverse) - map(Offset.Zero, inverse)
-        val baseline = TextNoteGeometry.layout(note.position, note.text, contentRect).baseline
-        val layout = TextNoteGeometry.layout(baseline + localDelta, note.text, contentRect)
+        val baseline = TextNoteGeometry.layout(note.position, note.text, contentRect, fontId = note.fontId).baseline
+        val layout = TextNoteGeometry.layout(baseline + localDelta, note.text, contentRect, fontId = note.fontId)
         return note.copy(position = layout.baseline)
     }
 }

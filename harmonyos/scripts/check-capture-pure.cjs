@@ -7,7 +7,7 @@ const vm = require('node:vm');
 const ts = require(process.env.TYPESCRIPT_PATH || '/Applications/DevEco-Studio.app/Contents/tools/hvigor/hvigor/node_modules/typescript/lib/typescript.js');
 const root = path.resolve(__dirname, '../entry/src/main/ets/core');
 const cache = new Map();
-const allowed = new Set(['Models', 'BuildVariant', 'WatermarkRenderer', 'CameraLayout', 'WindowGeometry', 'DeviceLayoutProfile']);
+const allowed = new Set(['Models', 'BuildVariant', 'WatermarkRenderer', 'CameraLayout', 'WindowGeometry', 'DeviceLayoutProfile', 'ImageProcessor']);
 function load(name) {
   if (cache.has(name)) return cache.get(name).exports;
   const module = { exports: {} }; cache.set(name, module);
@@ -48,6 +48,13 @@ const frozen = JSON.parse(JSON.stringify(snapshot));
 settings.watermark.fields.find(f => f.key === 'weather').value = '晴 20℃';
 assert.equal(renderer.resolveFields(frozen).find(f => f.key === 'weather').value, '小雨 16℃');
 const layout = load('CameraLayout');
+// Screen rotation must be converted to the opposite device angle before PhotoOutput.
+for (const [screen, device] of [[0, 0], [90, 270], [180, 180], [270, 90]]) {
+  assert.equal(layout.photoDeviceDegrees(screen), device, 'photo angle for display ' + screen);
+}
+assert.equal(layout.photoDeviceDegrees(layout.captureDegrees('LEFT', 0, 0)), 270);
+assert.equal(layout.photoDeviceDegrees(layout.captureDegrees('RIGHT', 0, 0)), 90);
+assert.equal(layout.photoDeviceDegrees(layout.captureDegrees('PORTRAIT', 270, 270)), 0);
 for (const width of [280, 320, 360, 400, 600]) {
   const geometry = layout.cameraLayout(width, 900, 3 / 4);
   assert.ok(Math.abs(geometry.previewWidth / geometry.previewHeight - 3 / 4) < .001);
@@ -55,4 +62,21 @@ for (const width of [280, 320, 360, 400, 600]) {
 }
 assert.ok(models.QUALITY_EDGES[2] >= 1920);
 assert.ok(models.QUALITY_JPEG[2] >= 85);
-console.log('PASS: capture defaults; weather upgrade preserves values/order; unavailable weather hidden; snapshots frozen; narrow-screen toolbar; readable output profile');
+const exportTime = new Date(2026, 9, 31, 23, 59).getTime();
+const project = new models.Project(); project.name = '建筑/工程';
+assert.equal(models.exportZipName([project], exportTime), '建筑_工程_2026-10-31.zip');
+assert.equal(models.exportZipName([project, new models.Project()], exportTime), 'SiteCam_' + exportTime + '.zip');
+settings.watermark.fontId = 'handwriting.ttf'; settings.watermark.textColor = '#1262AE'; settings.watermark.style = 'WHITEBOARD';
+const styled = models.captureSnapshot(project, settings, null);
+settings.watermark.fontId = ''; settings.watermark.textColor = '';
+assert.equal(styled.watermark.fontId, 'handwriting.ttf'); assert.equal(styled.watermark.textColor, '#1262AE');
+assert.equal(models.STYLES.filter(style => style.id === 'WHITEBOARD').length, 1);
+const edits = load('ImageProcessor');
+const recipe = new edits.EditRecipe(); const step = new edits.EditStep('text');
+step.mark.kind = 'text'; step.mark.text = '工程 AB123'; step.mark.fontId = 'handwriting.ttf'; step.mark.color = '#1262AE'; step.mark.whiteboard = true;
+recipe.steps.push(step);
+const reopened = edits.loadEditableRecipe(edits.serializeEditRecipe(recipe));
+assert.equal(reopened.steps[0].mark.fontId, 'handwriting.ttf'); assert.equal(reopened.steps[0].mark.color, '#1262AE'); assert.equal(reopened.steps[0].mark.whiteboard, true);
+const legacy = edits.loadEditableRecipe('{"steps":[{"kind":"text","mark":{"kind":"text","text":"旧记录","x":0.2,"y":0.3}}]}');
+assert.equal(legacy.steps[0].mark.fontId, ''); assert.equal(legacy.steps[0].mark.whiteboard, false);
+console.log('PASS: capture defaults; weather migration; frozen snapshots; narrow-screen toolbar; export naming; frozen text appearance; editable style round-trip; legacy recipe defaults');

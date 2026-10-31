@@ -11,6 +11,8 @@ data class WatermarkTemplateEntity(
     val name: String,
     val styleType: String = "CLASSIC", // CLASSIC, MINIMAL, INFO_BOARD
     val fontSizeScale: Float = 1.0f,
+    @ColumnInfo(defaultValue = "''") val fontId: String = "",
+    @ColumnInfo(defaultValue = "NULL") val textColor: String? = null,
     val opacity: Float = 0.85f,
     @ColumnInfo(defaultValue = "0.6")
     val widthRatio: Float = 0.6f,

@@ -64,6 +64,7 @@ import com.sitecam.app.core.database.entity.WatermarkTemplateEntity
 import com.sitecam.app.core.watermark.model.WatermarkData
 import com.sitecam.app.core.watermark.model.WatermarkStyleCatalog
 import com.sitecam.app.feature.watermark.WatermarkStylePickerDialog
+import com.sitecam.app.feature.watermark.WatermarkStyleEntry
 import com.sitecam.app.ui.theme.DarkBackground
 import com.sitecam.app.ui.theme.DarkCard
 import com.sitecam.app.ui.theme.EngineeringYellow
@@ -102,7 +103,7 @@ fun QuickWatermarkEditSheet(
         if (projectFocusPending && tab == "内容") {
             val index = fields.indexOfFirst { it.fieldKey == BuiltInWatermarkFieldKeys.PROJECT_NAME }
             if (index >= 0) {
-                fieldListState.scrollToItem(index + 2)
+                fieldListState.scrollToItem(index + 3)
                 kotlinx.coroutines.delay(100)
                 projectFocus.requestFocus()
             }
@@ -125,6 +126,7 @@ fun QuickWatermarkEditSheet(
                 }
             }
             LazyColumn(Modifier.fillMaxWidth().weight(1f, fill = false), state = fieldListState, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                item { WatermarkStyleEntry(currentStyle.name, { showStylePicker = true }, dark = true) }
                 if(tab == "内容") {
                     item {
                         val projectField = fields.firstOrNull { it.fieldKey == BuiltInWatermarkFieldKeys.PROJECT_NAME }
@@ -153,7 +155,6 @@ fun QuickWatermarkEditSheet(
                     }
                     item { TextButton(onClick = { showAddDialog = true }) { Text("添加字段", color = EngineeringYellow) } }
                 } else {
-                    item { TextButton(onClick = { showStylePicker = true }) { Text("${currentStyle.name} ›", color = EngineeringYellow) } }
                     item { Text("字号 ${String.format(Locale.ROOT, "%.1f", activeTemplate?.fontSizeScale ?: 1f)}×", color = TextPrimaryDark)
                         Slider(activeTemplate?.fontSizeScale ?: 1f, onScaleChange, valueRange = .6f..2f) }
                     item { Text("水印宽度 ${((activeTemplate?.widthRatio ?: .6f) * 100).toInt()}%", color = TextPrimaryDark)

@@ -8,6 +8,7 @@ export struct ExportChoiceDialog {
   onZip: (quality: number) => void = (quality: number) => {};
   onFolder: (quality: number) => void = (quality: number) => {};
   onCancel: () => void = () => {};
+  onManage: () => void = () => {};
   private labels(): string[] { return ['保持原文件（默认）'].concat(QUALITY_NAMES); }
   private qualityForLabel(label: string): number { return this.labels().indexOf(label) - 1; }
   private chooseZip(): void { this.controller.close(); this.onZip(this.quality); }
@@ -27,6 +28,7 @@ export struct ExportChoiceDialog {
         Button('导出到文件夹').width('100%').fontColor(SITE_TEXT).backgroundColor($r('app.color.card_raised')).onClick(() => this.chooseFolder());
       }.width('100%');
       Button('取消').width('100%').fontColor(SITE_MUTED).backgroundColor(Color.Transparent).onClick(() => { this.controller.close(); this.onCancel(); });
+      Button('管理压缩包').width('100%').fontColor(SITE_ACCENT).backgroundColor(Color.Transparent).onClick(() => { this.controller.close(); this.onManage(); });
     }.padding(18).width('92%').backgroundColor(SITE_CARD).borderRadius(14);
     }.edgeEffect(EdgeEffect.Spring).width('100%').constraintSize({maxWidth:600,maxHeight:'90%'}).align(Alignment.Top).scrollBar(BarState.Off);
   }

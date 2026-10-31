@@ -13,6 +13,9 @@ import com.sitecam.app.core.database.AppDatabase
 import com.sitecam.app.core.database.entity.*
 import com.sitecam.app.core.media.PhotoQualityProfile
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancel
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
@@ -31,19 +34,73 @@ import java.util.zip.ZipInputStream
 class ProjectExportEngineIntegrationTest {
     class OutputProvider(private val dir: File) : ContentProvider() {
         var next = 0
+        var failWrites = false
         val files = mutableMapOf<String, File>()
+        val names = mutableMapOf<String, String>()
         override fun onCreate() = true
         override fun insert(uri: Uri, values: ContentValues?): Uri {
             val target = Uri.parse("content://media/test/${++next}")
             files[target.toString()] = File(dir,"result_$next.zip")
+            val requested = values?.getAsString(android.provider.MediaStore.Downloads.DISPLAY_NAME) ?: "archive.zip"
+            var actual = requested
+            var suffix = 0
+            while (actual in names.values) { suffix++; actual = requested.removeSuffix(".zip") + " ($suffix).zip" }
+            names[target.toString()] = actual
             return target
         }
-        override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor = ParcelFileDescriptor.open(files.getValue(uri.toString()),
-            if(mode.startsWith("w")) ParcelFileDescriptor.MODE_CREATE or ParcelFileDescriptor.MODE_TRUNCATE or ParcelFileDescriptor.MODE_WRITE_ONLY else ParcelFileDescriptor.MODE_READ_ONLY)
+        override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
+            if (failWrites && mode.startsWith("w")) throw java.io.FileNotFoundException("fixture: open failed")
+            return ParcelFileDescriptor.open(files.getValue(uri.toString()),
+                if(mode.startsWith("w")) ParcelFileDescriptor.MODE_CREATE or ParcelFileDescriptor.MODE_TRUNCATE or ParcelFileDescriptor.MODE_WRITE_ONLY else ParcelFileDescriptor.MODE_READ_ONLY)
+        }
         override fun update(uri: Uri, values: ContentValues?, selection: String?, selectionArgs: Array<out String>?) = 1
-        override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int { files[uri.toString()]?.delete(); return 1 }
-        override fun query(uri: Uri, projection: Array<out String>?, selection: String?, selectionArgs: Array<out String>?, sortOrder: String?): Cursor? = null
+        override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int { files.remove(uri.toString())?.delete(); names.remove(uri.toString()); return 1 }
+        override fun query(uri: Uri, projection: Array<out String>?, selection: String?, selectionArgs: Array<out String>?, sortOrder: String?): Cursor? =
+            names[uri.toString()]?.let { android.database.MatrixCursor(arrayOf(android.provider.MediaStore.Downloads.DISPLAY_NAME)).apply { addRow(arrayOf(it)) } }
         override fun getType(uri: Uri) = "application/zip"
+    }
+    @Test fun failedOutputOpenRemovesPendingRecordAndRepeatedExportsReportActualNames() = runBlocking {
+        val context = RuntimeEnvironment.getApplication()
+        val dir = File(context.cacheDir, "archive_failures").apply { mkdirs() }
+        val provider = OutputProvider(dir)
+        provider.attachInfo(context, android.content.pm.ProviderInfo().apply { authority = "media"; exported = true; grantUriPermissions = true })
+        ShadowContentResolver.registerProviderInternal("media", provider)
+        val db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
+        try {
+            val id = db.projectDao().insertProject(ProjectEntity(name = "同名工程"))
+            val engine = ProjectExportEngine(context, db)
+            provider.failWrites = true
+            assertTrue(runCatching { engine.exportProjectsToZip(setOf(id)) }.isFailure)
+            assertTrue(provider.files.isEmpty()); assertTrue(provider.names.isEmpty())
+            provider.failWrites = false
+            val first = engine.exportProjectsToZip(setOf(id))
+            val bytes = provider.files.getValue(first.zipUri.toString()).readBytes()
+            val second = engine.exportProjectsToZip(setOf(id))
+            assertEquals(first.zipName.removeSuffix(".zip") + " (1).zip", second.zipName)
+            assertArrayEquals(bytes, provider.files.getValue(first.zipUri.toString()).readBytes())
+        } finally { db.close(); dir.deleteRecursively() }
+    }
+    @Test fun cancellingZipWriteRemovesUnpublishedArchive() = runBlocking {
+        val context = RuntimeEnvironment.getApplication()
+        val dir = File(context.cacheDir, "archive_cancel").apply { mkdirs() }
+        val provider = OutputProvider(dir)
+        provider.attachInfo(context, android.content.pm.ProviderInfo().apply { authority = "media"; exported = true; grantUriPermissions = true })
+        ShadowContentResolver.registerProviderInternal("media", provider)
+        val db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
+        try {
+            val id = db.projectDao().insertProject(ProjectEntity(name = "取消工程"))
+            val engine = ProjectExportEngine(context, db)
+            val job = launch(start = CoroutineStart.LAZY) {
+                engine.exportProjectsToZip(setOf(id), onProgress = { _, _, label ->
+                    if (label.startsWith("写入压缩包")) cancel()
+                })
+            }
+            job.start(); job.join()
+            assertTrue(job.isCancelled)
+            assertTrue(provider.files.isEmpty()); assertTrue(provider.names.isEmpty())
+            assertEquals(0, dir.listFiles().orEmpty().size)
+            assertNotNull(db.projectDao().getProjectById(id))
+        } finally { db.close(); dir.deleteRecursively() }
     }
     class FolderProvider(private val dir: File) : android.provider.DocumentsProvider() {
         override fun onCreate() = true

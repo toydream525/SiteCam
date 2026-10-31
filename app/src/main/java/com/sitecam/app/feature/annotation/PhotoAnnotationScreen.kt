@@ -1,5 +1,7 @@
 package com.sitecam.app.feature.annotation
 
+import androidx.compose.foundation.layout.heightIn
+
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.widget.Toast
@@ -388,7 +390,7 @@ fun PhotoAnnotationScreen(
                         }
 
                         (selectedText ?: uiState.textEditor?.target)?.let { target ->
-                            val bounds = TextNoteGeometry.layout(target.note.position, target.note.text, target.contentRect).bubbleRect
+                            val bounds = TextNoteGeometry.layout(target.note.position, target.note.text, target.contentRect, fontId = target.note.fontId).bubbleRect
                             val points = floatArrayOf(bounds.left, bounds.top, bounds.right, bounds.top, bounds.right, bounds.bottom, bounds.left, bounds.bottom)
                             target.toView.mapPoints(points)
                             val outline = Path().apply {
@@ -581,6 +583,7 @@ fun PhotoAnnotationScreen(
             containerColor = DarkCard,
             title = { Text(if (originalNote != null) "编辑文字" else "添加文字", color = TextPrimaryDark, fontWeight = FontWeight.Bold) },
             text = {
+                Column(Modifier.fillMaxWidth().heightIn(max = 440.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = editor.text,
                     onValueChange = viewModel::textDraftChanged,
@@ -589,6 +592,10 @@ fun PhotoAnnotationScreen(
                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = EngineeringYellow),
                     modifier = Modifier.fillMaxWidth()
                 )
+                com.sitecam.app.core.text.TextAppearanceControls(editor.fontId, "#%08X".format(editor.color.toArgb()),
+                    viewModel::textFontChanged, viewModel::textColorChanged, editor.whiteboard, viewModel::textBoardChanged,
+                    editor.text, allowDefaultColor = false, contentColor = TextPrimaryDark)
+                }
             },
             confirmButton = {
                 Button(
@@ -666,19 +673,24 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawAnnotationEleme
             val layout = TextNoteGeometry.layout(
                 position = element.position,
                 text = element.text,
-                contentRect = imageRect
+                contentRect = imageRect,
+                fontId = element.fontId
             )
             drawRoundRect(
-                color = Color(0xCC121212),
+                color = if (element.whiteboard) Color(0xFFFAFAF7) else Color(0xCC121212),
                 topLeft = layout.bubbleRect.topLeft,
                 size = layout.bubbleRect.size,
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f)
             )
             drawIntoCanvas { canvas ->
+                if (element.whiteboard) {
+                    val border = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.parseColor("#17212B"); style = Paint.Style.STROKE; strokeWidth = 2f }
+                    canvas.nativeCanvas.drawRoundRect(layout.bubbleRect.left, layout.bubbleRect.top, layout.bubbleRect.right, layout.bubbleRect.bottom, 4f, 4f, border)
+                }
                 val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = element.color.toArgb()
                     textSize = TextNoteGeometry.TEXT_SIZE
-                    typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                    typeface = com.sitecam.app.core.text.FontLibrary.typeface(element.fontId); isFakeBoldText = true
                 }
                 canvas.nativeCanvas.drawText(
                     layout.text,

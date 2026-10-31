@@ -52,6 +52,8 @@ object WatermarkSnapshotCodec {
         put("fieldLabels", JSONObject(data.fieldLabels))
         data.fieldOrder?.let { put("fieldOrder", JSONArray(it)) }
         put("styleType", data.styleType)
+        put("fontId", data.fontId)
+        data.textColor?.let { put("textColor", it) }
         // org.json rejects NaN/Infinity, and a failed encode after the photo
         // reached MediaStore would leave an orphan file, so fall back here.
         putFinite("fontSizeScale", data.fontSizeScale.toDouble(), DEFAULT_FONT_SIZE_SCALE)
@@ -144,6 +146,8 @@ object WatermarkSnapshotCodec {
                 fieldLabels = labels,
                 fieldOrder = order,
                 styleType = root.optString("styleType", "CLASSIC"),
+                fontId = root.optString("fontId", ""),
+                textColor = if (root.has("textColor") && !root.isNull("textColor")) root.optString("textColor") else null,
                 fontSizeScale = root.optDouble("fontSizeScale", DEFAULT_FONT_SIZE_SCALE).toFloat()
                     .takeIf { it.isFinite() } ?: DEFAULT_FONT_SIZE_SCALE.toFloat(),
                 widthRatio = if (root.has("widthRatio") && !root.isNull("widthRatio")) {

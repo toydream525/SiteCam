@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1344" height="900" viewBox="0 0 1344 900">
+<style>text{font-family:'PingFang SC','Noto Sans CJK SC',sans-serif;fill:#ECEFF1;font-size:16px}.title{font-size:22px;font-weight:600}.muted{fill:#B0BEC5;font-size:14px}.accent{fill:#FFB300}.ink{fill:#17212B}.button{fill:#231A00;font-weight:600}</style><rect width="1344" height="900" fill="#10171D"/>
+<g transform="translate(24 24)"><rect width="416" height="852" rx="20" fill="#121212"/><text class="title" x="24" y="48">水印外观</text><text class="accent" x="350" y="48">完成</text>
+<rect x="20" y="84" width="376" height="192" rx="6" fill="#FAFAF7" stroke="#17212B" stroke-width="2"/><text class="ink" x="38" y="122" font-size="20" font-weight="600">滨江路雨水工程</text><path d="M34 138h348" stroke="#17212B"/><text class="ink" x="38" y="172">工程类型　建筑</text><text class="ink" x="38" y="208">拍摄时间　2026.10.31 09:30</text><text class="ink" x="38" y="244">现场位置　施工现场</text>
+<text x="24" y="326">字体</text><text class="muted" x="265" y="326">现场手写体　›</text><text x="24" y="388">文字颜色</text>
+<circle cx="44" cy="428" r="18" fill="#FFFFFF"/><circle cx="100" cy="428" r="18" fill="#FFB300"/><circle cx="156" cy="428" r="18" fill="#17212B" stroke="#FFB300" stroke-width="3"/><circle cx="212" cy="428" r="18" fill="#D53D3D"/><circle cx="268" cy="428" r="18" fill="#1262AE"/><circle cx="324" cy="428" r="18" fill="#168D80"/>
+<text x="24" y="494">水印样式</text><rect x="20" y="514" width="116" height="52" rx="10" fill="#252525"/><text x="42" y="546">经典工程</text><rect x="150" y="514" width="116" height="52" rx="10" fill="#252525"/><text x="174" y="546">极简水印</text><rect x="280" y="514" width="116" height="52" rx="10" fill="#FFB300"/><text class="button" x="314" y="546">白板框</text>
+<text x="24" y="622">字号</text><path d="M32 654h350" stroke="#465159" stroke-width="4"/><circle cx="190" cy="654" r="9" fill="#FFB300"/><text x="24" y="718">水印宽度</text><text class="accent" x="340" y="718">60%</text><path d="M32 750h350" stroke="#465159" stroke-width="4"/><circle cx="200" cy="750" r="9" fill="#FFB300"/>
+</g>
+<g transform="translate(464 24)"><rect width="416" height="852" rx="20" fill="#121212"/><text class="title" x="24" y="48">编辑文字标注</text>
+<rect x="20" y="84" width="376" height="90" rx="12" fill="#252525" stroke="#465159"/><text x="36" y="122">请复查此处连接位置</text>
+<text x="24" y="226">字体</text><text class="muted" x="265" y="226">现场手写体　›</text><text x="24" y="284">文字颜色</text><circle cx="44" cy="326" r="18" fill="#FFFFFF"/><circle cx="100" cy="326" r="18" fill="#FFB300"/><circle cx="156" cy="326" r="18" fill="#17212B" stroke="#FFB300" stroke-width="3"/><circle cx="212" cy="326" r="18" fill="#D53D3D"/><circle cx="268" cy="326" r="18" fill="#1262AE"/>
+<rect x="20" y="382" width="176" height="50" rx="10" fill="#252525"/><text x="84" y="414">普通</text><rect x="212" y="382" width="184" height="50" rx="10" fill="#FFB300"/><text class="button" x="275" y="414">白板框</text>
+<rect x="36" y="494" width="344" height="76" rx="4" fill="#FAFAF7" stroke="#17212B" stroke-width="2"/><text class="ink" x="53" y="539">请复查此处连接位置</text>
+<rect x="20" y="764" width="176" height="52" rx="12" fill="#252525"/><text x="85" y="797">取消</text><rect x="212" y="764" width="184" height="52" rx="12" fill="#FFB300"/><text class="button" x="276" y="797">确定</text>
+</g>
+<g transform="translate(904 24)"><rect width="416" height="852" rx="20" fill="#121212"/><text class="title" x="24" y="48">字体</text><text class="accent" x="320" y="48">导入字体</text>
+<rect x="16" y="86" width="384" height="64" rx="12" fill="#252525"/><text x="32" y="125">默认字体</text><circle cx="364" cy="118" r="10" stroke="#B0BEC5" fill="none"/>
+<rect x="16" y="162" width="384" height="64" rx="12" fill="#252525" stroke="#FFB300"/><text x="32" y="201">现场手写体</text><circle cx="364" cy="194" r="10" fill="#FFB300"/>
+<rect x="16" y="238" width="384" height="64" rx="12" fill="#252525"/><text x="32" y="277">工程宋体</text><circle cx="364" cy="270" r="10" stroke="#B0BEC5" fill="none"/>
+</g></svg>
