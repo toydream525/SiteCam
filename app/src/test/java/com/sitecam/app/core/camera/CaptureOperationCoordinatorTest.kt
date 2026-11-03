@@ -5,6 +5,34 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class CaptureOperationCoordinatorTest {
+    @Test fun backgroundVideoAllowsPhotosWhileProtectingItsProject() = runTest {
+        val coordinator = CaptureOperationCoordinator()
+        assertTrue(coordinator.tryBegin(1) { true })
+        coordinator.moveToBackground(1)
+        // The next photo can begin before the video encoder finishes.
+        assertTrue(coordinator.tryBegin(1) { true })
+        try { coordinator.withProjectIdle(1) { }; fail("Video still owns its project") }
+        catch (_: CaptureInProgressException) { }
+        coordinator.finishBackground(1)
+        // A completed video must not release the newer photo's reservation.
+        assertFalse(coordinator.tryBegin(1) { true })
+        coordinator.finish(1)
+        coordinator.withProjectIdle(1) { }
+    }
+
+    @Test fun queuedVideosKeepProjectProtectedUntilEverySaveFinishes() = runTest {
+        val coordinator = CaptureOperationCoordinator()
+        repeat(2) {
+            assertTrue(coordinator.tryBegin(7) { true })
+            coordinator.moveToBackground(7)
+        }
+        coordinator.finishBackground(7)
+        try { coordinator.withAllProjectsIdle { }; fail("Another video is still saving") }
+        catch (_: CaptureInProgressException) { }
+        coordinator.finishBackground(7)
+        coordinator.withAllProjectsIdle { }
+    }
+
     @Test fun captureReservationBlocksLockUntilSavingFinishes() = runTest {
         val coordinator = CaptureOperationCoordinator()
         assertTrue(coordinator.tryBegin(1) { true })

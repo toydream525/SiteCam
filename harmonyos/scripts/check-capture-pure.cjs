@@ -60,6 +60,18 @@ for (const width of [280, 320, 360, 400, 600]) {
   assert.ok(Math.abs(geometry.previewWidth / geometry.previewHeight - 3 / 4) < .001);
   if (width < 368) assert.ok(geometry.toolbarHeight >= 104, 'four tools and project chip need two rows');
 }
+// The tablet dock must use its measured content height, not the old 184vp cap.
+const tabletPortrait = layout.cameraLayout(674, 1044, 3 / 4, false, -1, 0, false, 1, [], 1, false, 248);
+assert.ok(tabletPortrait.controlsHeight >= 248, 'tablet bottom controls need their complete measured height');
+assert.ok(tabletPortrait.previewY + tabletPortrait.previewHeight <= tabletPortrait.controlsY + .001);
+assert.equal(tabletPortrait.controlsY + tabletPortrait.controlsHeight, 1044);
+assert.equal(layout.portraitControlsShareModeRow(320, 1), false, 'narrow portrait modes need their own row');
+assert.equal(layout.portraitControlsShareModeRow(360, 1), true);
+const landscapeTablet = layout.cameraLayout(1078, 674, 4 / 3, false, -1, 0, false, 1, [], 1, false, 0, true);
+assert.equal(landscapeTablet.toolbarY, landscapeTablet.previewY);
+assert.equal(landscapeTablet.toolbarHeight, landscapeTablet.previewHeight);
+assert.equal(landscapeTablet.controlsY, landscapeTablet.previewY);
+assert.equal(landscapeTablet.controlsHeight, landscapeTablet.previewHeight);
 assert.ok(models.QUALITY_EDGES[2] >= 1920);
 assert.ok(models.QUALITY_JPEG[2] >= 85);
 const exportTime = new Date(2026, 9, 31, 23, 59).getTime();

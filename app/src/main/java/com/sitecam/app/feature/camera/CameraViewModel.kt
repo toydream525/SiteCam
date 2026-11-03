@@ -168,6 +168,7 @@ class CameraViewModel(
     // Written from the capture coroutine, read from CameraX callback threads.
     @Volatile
     private var activeVideoSession: VideoCaptureSession? = null
+    private val processingVideoFiles = java.util.concurrent.ConcurrentHashMap.newKeySet<File>()
     private val pendingVideoStore by lazy { PendingVideoStore(appContainer.appContext, appContainer.database.mediaItemDao()) }
     private var recoveryJob: Job? = null
     private val _weather = MutableStateFlow<com.sitecam.app.core.weather.SystemWeatherReading?>(null)
@@ -966,10 +967,23 @@ class CameraViewModel(
                     if (mayRetainRecordedFrames(event.error) && session.tempFile.length() > 0L) {
                         _isCapturing.value = true
                         viewModelScope.launch {
-                            _uiEvents.emit(CameraUiEvent.ShowToast("录像已结束，正在烧录工程水印…"))
-                        }
-                        viewModelScope.launch(appContainer.dispatchers.io) {
-                            finalizeVideoSession(context, session)
+                            var background = false
+                            try {
+                                withContext(NonCancellable) {
+                                    appContainer.captureOperationCoordinator.moveToBackground(session.project.id)
+                                    background = true
+                                    processingVideoFiles.add(session.tempFile)
+                                    activeVideoSession = null
+                                }
+                                _isCapturing.value = false
+                                _uiEvents.emit(CameraUiEvent.ShowToast("录像已结束，视频正在后台保存"))
+                                withContext(appContainer.dispatchers.io) {
+                                    finalizeVideoSession(context, session)
+                                }
+                            } finally {
+                                processingVideoFiles.remove(session.tempFile)
+                                if (background) appContainer.captureOperationCoordinator.finishBackground(session.project.id)
+                            }
                         }
                     } else {
                         pendingVideoStore.discard(session.pendingVideo)
@@ -1005,8 +1019,7 @@ class CameraViewModel(
 
     private fun stopVideoRecording() {
         if (cameraManager.stopVideoRecording()) {
-            // The UI remains busy until CameraX sends Finalize and the
-            // watermark/save pipeline completes.
+            // Only CameraX finalization holds the camera; watermarking runs separately.
             recordingTimerJob?.cancel()
         }
     }
@@ -1020,7 +1033,7 @@ class CameraViewModel(
             MediaOperationCoordinator.withExclusive {
                 var recovered = 0
                 for (record in pendingVideoStore.pending()) {
-                    if (record.file == activeVideoSession?.tempFile) continue
+                    if (record.file == activeVideoSession?.tempFile || record.file in processingVideoFiles) continue
                     try {
                         val metadata = appContainer.mediaStoreManager.inspectRecordedVideo(record.file)
                         val restored = pendingVideoStore.publish(record, metadata)
@@ -1035,79 +1048,71 @@ class CameraViewModel(
     }
 
     private suspend fun finalizeVideoSession(context: Context, session: VideoCaptureSession) {
-        try {
-            MediaOperationCoordinator.withExclusive {
-                val burnedFile = File(
-                    context.cacheDir,
-                    "temp_burned_${session.timestamp}_${System.nanoTime()}.mp4"
-                )
-                var sourceFile = session.tempFile
-                var burnedIn = false
-                var original: MediaItemEntity? = null
-                var uncommittedUri: Uri? = null
+        MediaOperationCoordinator.withExclusive {
+            val burnedFile = File(
+                context.cacheDir,
+                "temp_burned_${session.timestamp}_${System.nanoTime()}.mp4"
+            )
+            var sourceFile = session.tempFile
+            var burnedIn = false
+            var original: MediaItemEntity? = null
+            var uncommittedUri: Uri? = null
+            try {
+                val metadata = appContainer.mediaStoreManager.inspectRecordedVideo(session.tempFile)
+                val retained = pendingVideoStore.publish(session.pendingVideo, metadata)
+                original = retained
                 try {
-                    val metadata = appContainer.mediaStoreManager.inspectRecordedVideo(session.tempFile)
-                    val retained = pendingVideoStore.publish(session.pendingVideo, metadata)
-                    original = retained
-                    try {
-                        appContainer.videoWatermarkTranscoder.transcode(
-                            inputFile = session.tempFile,
-                            outputFile = burnedFile,
-                            watermarkData = session.watermark
-                        )
-                        sourceFile = burnedFile
-                        burnedIn = true
-                    } catch (cancelled: CancellationException) { throw cancelled }
-                    catch (_: Exception) { /* The indexed original remains the retry target. */ }
-
-                    val fileName = session.pendingVideo.media.fileName
-                    val saveResult = appContainer.mediaStoreManager.saveVideoToMediaStore(
-                        tempVideoFile = sourceFile,
-                        fileName = fileName,
-                        projectName = session.project.name,
-                        timestamp = session.timestamp,
-                        saveToSystemGallery = session.saveToSystemGallery
+                    appContainer.videoWatermarkTranscoder.transcode(
+                        inputFile = session.tempFile,
+                        outputFile = burnedFile,
+                        watermarkData = session.watermark
                     )
-                    uncommittedUri = saveResult.uri
-                    withContext(NonCancellable) {
-                        appContainer.database.withTransaction {
-                            val current = checkNotNull(appContainer.database.mediaItemDao().getMediaItemById(retained.id)) { "原录像记录已变化" }
-                            appContainer.database.mediaItemDao().updateMediaItem(current.copy(
-                                contentUri = saveResult.uri.toString(), filePath = saveResult.filePath, fileName = saveResult.fileName,
-                                width = saveResult.width, height = saveResult.height, duration = saveResult.duration,
-                                orientation = saveResult.rotation,
-                                processingStatus = if (burnedIn) "READY" else "FAILED_VIDEO_WATERMARK_RETRY"
-                            ))
-                        }
-                        uncommittedUri = null
-                        pendingVideoStore.discard(session.pendingVideo)
-                    }
-                    _latestThumbnailUri.value = saveResult.uri.toString()
-                    _latestMediaType.value = "VIDEO"
-                    if (!burnedIn) _uiEvents.emit(CameraUiEvent.ShowToast("视频水印处理失败，已保留原片，可在工程相册重试"))
-                    if (session.quickIssueMode) {
-                        _uiEvents.emit(CameraUiEvent.QuickIssuePrompt(retained.id, saveResult.uri))
-                    } else {
-                        _uiEvents.emit(CameraUiEvent.VideoSaved(retained.id, saveResult.uri))
-                    }
+                    sourceFile = burnedFile
+                    burnedIn = true
                 } catch (cancelled: CancellationException) { throw cancelled }
-                catch (error: Exception) {
-                    _uiEvents.emit(CameraUiEvent.ShowToast(if (original != null)
-                        "保存视频失败，原片已保留，可在工程相册重试"
-                    else "录像已保留，稍后打开相机可恢复"))
-                } finally {
-                    withContext(NonCancellable) {
-                        // Cleanup failures must not replace the error caught above.
-                        runCatching { uncommittedUri?.let { appContainer.mediaStoreManager.deleteMediaUri(it) } }
-                        runCatching { burnedFile.delete() }
+                catch (_: Exception) { /* The indexed original remains the retry target. */ }
+
+                val fileName = session.pendingVideo.media.fileName
+                val saveResult = appContainer.mediaStoreManager.saveVideoToMediaStore(
+                    tempVideoFile = sourceFile,
+                    fileName = fileName,
+                    projectName = session.project.name,
+                    timestamp = session.timestamp,
+                    saveToSystemGallery = session.saveToSystemGallery
+                )
+                uncommittedUri = saveResult.uri
+                withContext(NonCancellable) {
+                    appContainer.database.withTransaction {
+                        val current = checkNotNull(appContainer.database.mediaItemDao().getMediaItemById(retained.id)) { "原录像记录已变化" }
+                        appContainer.database.mediaItemDao().updateMediaItem(current.copy(
+                            contentUri = saveResult.uri.toString(), filePath = saveResult.filePath, fileName = saveResult.fileName,
+                            width = saveResult.width, height = saveResult.height, duration = saveResult.duration,
+                            orientation = saveResult.rotation,
+                            processingStatus = if (burnedIn) "READY" else "FAILED_VIDEO_WATERMARK_RETRY"
+                        ))
                     }
+                    uncommittedUri = null
+                    pendingVideoStore.discard(session.pendingVideo)
+                }
+                // The existing Room observer selects the newest capture, even if an older video finishes later.
+                if (!burnedIn) _uiEvents.emit(CameraUiEvent.ShowToast("视频水印处理失败，已保留原片，可在工程相册重试"))
+                if (session.quickIssueMode) {
+                    _uiEvents.emit(CameraUiEvent.QuickIssuePrompt(retained.id, saveResult.uri))
+                } else {
+                    _uiEvents.emit(CameraUiEvent.VideoSaved(retained.id, saveResult.uri))
+                }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) {
+                _uiEvents.emit(CameraUiEvent.ShowToast(if (original != null)
+                    "保存视频失败，原片已保留，可在工程相册重试"
+                else "录像已保留，稍后打开相机可恢复"))
+            } finally {
+                withContext(NonCancellable) {
+                    // Cleanup failures must not replace the error caught above.
+                    runCatching { uncommittedUri?.let { appContainer.mediaStoreManager.deleteMediaUri(it) } }
+                    runCatching { burnedFile.delete() }
                 }
             }
-        } finally {
-            // Project operations acquire capture before media; release media before finishing the reservation.
-            appContainer.captureOperationCoordinator.finish(session.project.id)
-            if (activeVideoSession?.token == session.token) activeVideoSession = null
-            _isCapturing.value = false
         }
     }
 
