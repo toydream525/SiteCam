@@ -155,7 +155,7 @@ class MediaStoreManager(private val context: Context) {
             "无法读取录像真实宽高"
         }
         val sanitizedProject = NamingEngine.sanitizeFileName(projectName)
-        val relativePath = "${Environment.DIRECTORY_PICTURES}/SiteCam/$sanitizedProject"
+        val relativePath = "${Environment.DIRECTORY_MOVIES}/SiteCam/$sanitizedProject"
         if (resolveMediaSaveTarget(saveToSystemGallery, Build.VERSION.SDK_INT, hasLegacyWritePermission()) == MediaSaveTarget.APP_PRIVATE) {
             return@withContext saveVideoToPrivateExternalFiles(
                 tempVideoFile = tempVideoFile,
@@ -179,7 +179,7 @@ class MediaStoreManager(private val context: Context) {
                 put(MediaStore.Video.Media.IS_PENDING, 1)
             } else {
                 @Suppress("DEPRECATION")
-                val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "SiteCam/$sanitizedProject")
+                val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "SiteCam/$sanitizedProject")
                 if (!dir.exists()) dir.mkdirs()
                 val targetFile = createUniqueMediaFile(dir, fileName)
                 legacyFile = targetFile

@@ -44,6 +44,17 @@ export function floatingZoomBounds(width:number,height:number,railWidth:number,r
   return new WindowRect(left,top,railWidth,rail);
 }
 
+export function portraitControlsShareModeRow(width:number,fontScale:number):boolean {
+  const column=(width-48)/3;
+  return column>=Math.max(60,42*fontScale+8,2*Math.max(48,30*fontScale)+8);
+}
+
+export function portraitControlsInitialHeight(width:number,fontScale:number,phoneGrip:boolean):number {
+  const tools=Math.max(60,32+30*fontScale);
+  const mode=portraitControlsShareModeRow(width,fontScale)?0:Math.max(48,24*fontScale+12)+12;
+  return 12+44+tools+82+24+(phoneGrip?72:24)+mode;
+}
+
 // Match Android CameraScreen: orientation follows the available window, never
 // a width breakpoint or sensor angle. Square windows use the right dock too.
 export function cameraLayout(width: number, height: number, ratio: number,
@@ -105,8 +116,8 @@ export function cameraLayout(width: number, height: number, ratio: number,
       const previewArea=Math.max(1,w-tools-dock-grip);
       out.previewWidth=Math.min(previewArea,h*ratio);out.previewHeight=out.previewWidth/ratio;
       out.previewX=tools+(previewArea-out.previewWidth)/2;out.previewY=(h-out.previewHeight)/2;
-      out.toolbarX=out.previewX-tools;out.toolbarY=0;out.toolbarWidth=tools;out.toolbarHeight=h;
-      out.controlsX=out.previewX+out.previewWidth;out.controlsY=0;out.controlsWidth=dock;out.controlsHeight=h;
+      out.toolbarX=out.previewX-tools;out.toolbarY=out.previewY;out.toolbarWidth=tools;out.toolbarHeight=out.previewHeight;
+      out.controlsX=out.previewX+out.previewWidth;out.controlsY=out.previewY;out.controlsWidth=dock;out.controlsHeight=out.previewHeight;
       out.immersivePhoneLandscape=true;return out;
     }
     const gripRight=phoneGrip?Math.min(48,w*.06):0;
@@ -123,13 +134,10 @@ export function cameraLayout(width: number, height: number, ratio: number,
     return out;
   } else {
     out.controlsHeight = Math.min(184, Math.max(136, h * .28));
-    if(phoneGrip){
-      // The Scroll child measures zoom + modes + shutter + two gaps + grip padding.
-      // Before its first measurement, reserve the mode row at the current font scale.
-      const initialContentHeight=44+44*Math.max(1,fontScale)+82+8+72;
-      const measuredContentHeight=Number.isFinite(portraitControlsContentHeight)&&portraitControlsContentHeight>0?portraitControlsContentHeight:initialContentHeight;
-      out.controlsHeight=Math.min(Math.max(1,h-toolbar-1),Math.max(out.controlsHeight+64,measuredContentHeight));
-    }
+    // Reserve the complete dock on phones and tablets before fitting the preview.
+    const measuredContentHeight=Number.isFinite(portraitControlsContentHeight)&&portraitControlsContentHeight>0?
+      portraitControlsContentHeight:portraitControlsInitialHeight(w,fontScale,phoneGrip);
+    out.controlsHeight=Math.min(Math.max(1,h-toolbar-1),Math.max(out.controlsHeight,measuredContentHeight));
     out.controlsY = h - out.controlsHeight; out.controlsWidth = w;
     availableH = out.controlsY - toolbar;
   }

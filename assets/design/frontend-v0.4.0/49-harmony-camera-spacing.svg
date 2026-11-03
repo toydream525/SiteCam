@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1040" viewBox="0 0 1440 1040">
+<defs>
+ <style>text{font-family:'PingFang SC',sans-serif;fill:#fff;font-size:16px}.accent{fill:#ffb300}.muted{fill:#b0bec5}.project{font-size:14px}</style>
+ <g id="water" fill="currentColor"><path d="M12 2C9 6 5 10 5 14a7 7 0 0 0 14 0c0-4-4-8-7-12Z"/></g>
+ <g id="edit" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h11M3 10h9M3 15h5M12 19l2-5 6-6 3 3-6 6Z"/></g>
+ <g id="flash" fill="none" stroke="currentColor" stroke-width="2"><path d="m14 2-9 12h6l-1 8 9-13h-6Z"/></g>
+ <g id="burst" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="16" height="16" rx="2"/><path d="M2 18V2h16"/></g>
+ <g id="rotate" fill="none" stroke="currentColor" stroke-width="2"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="m3 7-2 5 4 2M21 17l2-5-4-2"/></g>
+ <g id="settings" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 1v4m0 14v4M1 12h4m14 0h4M4 4l3 3m10 10 3 3M4 20l3-3M17 7l3-3"/></g>
+ <g id="refresh" fill="none" stroke="#ffb300" stroke-width="2"><path d="M20 9a9 9 0 1 0 0 7M20 2v7h-7"/></g>
+ <g id="flip" fill="none" stroke="white" stroke-width="2"><rect x="2" y="5" width="24" height="18" rx="3"/><path d="m10 11 4-3 4 3m-8 6 4 3 4-3"/></g>
+</defs>
+<rect width="1440" height="1040" fill="#10171d"/>
+<g transform="translate(24 24)">
+ <rect width="400" height="992" rx="20" fill="black"/>
+ <rect x="16" y="24" width="150" height="48" rx="24" fill="#282828"/><text class="project" x="30" y="54">滨江路工程 ⌄</text>
+ <g color="white"><use href="#flash" x="190" y="36"/><use href="#burst" x="242" y="36"/><use href="#rotate" x="294" y="36"/><use href="#settings" x="346" y="36"/></g>
+ <rect x="24" y="104" width="352" height="469" fill="#405658"/>
+ <path d="M24 440 124 240 230 390 320 230 376 450v123H24" fill="#65776d"/>
+ <rect x="40" y="402" width="234" height="150" rx="6" fill="#202020"/><rect x="40" y="402" width="234" height="32" rx="6" fill="#ffb300"/><text x="52" y="426">滨江路工程</text><text x="52" y="467">主体结构</text><text x="52" y="502">2026-11-03 10:30</text><text x="52" y="536">拍摄地点</text>
+ <text class="accent" x="160" y="658">1×</text><text x="222" y="658">2×</text>
+ <g color="white"><use href="#water" x="74" y="698"/><use href="#edit" x="302" y="698"/></g><text text-anchor="middle" x="86" y="746">水印</text><text text-anchor="middle" x="314" y="746">记问题</text>
+ <text class="accent" text-anchor="middle" x="172" y="730">拍照</text><text class="muted" text-anchor="middle" x="230" y="730">录像</text>
+ <rect x="62" y="800" width="48" height="48" rx="10" fill="#405658"/><circle cx="200" cy="824" r="37" fill="white"/><circle cx="200" cy="824" r="31" fill="black"/><circle cx="200" cy="824" r="25" fill="white"/><use href="#flip" x="300" y="811"/>
+</g>
+<g transform="translate(464 24)">
+ <rect width="952" height="660" rx="20" fill="black"/>
+ <rect x="56" y="60" width="712" height="534" fill="#405658"/><path d="M56 470 210 210 390 400 580 180 768 470v124H56" fill="#65776d"/>
+ <g color="white"><use href="#flash" x="16" y="115"/><use href="#burst" x="16" y="248"/><use href="#rotate" x="16" y="382"/><use href="#settings" x="16" y="515"/></g>
+ <rect x="72" y="76" width="160" height="48" rx="24" fill="#282828"/><text class="project" x="84" y="106">滨江路工程 ⌄</text>
+ <rect x="72" y="434" width="242" height="142" rx="6" fill="#202020"/><rect x="72" y="434" width="242" height="32" rx="6" fill="#ffb300"/><text x="84" y="458">滨江路工程</text><text x="84" y="498">主体结构</text><text x="84" y="530">2026-11-03 10:30</text><text x="84" y="562">拍摄地点</text>
+ <circle cx="736" cy="310" r="21" fill="none" stroke="#ffb300"/><text class="accent" x="726" y="317">1×</text><text x="726" y="364">2×</text>
+ <text class="accent" text-anchor="middle" x="826" y="128">拍照</text><circle cx="826" cy="140" r="2.5" fill="#ffb300"/><text text-anchor="middle" x="894" y="128">录像</text>
+ <rect x="836" y="207" width="48" height="48" rx="10" fill="#405658"/><circle cx="860" cy="327" r="45" fill="white"/><circle cx="860" cy="327" r="39" fill="black"/><circle cx="860" cy="327" r="32" fill="white"/><use href="#flip" x="846" y="400"/>
+ <g color="white"><use href="#water" x="814" y="494"/><use href="#edit" x="882" y="494"/></g><text text-anchor="middle" x="826" y="542">水印</text><text text-anchor="middle" x="894" y="542">记问题</text>
+</g>
+</svg>
