@@ -1,5 +1,20 @@
 # 更新日志
 
+## v0.4.6 — 2026-11-08
+
+- 修复安卓竖屏拍摄控件显示异常。
+- 修复鸿蒙折叠屏展开态横竖屏布局异常。
+- 修复鸿蒙新建工程后无法返回相机或找不到工程的问题。
+- 支持在系统相册同时保存水印版和无水印原件。
+- 支持在相册详情左右滑动切换照片和视频。
+- 支持将问题记录与照片一同分享。
+- 修复跨工程导出压缩包缺少工程名称的问题。
+
+### 下载
+
+- Android：[Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.6/SiteCam-0.4.6-Android-Release.apk) · [Debug APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.6/SiteCam-0.4.6-Android-Debug.apk)
+- HarmonyOS：[Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.4.6/SiteCam-0.4.6-HarmonyOS-Release-Unsigned.hap)，需自行签名后安装；[华为应用市场](appmarket://details?id=com.sitecam.app)的新版本以审核进度为准。
+
 ## v0.4.5 — 2026-11-03
 
 - 修复 Android 10 视频保存到系统相册时报错的问题。

@@ -12,15 +12,15 @@
 
 **免费 · 开源 · 无广告**
 
-[⬇️ 下载安卓版 Release（推荐）](https://github.com/toydream525/SiteCam/releases/download/v0.4.5/SiteCam-0.4.5-Android-Release.apk)　
-[🌸 下载鸿蒙原生版](https://github.com/toydream525/SiteCam/releases/download/v0.4.5/SiteCam-0.4.5-HarmonyOS-Release-Unsigned.hap)　
+[⬇️ 下载安卓版 Release（推荐）](https://github.com/toydream525/SiteCam/releases/download/v0.4.6/SiteCam-0.4.6-Android-Release.apk)　
+[🌸 下载鸿蒙原生版](https://github.com/toydream525/SiteCam/releases/download/v0.4.6/SiteCam-0.4.6-HarmonyOS-Release-Unsigned.hap)　
 [🌐 官网](https://yuriaqua.com/sitecam/)　
 [📖 使用说明](docs/USER_GUIDE.md)　
 [💬 反馈问题](https://github.com/toydream525/SiteCam/issues)
 
 </div>
 
-当前公开版本为 **v0.4.5**。默认下载 Android Release，推荐日常自用安装。
+当前公开版本为 **v0.4.6**。默认下载 Android Release，推荐日常自用安装。
 
 ---
 
@@ -62,8 +62,8 @@
 
 | 你的设备 | 当前状态 | 下载 |
 | --- | --- | --- |
-| 🤖 安卓手机 | **v0.4.5，可安装使用**，支持 Android 8.0 及以上 | [Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.5/SiteCam-0.4.5-Android-Release.apk) |
-| 🌸 鸿蒙手机 / 平板 | **v0.4.5 原生版**，商店新版本以审核进度为准 | [华为应用市场直接下载（一键拉起）](appmarket://details?id=com.sitecam.app) · [Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.4.5/SiteCam-0.4.5-HarmonyOS-Release-Unsigned.hap) · [签名说明](harmonyos/README.md) |
+| 🤖 安卓手机 | **v0.4.6，可安装使用**，支持 Android 8.0 及以上 | [Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.6/SiteCam-0.4.6-Android-Release.apk) |
+| 🌸 鸿蒙手机 / 平板 | **v0.4.6 原生版**，商店新版本以审核进度为准 | [华为应用市场直接下载（一键拉起）](appmarket://details?id=com.sitecam.app) · [Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.4.6/SiteCam-0.4.6-HarmonyOS-Release-Unsigned.hap) · [签名说明](harmonyos/README.md) |
 | 🍎 iPhone / iPad | 开发中，暂无安装包 | — |
 
 **鸿蒙版说明：** 鸿蒙原生版已正式上架华为应用市场！华为手机及平板用户可点击 [华为应用市场直接下载](appmarket://details?id=com.sitecam.app)（手机端直接唤起华为应用市场详情页）或在应用市场搜索“SiteCam工程水印相机”一键下载安装，无需自行签名。侧载测试用户可使用公开的未签名 Release HAP，需自行签名后安装。鸿蒙版不申请应用联网权限；具体地址由系统服务提供，系统服务可能使用网络，断网时可手动填写地点。
@@ -79,13 +79,15 @@
 
 ## 🆕 最近更新
 
-**v0.4.5：**
+**v0.4.6**
 
-- 修复 Android 10 视频保存到系统相册时报错的问题。
-- 安卓版录像结束后可继续拍照。
-- 优化鸿蒙横竖屏拍摄控件布局与间距。
-- 修复鸿蒙竖屏底部控件贴边或显示不全的问题。
-- 鸿蒙地址未获取时持续显示刷新标识，未授权时提示开启定位权限。
+- 修复安卓竖屏拍摄控件显示异常。
+- 修复鸿蒙折叠屏展开态横竖屏布局异常。
+- 修复鸿蒙新建工程后无法返回相机或找不到工程的问题。
+- 支持在系统相册同时保存水印版和无水印原件。
+- 支持在相册详情左右滑动切换照片和视频。
+- 支持将问题记录与照片一同分享。
+- 修复跨工程导出压缩包缺少工程名称的问题。
 
 支持拍照加水印、按工程整理照片与视频、标注问题和导出资料。
 

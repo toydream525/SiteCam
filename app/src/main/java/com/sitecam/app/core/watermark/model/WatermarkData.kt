@@ -45,7 +45,8 @@ data class WatermarkData(
     /** Null keeps the historical behavior of snapshots that did not freeze a zone. */
     val captureTimeZoneId: String? = null,
     /** Frozen destination for a recording that is temporarily retained privately. */
-    val saveToSystemGallery: Boolean? = null
+    val saveToSystemGallery: Boolean? = null,
+    val saveOriginalToSystemGallery: Boolean = false
 ) {
     val formattedDate: String
         get() = formatCaptureTime("yyyy.MM.dd")

@@ -2,7 +2,7 @@ import { LengthMetricsUnit } from '@kit.ArkUI';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { image } from '@kit.ImageKit';
 import { Snapshot, MediaItem, QUALITY_EDGES, QUALITY_JPEG, safeName, timeText, hydrateMediaFromSnapshot, fontFamily } from './Models';
-import { paintWatermark } from './WatermarkRenderer';
+import { paintWatermark, wrapText } from './WatermarkRenderer';
 
 /** Normalized coordinates are in the actual image rectangle (0..1), never in a letterbox view. */
 export class Mark {
@@ -201,6 +201,43 @@ export class ImageProcessor {
     await this.exifQuiet(target,s);return m;
   }
   async resize(pm:image.PixelMap,q:number):Promise<void>{const info=await pm!.getImageInfo();const index=Math.max(0,Math.min(3,Math.round(q))),edge=QUALITY_EDGES[index];const scale=edge?Math.min(1,edge/Math.max(info.size.width,info.size.height)):1;if(scale<1)await pm!.scale(scale,scale);}
+  async renderIssueShare(path:string,target:string,title:string,status:string,notes:string):Promise<void>{
+    const source=image.createImageSource(path);
+    let photo:image.PixelMap|null=null;
+    try{
+      const original=(await source.getImageInfo()).size;
+      const scale=Math.min(1,1920/Math.max(original.width,original.height));
+      let orientation='1';
+      try{orientation=await source.getImageProperty(image.PropertyKey.ORIENTATION);}catch(e){}
+      photo=await source.createPixelMap({editable:true,desiredSize:{
+        width:Math.max(1,Math.floor(original.width*scale)),height:Math.max(1,Math.floor(original.height*scale))
+      }});
+      await orientPhotoPixels(photo,importOrientation(orientation));
+      const size=(await photo.getImageInfo()).size;
+      const width=Math.max(480,size.width),padding=Math.floor(width/24),font=width/27,lineHeight=Math.ceil(font*1.45);
+      const measure=new OffscreenCanvas(1,1,LengthMetricsUnit.PX).getContext('2d');
+      measure.font=`bold ${font}px sans-serif`;
+      const titleLines=wrapText(measure,title,width-2*padding);
+      measure.font=`${font}px sans-serif`;
+      const notesLines=notes.trim()?wrapText(measure,notes,width-2*padding):[];
+      const height=size.height+2*padding+(2+titleLines.length+notesLines.length)*lineHeight;
+      if(height>4096)throw new Error('问题记录过长，无法生成分享照片');
+      const ctx=new OffscreenCanvas(width,height,LengthMetricsUnit.PX).getContext('2d');
+      ctx.fillStyle='#10171D';ctx.fillRect(0,0,width,height);
+      ctx.drawImage(photo,(width-size.width)/2,0,size.width,size.height);
+      ctx.textBaseline='middle';
+      let y=size.height+padding+lineHeight/2;
+      ctx.font=`bold ${font}px sans-serif`;ctx.fillStyle='#FFCA55';ctx.fillText('问题记录',padding,y);y+=lineHeight;
+      ctx.fillStyle='#FFFFFF';
+      for(const line of titleLines){ctx.fillText(line,padding,y);y+=lineHeight;}
+      ctx.font=`${font}px sans-serif`;ctx.fillStyle='#CBD5DC';ctx.fillText(status,padding,y);y+=lineHeight;
+      ctx.fillStyle='#FFFFFF';
+      for(const line of notesLines){ctx.fillText(line,padding,y);y+=lineHeight;}
+      const result=ctx.getPixelMap(0,0,width,height);
+      try{await this.encode(result,target,3);}finally{await result.release();}
+    }catch(e){await this.removePath(target);throw e as Error;}
+    finally{try{await photo?.release();}finally{await source.release();}}
+  }
   async encode(pm:image.PixelMap,path:string,q:number):Promise<void>{const packer=image.createImagePacker();try{const index=Math.max(0,Math.min(3,Math.round(q)));await this.write(path,await packer.packing(pm,{format:'image/jpeg',quality:QUALITY_JPEG[index]}));}finally{await packer.release();}}
   async exif(path:string,s:Snapshot):Promise<void>{const src=image.createImageSource(path);try{const dt=timeText(s.timestamp).replace(/-/g,':');await src.modifyImageProperty(image.PropertyKey.DATE_TIME_ORIGINAL,dt);await src.modifyImageProperty(image.PropertyKey.DATE_TIME,dt);await src.modifyImageProperty(image.PropertyKey.ORIENTATION,'1');if(s.fix){await src.modifyImageProperty(image.PropertyKey.GPS_LATITUDE,degree(s.fix.latitude));await src.modifyImageProperty(image.PropertyKey.GPS_LATITUDE_REF,s.fix.latitude<0?'S':'N');await src.modifyImageProperty(image.PropertyKey.GPS_LONGITUDE,degree(s.fix.longitude));await src.modifyImageProperty(image.PropertyKey.GPS_LONGITUDE_REF,s.fix.longitude<0?'W':'E');}}finally{await src.release();}}
   /** EXIF is best effort: a metadata write failure must never delete the encoded image. */

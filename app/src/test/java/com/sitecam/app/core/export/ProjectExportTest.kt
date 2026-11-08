@@ -9,10 +9,12 @@ import java.util.zip.ZipOutputStream
 
 class ProjectExportTest {
 
-    @Test fun projectZipUsesLocalExportDateAndBatchKeepsExistingName() {
+    @Test fun projectZipUsesProjectNameAndLocalExportDate() {
         val calendar = java.util.GregorianCalendar(2026, 9, 31, 23, 59, 0)
         assertEquals("新区工程_2026-10-31.zip", exportZipName(listOf("新区工程"), calendar.timeInMillis))
-        assertEquals("工程档案_123.zip", exportZipName(listOf("甲", "乙"), 123))
+        assertEquals("甲等2个工程_2026-10-31.zip", exportZipName(listOf("甲", "乙"), calendar.timeInMillis))
+        val longName = exportZipName(listOf("📸".repeat(70), "乙"), calendar.timeInMillis)
+        assertTrue(longName.toByteArray(Charsets.UTF_8).size < 255)
     }
 
     @Test

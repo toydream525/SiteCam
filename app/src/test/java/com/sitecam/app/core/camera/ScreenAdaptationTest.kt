@@ -191,6 +191,14 @@ class ScreenAdaptationTest {
         assertEquals(3f / 4f, geometry.previewWidth / geometry.previewHeight, .001f)
     }
 
+    @Test fun ordinaryPortraitPhoneCanFitFullWidthWithoutCroppingOrMovingTheDock() {
+        val geometry = cameraGeometry(360f, 800f, 3f, phoneGripSpace = true, minimumPortraitControlsHeight = 244f)
+        assertEquals(56f, geometry.toolbarHeight)
+        assertEquals(360f, geometry.previewWidth)
+        assertEquals(480f, geometry.previewHeight)
+        assertTrue(geometry.controlsHeight >= 244f)
+    }
+
     private fun assertNoIntersection(pane: LayoutRect, fold: LayoutRect) {
         assertTrue("$pane intersects $fold", pane.right <= fold.left || pane.left >= fold.right ||
             pane.bottom <= fold.top || pane.top >= fold.bottom)

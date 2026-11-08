@@ -55,6 +55,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
+import com.sitecam.app.core.layout.cameraToolsFitSingleRow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -127,14 +128,14 @@ fun CameraTopBar(
         }
         val actions: @Composable () -> Unit = {
             ToolIcon(flashIcon, if (flashSelected) EngineeringYellow else Color.White,
-                flashDescription, !isBusy, onFlashToggle, onFlashLongPress, boxSize = 48.dp, backgroundAlpha = plateAlpha)
+                flashDescription, !isBusy, onFlashToggle, onFlashLongPress, boxSize = 48.dp, iconSize = 26.dp, backgroundAlpha = plateAlpha)
             ToolIcon(Icons.Default.BurstMode, if (burstEnabled) EngineeringYellow else Color.White,
                 if (burstEnabled) "连拍，开启" else "连拍，关闭", !isBusy && captureMode == CaptureMode.PHOTO,
-                onBurstToggle, boxSize = 48.dp, backgroundAlpha = plateAlpha)
+                onBurstToggle, boxSize = 48.dp, iconSize = 26.dp, backgroundAlpha = plateAlpha)
             OrientationSelector(orientationLabel, !isBusy, onOrientationSelected, plateAlpha,
                 menuTowardPreview = verticalTools)
             ToolIcon(Icons.Default.Settings, Color.White, "设置", !isBusy, onSettingsClick,
-                boxSize = 48.dp, backgroundAlpha = plateAlpha)
+                boxSize = 48.dp, iconSize = 26.dp, backgroundAlpha = plateAlpha)
             if (verticalTools && addressRefreshState != null && onAddressRefreshClick != null) {
                 IconButton(onClick = onAddressRefreshClick, enabled = !isBusy && addressRefreshState != "REFRESHING",
                     modifier = Modifier.size(48.dp)) {
@@ -150,7 +151,7 @@ fun CameraTopBar(
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceEvenly) { actions() }
-        } else if (maxWidth < (352f + 120f * (LocalDensity.current.fontScale.coerceAtLeast(1f) - 1f)).dp) {
+        } else if (!cameraToolsFitSingleRow(shelfWidth.value + 16f, LocalDensity.current.fontScale)) {
             Column(Modifier.fillMaxWidth()) {
                 project(Modifier.widthIn(max = minOf(220.dp, shelfWidth)))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { actions() }
@@ -366,7 +367,7 @@ private fun OrientationSelector(label: String, enabled: Boolean, onSelect: (Capt
         ToolIcon(icon = Icons.Default.ScreenRotation,
             tint = if (expanded || current != CaptureOrientation.AUTO) EngineeringYellow else Color.White,
             description = "拍摄方向：${current.label}", enabled = enabled,
-            onClick = { expanded = true }, boxSize = 48.dp, backgroundAlpha = backgroundAlpha)
+            onClick = { expanded = true }, boxSize = 48.dp, iconSize = 26.dp, backgroundAlpha = backgroundAlpha)
         androidx.compose.material3.DropdownMenu(
             expanded = expanded && enabled, onDismissRequest = { expanded = false },
             containerColor = DarkCard,

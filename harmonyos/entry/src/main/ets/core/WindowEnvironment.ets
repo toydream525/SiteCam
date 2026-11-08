@@ -1,12 +1,12 @@
 import { display, window } from '@kit.ArkUI';
-import { usesInnerScreen } from './CameraLayout';
+import { isExpandedInnerScreen, usesInnerScreen } from './CameraLayout';
 import { WindowRect, intersectRect } from './WindowGeometry';
 export class WindowEnvironment {
   width:number=390; height:number=720; density:number=1;
   top:number=0; bottom:number=0; left:number=0; right:number=0;
   keyboardTop:number=0; keyboardBottom:number=0; keyboardLeft:number=0; keyboardRight:number=0;
   rotation:number=0; displayId:number=0; windowX:number=0; windowY:number=0;
-  halfFolded:boolean=false; innerScreen:boolean=false; clamshell:boolean=false;
+  halfFolded:boolean=false; innerScreen:boolean=false; expandedInner:boolean=false; clamshell:boolean=false;
   largeScreenScheme:boolean=false; coverScreen:boolean=false; family:string='REGULAR';
   foldable:boolean=false; deviceType:string=''; compactPhonePortrait:boolean=false;
   creaseTop:number=-1; creaseHeight:number=0; creases:WindowRect[]=[];
@@ -36,6 +36,7 @@ export class WindowEnvironmentController {
   private readDisplay():void{try{
     const current=display.getDisplayByIdSync(this.env.displayId);this.density=current.densityPixels||1;this.env.rotation=current.rotation*90;this.env.displayId=current.id;
     this.env.foldable=display.isFoldable();const status=display.getFoldStatus();this.env.halfFolded=this.env.foldable&&status===display.FoldStatus.FOLD_STATUS_HALF_FOLDED;this.env.innerScreen=usesInnerScreen(this.env.foldable,status);
+    this.env.expandedInner=isExpandedInnerScreen(this.env.foldable,status);
     this.rawCreases=[];this.creaseDisplayId=-1;
     if(this.env.foldable){const region=display.getCurrentFoldCreaseRegion();if(region){this.creaseDisplayId=region.displayId;this.rawCreases=region.creaseRects.map((r:display.Rect)=>new WindowRect(r.left,r.top,Math.max(1,r.width),Math.max(1,r.height)));}}
   }catch(e){console.warn('SITECAM_DISPLAY '+(e as Error).message);}}

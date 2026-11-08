@@ -20,13 +20,15 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 sealed interface PhotoDetailEvent {
     data class Share(val item: MediaItemEntity) : PhotoDetailEvent
     data object Deleted : PhotoDetailEvent
-    data class RetryCompleted(val cleanupWarning: Boolean) : PhotoDetailEvent
+    data class RetryCompleted(val cleanupWarning: Boolean, val originalCopyWarning: Boolean) : PhotoDetailEvent
     data class PendingDeleteConsent(
         val intentSender: android.content.IntentSender,
         val item: MediaItemEntity
@@ -75,10 +77,27 @@ class PhotoDetailViewModel(
     private val _isDeleting = kotlinx.coroutines.flow.MutableStateFlow(false)
     val isDeleting = _isDeleting.asStateFlow()
 
-    fun requestShare(edited: Boolean = false) {
+    private var sharing = false
+
+    fun requestShare(edited: Boolean = false, includeIssue: Boolean = false) {
+        if (sharing) return
+        sharing = true
         viewModelScope.launch {
-            mediaItem.value?.let { _events.emit(PhotoDetailEvent.Share(if (edited && _annotation.value != null) it.copy(contentUri = _annotation.value!!.annotatedContentUri) else it)) }
-                ?: _events.emit(PhotoDetailEvent.Error("媒体记录不存在"))
+            try {
+                val item = checkNotNull(mediaItem.value) { "媒体记录不存在" }
+                val uri = if (edited) _annotation.value?.annotatedContentUri ?: item.contentUri else item.contentUri
+                val shareUri = if (includeIssue) withContext(Dispatchers.IO) {
+                    val record = checkNotNull(appContainer.database.issueDao().getIssueByMediaId(item.id)) { "问题记录不存在" }
+                    createIssuePhotoShare(appContainer.appContext, Uri.parse(uri), record).toString()
+                } else uri
+                _events.emit(PhotoDetailEvent.Share(item.copy(contentUri = shareUri)))
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                _events.emit(PhotoDetailEvent.Error(error.message ?: "无法生成分享照片"))
+            } finally {
+                sharing = false
+            }
         }
     }
 
@@ -193,8 +212,23 @@ class PhotoDetailViewModel(
                     throw dbError
                 }
                 newUri = null
-                val oldDelete = appContainer.mediaStoreManager.deleteMediaUriDetailed(Uri.parse(item.contentUri))
-                _events.emit(PhotoDetailEvent.RetryCompleted(cleanupWarning = oldDelete == com.sitecam.app.core.media.MediaDeleteOutcome.FAILED))
+                val result = withContext(NonCancellable) {
+                    val oldUri = Uri.parse(item.contentUri)
+                    val oldWasPublic = oldUri.authority == android.provider.MediaStore.AUTHORITY
+                    val originalFailed = data.saveOriginalToSystemGallery && data.saveToSystemGallery == true &&
+                        runCatching {
+                            check(appContainer.mediaStoreManager.canSaveToSystemGallery())
+                            appContainer.mediaStoreManager.saveVideoToMediaStore(
+                                input, item.fileName.substringBeforeLast('.') + "_原片.mp4",
+                                project?.name ?: "默认工程", item.captureTimestamp, saveToSystemGallery = true
+                            )
+                        }.isFailure
+                    val cleanupFailed = if (originalFailed && oldWasPublic) false else {
+                        appContainer.mediaStoreManager.deleteMediaUriDetailed(oldUri) == com.sitecam.app.core.media.MediaDeleteOutcome.FAILED
+                    }
+                    PhotoDetailEvent.RetryCompleted(cleanupFailed, originalFailed && !oldWasPublic)
+                }
+                _events.emit(result)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (e: Exception) {

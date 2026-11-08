@@ -98,6 +98,10 @@ fun SettingsScreen(viewModel: SettingsViewModel, onNavigateBack: () -> Unit,
                 SettingsRow("照片画质", Icons.Default.Photo, state.photoQualityProfile.label) { page = "照片画质" }
                 SettingsToggle("快门声音", Icons.Default.VolumeUp, state.shutterSoundEnabled, viewModel::setShutterSoundEnabled)
                 SettingsToggle("同时在系统相册显示", Icons.Default.PhotoLibrary, state.saveToSystemGallery, ::toggleAlbum)
+                if (state.saveToSystemGallery) {
+                    SettingsToggle("同时保存无水印原件", Icons.Default.PhotoLibrary,
+                        state.saveOriginalToSystemGallery, viewModel::setSaveOriginalToSystemGallery)
+                }
                 SettingsRow("导出压缩包", Icons.Default.FolderZip) { manageArchives = true }
             }
             "水印" -> SettingsGroup(group) {

@@ -30,6 +30,7 @@ object WatermarkSnapshotCodec {
         put("captureTimestamp", data.captureTimestamp)
         data.captureTimeZoneId?.let { put("captureTimeZoneId", it) }
         data.saveToSystemGallery?.let { put("saveToSystemGallery", it) }
+        if (data.saveOriginalToSystemGallery) put("saveOriginalToSystemGallery", true)
         putNullable("latitude", data.latitude)
         putNullable("longitude", data.longitude)
         putNullable("altitude", data.altitude)
@@ -130,6 +131,7 @@ object WatermarkSnapshotCodec {
                 captureTimestamp = root.optLong("captureTimestamp", System.currentTimeMillis()),
                 captureTimeZoneId = root.optString("captureTimeZoneId").takeIf { it.isNotBlank() },
                 saveToSystemGallery = if (root.has("saveToSystemGallery")) root.optBoolean("saveToSystemGallery") else null,
+                saveOriginalToSystemGallery = root.optBoolean("saveOriginalToSystemGallery"),
                 latitude = root.optNullableDouble("latitude"),
                 longitude = root.optNullableDouble("longitude"),
                 altitude = root.optNullableDouble("altitude"),

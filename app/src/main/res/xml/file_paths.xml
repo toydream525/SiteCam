@@ -2,6 +2,7 @@
 <paths>
     <files-path name="private_sitecam_media" path="SiteCam/" />
     <cache-path name="export_cache" path="exports/" />
+    <cache-path name="issue_shares" path="issue-shares/" />
     <external-files-path name="external_files" path="." />
     <external-path name="public_sitecam_exports" path="Download/SiteCam/Exports/" />
 </paths>

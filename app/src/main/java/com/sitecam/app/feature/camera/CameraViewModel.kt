@@ -907,6 +907,7 @@ class CameraViewModel(
         }
         _isCapturing.value = true
         val saveToGallery = appContainer.settingsDataStore.saveToSystemGallery.first()
+        val saveOriginal = saveToGallery && appContainer.settingsDataStore.saveOriginalToSystemGallery.first()
         val quickIssueModeAtCapture = _quickIssueMode.value
         val captureTimestamp = System.currentTimeMillis()
         val captureLocation = freshLocation(state, captureTimestamp)
@@ -914,6 +915,7 @@ class CameraViewModel(
             captureTimestamp = captureTimestamp,
             captureTimeZoneId = java.util.TimeZone.getDefault().id,
             saveToSystemGallery = saveToGallery,
+            saveOriginalToSystemGallery = saveOriginal,
             latitude = captureLocation.latitude,
             longitude = captureLocation.longitude,
             altitude = captureLocation.altitude,
@@ -1057,6 +1059,7 @@ class CameraViewModel(
             var burnedIn = false
             var original: MediaItemEntity? = null
             var uncommittedUri: Uri? = null
+            var originalCopyFailed = false
             try {
                 val metadata = appContainer.mediaStoreManager.inspectRecordedVideo(session.tempFile)
                 val retained = pendingVideoStore.publish(session.pendingVideo, metadata)
@@ -1092,10 +1095,19 @@ class CameraViewModel(
                         ))
                     }
                     uncommittedUri = null
+                    if (burnedIn && session.watermark.saveOriginalToSystemGallery && appContainer.mediaStoreManager.canSaveToSystemGallery()) {
+                        originalCopyFailed = runCatching {
+                            appContainer.mediaStoreManager.saveVideoToMediaStore(
+                                session.tempFile, fileName.substringBeforeLast('.') + "_原片.mp4",
+                                session.project.name, session.timestamp, saveToSystemGallery = true
+                            )
+                        }.isFailure
+                    }
                     pendingVideoStore.discard(session.pendingVideo)
                 }
                 // The existing Room observer selects the newest capture, even if an older video finishes later.
                 if (!burnedIn) _uiEvents.emit(CameraUiEvent.ShowToast("视频水印处理失败，已保留原片，可在工程相册重试"))
+                if (originalCopyFailed) _uiEvents.emit(CameraUiEvent.ShowToast("视频已保存，原片未能另存到系统相册"))
                 if (session.quickIssueMode) {
                     _uiEvents.emit(CameraUiEvent.QuickIssuePrompt(retained.id, saveResult.uri))
                 } else {
@@ -1117,7 +1129,8 @@ class CameraViewModel(
     }
 
     private data class PhotoFrame(val bitmap: Bitmap, val rotation: Int, val surfaceRotation: Int,
-        val timestamp: Long, val location: CaptureLocation, val watermark: WatermarkData, val mirrored: Boolean)
+        val timestamp: Long, val location: CaptureLocation, val watermark: WatermarkData, val mirrored: Boolean,
+        val original: com.sitecam.app.core.media.CameraJpeg?)
 
     fun capturePhoto() {
         if (_isProjectSwitching.value || _isCapturing.value || cameraManager.videoRecordingState.value != CameraManager.VideoRecordingState.IDLE) return
@@ -1144,6 +1157,8 @@ class CameraViewModel(
                 cameraManager.configureSnapshot(quick, appContainer.settingsDataStore.snapshotShutterSpeed.first())
                 val profile = SnapshotPolicy.profile(quick, appContainer.settingsDataStore.photoQualityProfile.first())
                 val gallery = appContainer.settingsDataStore.saveToSystemGallery.first()
+                val original = gallery && appContainer.settingsDataStore.saveOriginalToSystemGallery.first() &&
+                    appContainer.mediaStoreManager.canSaveToSystemGallery()
                 val pattern = appContainer.settingsDataStore.namingPattern.first()
                 saved = captureAndSaveFrames(
                     multiple = burst,
@@ -1157,8 +1172,9 @@ class CameraViewModel(
                             latitude = location.latitude, longitude = location.longitude,
                             altitude = location.altitude, addressText = location.address, locationStatus = location.status)
                         val rotation = cameraManager.currentTargetRotation()
-                        val capture = cameraManager.capturePhoto(rotation)
-                        PhotoFrame(capture.first, capture.second, rotation, timestamp, location, watermark, cameraManager.previewIsMirrored())
+                        val capture = cameraManager.capturePhoto(rotation, retainOriginal = original)
+                        PhotoFrame(capture.bitmap, capture.rotation, rotation, timestamp, location, watermark,
+                            cameraManager.previewIsMirrored(), capture.original)
                     },
                     save = { frame -> lastSaved = savePhotoFrame(frame, project, profile, gallery, pattern, quickIssue, burst) },
                     discard = { frame -> if (!frame.bitmap.isRecycled) frame.bitmap.recycle() }
@@ -1187,81 +1203,87 @@ class CameraViewModel(
         val watermarkData = frame.watermark
         var watermarkedBitmap: Bitmap? = null
         try {
-                val renderedBitmap = WatermarkBitmapRenderer.renderWatermarkOnBitmap(
-                    sourceBitmap = capturedBitmap,
-                    watermarkData = watermarkData,
-                    rotationDegrees = rotationDegrees,
-                    targetAspectRatio = if (surfaceRotation == android.view.Surface.ROTATION_90 || surfaceRotation == android.view.Surface.ROTATION_270) 4f / 3f else 3f / 4f,
-                    qualityProfile = profile,
-                    mirrorHorizontally = frame.mirrored
-                )
-                watermarkedBitmap = renderedBitmap
+            val fileName = NamingEngine.generateFileName(
+                projectName = project.name, categoryName = project.categoryName,
+                timestamp = captureTimestamp, pattern = namingPattern
+            )
+            val renderedBitmap = WatermarkBitmapRenderer.renderWatermarkOnBitmap(
+                sourceBitmap = capturedBitmap,
+                watermarkData = watermarkData,
+                rotationDegrees = rotationDegrees,
+                targetAspectRatio = if (surfaceRotation == android.view.Surface.ROTATION_90 || surfaceRotation == android.view.Surface.ROTATION_270) 4f / 3f else 3f / 4f,
+                qualityProfile = profile,
+                mirrorHorizontally = frame.mirrored
+            )
+            watermarkedBitmap = renderedBitmap
 
-                val pattern = namingPattern
-                val fileName = NamingEngine.generateFileName(
-                    projectName = project.name,
-                    categoryName = project.categoryName,
-                    timestamp = captureTimestamp,
-                    pattern = pattern
-                )
+            val quality = profile.jpegQuality
+            val saveResult = appContainer.mediaStoreManager.savePhotoToMediaStore(
+                bitmap = renderedBitmap,
+                fileName = fileName,
+                projectName = project.name,
+                watermarkData = watermarkData,
+                quality = quality,
+                orientation = 0,
+                saveToSystemGallery = saveToGallery
+            )
 
-                val quality = profile.jpegQuality
-                val saveResult = appContainer.mediaStoreManager.savePhotoToMediaStore(
-                    bitmap = renderedBitmap,
-                    fileName = fileName,
-                    projectName = project.name,
-                    watermarkData = watermarkData,
-                    quality = quality,
-                    orientation = 0,
-                    saveToSystemGallery = saveToGallery
-                )
+            val mediaEntity = MediaItemEntity(
+                projectId = project.id,
+                mediaType = "PHOTO",
+                contentUri = saveResult.uri.toString(),
+                filePath = saveResult.filePath,
+                fileName = saveResult.fileName,
+                width = saveResult.width,
+                height = saveResult.height,
+                captureTimestamp = captureTimestamp,
+                latitude = watermarkData.latitude,
+                longitude = watermarkData.longitude,
+                altitude = watermarkData.altitude,
+                locationAccuracy = captureLocation.accuracy,
+                locationTimestamp = captureLocation.timestamp,
+                locationStatus = captureLocation.status,
+                addressText = watermarkData.addressText,
+                orientation = 0,
+                // The quick-issue dialog is the commit point.
+                isIssue = false,
+                processingStatus = "READY",
+                watermarkSnapshotJson = WatermarkSnapshotCodec.encode(watermarkData)
+            )
 
-                val mediaEntity = MediaItemEntity(
-                    projectId = project.id,
-                    mediaType = "PHOTO",
-                    contentUri = saveResult.uri.toString(),
-                    filePath = saveResult.filePath,
-                    fileName = saveResult.fileName,
-                    width = saveResult.width,
-                    height = saveResult.height,
-                    captureTimestamp = captureTimestamp,
-                    latitude = watermarkData.latitude,
-                    longitude = watermarkData.longitude,
-                    altitude = watermarkData.altitude,
-                    locationAccuracy = captureLocation.accuracy,
-                    locationTimestamp = captureLocation.timestamp,
-                    locationStatus = captureLocation.status,
-                    addressText = watermarkData.addressText,
-                    orientation = 0,
-                    // The quick-issue dialog is the commit point.
-                    isIssue = false,
-                    processingStatus = "READY",
-                    watermarkSnapshotJson = WatermarkSnapshotCodec.encode(watermarkData)
-                )
-
-                val mediaId = try {
-                    appContainer.database.mediaItemDao().insertMediaItem(mediaEntity)
-                } catch (dbError: Exception) {
-                    appContainer.mediaStoreManager.deleteMediaUri(saveResult.uri)
-                    throw dbError
+            val mediaId = try {
+                appContainer.database.mediaItemDao().insertMediaItem(mediaEntity)
+            } catch (dbError: Exception) {
+                withContext(NonCancellable) { runCatching { appContainer.mediaStoreManager.deleteMediaUri(saveResult.uri) } }
+                throw dbError
+            }
+            val originalCopyFailed = frame.original?.let { jpeg ->
+                withContext(NonCancellable) {
+                    runCatching {
+                        appContainer.mediaStoreManager.saveOriginalPhotoToGallery(
+                            jpeg = jpeg, fileName = fileName.substringBeforeLast('.') + "_原图.jpg",
+                            projectName = project.name, watermarkData = watermarkData, orientation = rotationDegrees
+                        )
+                    }.isFailure
                 }
+            } ?: false
 
-                _latestThumbnailUri.value = saveResult.uri.toString()
-                _latestMediaType.value = "PHOTO"
+            _latestThumbnailUri.value = saveResult.uri.toString()
+            _latestMediaType.value = "PHOTO"
 
-                // This event is intentionally separate from video completion;
-                // the camera UI uses it to animate only a successfully saved
-                // photo, including photos that open the quick-issue prompt.
-                _uiEvents.emit(
-                    CameraUiEvent.PhotoSaved(
-                        mediaId = mediaId,
-                        uri = saveResult.uri,
-                        showToast = !quickIssueModeAtCapture && !burst
-                    )
+            // This event is intentionally separate from video completion;
+            // the camera UI uses it to animate only a successfully saved
+            // photo, including photos that open the quick-issue prompt.
+            _uiEvents.emit(
+                CameraUiEvent.PhotoSaved(
+                    mediaId = mediaId,
+                    uri = saveResult.uri,
+                    showToast = !quickIssueModeAtCapture && !burst
                 )
+            )
+            if (originalCopyFailed) _uiEvents.emit(CameraUiEvent.ShowToast("照片已保存，原图未能另存到系统相册"))
 
-                return mediaId to saveResult.uri
-
+            return mediaId to saveResult.uri
         } finally {
             watermarkedBitmap?.takeIf { !it.isRecycled }?.recycle()
             if (capturedBitmap != watermarkedBitmap && !capturedBitmap.isRecycled) capturedBitmap.recycle()

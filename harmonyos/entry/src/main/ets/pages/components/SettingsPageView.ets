@@ -15,11 +15,11 @@ export interface QualityOption{label:string;description:string;value:number;}
  aboutToDisappear():void{this.saveHomePosition();this.homeReady=false;this.supportDialog?.close();this.supportDialog=null;}
  @Prop versionName:string='';
  @Prop snapshotEnabled:boolean=true;@Prop snapshotShutterSpeed:number=250;
- @Prop quality:number=1;@Prop albumCopy:boolean=false;@Prop shutterSoundEnabled:boolean=true;@Prop cameraControlStyle:string='NORMAL';@Prop icon:string='D';@Prop apiVersion:number=12;@Prop diagnostics:string='';@Prop templateId:number=0;
+ @Prop quality:number=1;@Prop albumCopy:boolean=false;@Prop albumOriginal:boolean=false;@Prop shutterSoundEnabled:boolean=true;@Prop cameraControlStyle:string='NORMAL';@Prop icon:string='D';@Prop apiVersion:number=12;@Prop diagnostics:string='';@Prop templateId:number=0;
  @Prop qualities:QualityOption[]=[{label:'更小文件',description:'长边 1280 像素',value:0},{label:'标准省空间',description:'长边 1920 像素',value:1},{label:'较清晰',description:'长边 2560 像素',value:2},{label:'原尺寸高清',description:'保留原尺寸',value:3}];
  onArchives:()=>void=()=>{};
  onSnapshot:(v:boolean)=>void=()=>{};onSnapshotShutter:(v:number)=>void=()=>{};
- onBack:()=>void=()=>{};onHelp:()=>void=()=>{};onWatermark:(id:number)=>void=()=>{};onQuality:(v:number)=>void=()=>{};onAlbumCopy:(v:boolean)=>void=()=>{};onShutterSound:(v:boolean)=>void=()=>{};onCameraControlStyle:(v:string)=>void=()=>{};onIcon:(v:string)=>void=()=>{};onCopyDiagnostics:()=>void=()=>{};onOpenLink:(url:string)=>void=()=>{};onOpenEasterEgg:()=>void=()=>{};onPermissions:()=>void=()=>{};
+ onBack:()=>void=()=>{};onHelp:()=>void=()=>{};onWatermark:(id:number)=>void=()=>{};onQuality:(v:number)=>void=()=>{};onAlbumCopy:(v:boolean)=>void=()=>{};onAlbumOriginal:(v:boolean)=>void=()=>{};onShutterSound:(v:boolean)=>void=()=>{};onCameraControlStyle:(v:string)=>void=()=>{};onIcon:(v:string)=>void=()=>{};onCopyDiagnostics:()=>void=()=>{};onOpenLink:(url:string)=>void=()=>{};onOpenEasterEgg:()=>void=()=>{};onPermissions:()=>void=()=>{};
  @State versionTapCount:number=0;@Link page:string;@Link selectedGroup:string;@Link homeOffset:number;@State availableWidth:number=390;
  @StorageProp('fontSizeScale') fontScale:number=1;
  private homeScroller:Scroller=new Scroller();
@@ -42,6 +42,7 @@ export interface QualityOption{label:string;description:string;value:number;}
    this.row('导出压缩包','',()=>this.onArchives(),'拍摄与保存');
    Row(){Text('快门声音').fontSize(16).fontColor(TEXT).layoutWeight(1);Toggle({type:ToggleType.Switch,isOn:this.shutterSoundEnabled}).selectedColor(YELLOW).onChange(v=>this.onShutterSound(v));}.width('100%').constraintSize({minHeight:64}).padding({left:16,right:16});
    Row(){Text('另存到系统相册').fontSize(16).fontColor(TEXT).layoutWeight(1);Toggle({type:ToggleType.Switch,isOn:this.albumCopy}).selectedColor(YELLOW).onChange(v=>this.onAlbumCopy(v));}.width('100%').constraintSize({minHeight:64}).padding({left:16,right:16});
+   if(this.albumCopy)Row(){Text('同时保存无水印原件').fontSize(16).fontColor(TEXT).layoutWeight(1);Toggle({type:ToggleType.Switch,isOn:this.albumOriginal}).selectedColor(YELLOW).onChange(v=>this.onAlbumOriginal(v));}.width('100%').constraintSize({minHeight:64}).padding({left:16,right:16});
   }else if(group==='水印'){this.row('水印样式与字段','',()=>this.onWatermark(this.templateId),'水印');}
   else if(group==='权限与隐私'){this.row('权限设置','',()=>this.onPermissions(),'权限与隐私');this.row('隐私政策','',()=>this.onOpenLink(PRIVACY));}
   else if(group==='外观'){this.row('相机控件外观',this.cameraControlStyle==='BLUR'?'毛玻璃':'普通',()=>this.page='相机控件外观','外观');if(this.apiVersion>=26)this.row('桌面图标',this.iconName(this.icon),()=>this.page='桌面图标','外观');}

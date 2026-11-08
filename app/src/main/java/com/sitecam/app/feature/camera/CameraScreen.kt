@@ -98,6 +98,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import com.sitecam.app.core.layout.cameraToolsFitSingleRow
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -580,16 +581,13 @@ fun CameraScreen(
         var watermarkOverlaySize by remember { mutableStateOf(IntSize.Zero) }
         val phoneGripSpace = screenEnvironment.phoneGripEligible &&
             maxOf(maxWidth.value, maxHeight.value) / minOf(maxWidth.value, maxHeight.value).coerceAtLeast(1f) >= 1.75f
-        val initialControlsEstimate = if (com.sitecam.app.core.layout.CameraLayoutCache.cachedPortraitControlsHeight > 0f) {
-            com.sitecam.app.core.layout.CameraLayoutCache.cachedPortraitControlsHeight
-        } else {
-            280f + 40f * (screenDensity.fontScale.coerceAtLeast(1f) - 1f)
-        }
         var minimumPhoneControlsHeight by rememberSaveable(
+            maxWidth.value,
+            screenDensity.density,
             screenDensity.fontScale,
             phoneGripSpace
         ) {
-            mutableFloatStateOf(initialControlsEstimate)
+            mutableFloatStateOf(0f)
         }
         val geometry = cameraGeometry(maxWidth.value, maxHeight.value, screenDensity.density,
             screenEnvironment.profile.smallCover,
@@ -603,7 +601,7 @@ fun CameraScreen(
         val toolbarY = if (isLandscape && !immersivePhoneLandscape) geometry.previewY + 8f else geometry.toolbarY
         val toolbarWidth = if (isLandscape && !immersivePhoneLandscape) geometry.previewWidth else geometry.toolbarWidth
         val toolbarHeight = if (immersivePhoneLandscape) geometry.toolbarHeight
-            else if (toolbarWidth < 320f + 120f * (screenDensity.fontScale.coerceAtLeast(1f) - 1f)) 104f else 56f
+            else if (cameraToolsFitSingleRow(toolbarWidth, screenDensity.fontScale)) 56f else 104f
         val projectRect = android.graphics.RectF(12f, 8f, minOf(232f, geometry.previewWidth - 12f), 56f)
         val watermarkRectDp = if (watermarkOverlaySize.width > 0 && watermarkOverlaySize.height > 0) {
             watermarkPreviewLayout(watermarkOverlaySize.width.toFloat(), watermarkOverlaySize.height.toFloat(), uiState.watermarkData)
@@ -1020,7 +1018,6 @@ fun CameraScreen(
                     if (!isCaptureBusy && height.value > 0f) {
                         if (kotlin.math.abs(height.value - minimumPhoneControlsHeight) > 1.5f) {
                             minimumPhoneControlsHeight = height.value
-                            com.sitecam.app.core.layout.CameraLayoutCache.cachedPortraitControlsHeight = height.value
                         }
                     }
                 },

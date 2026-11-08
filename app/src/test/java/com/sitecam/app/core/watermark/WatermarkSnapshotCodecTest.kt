@@ -28,17 +28,19 @@ class WatermarkSnapshotCodecTest {
         try {
             java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("Asia/Shanghai"))
             val original = WatermarkData(captureTimestamp = 1700000000000L,
-                captureTimeZoneId = "Asia/Shanghai", saveToSystemGallery = true)
+                captureTimeZoneId = "Asia/Shanghai", saveToSystemGallery = true, saveOriginalToSystemGallery = true)
             val snapshot = WatermarkSnapshotCodec.encode(original)
             java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("America/Los_Angeles"))
             val restored = WatermarkSnapshotCodec.decode(snapshot)!!
             assertEquals("2023.11.15 06:13:20", restored.builtInValue(BuiltInWatermarkFieldKeys.DATE_TIME))
             assertEquals(true, restored.saveToSystemGallery)
+            assertTrue(restored.saveOriginalToSystemGallery)
             assertEquals("原拍摄记录", restored.copy(systemValueOverrides = mapOf(BuiltInWatermarkFieldKeys.DATE_TIME to "原拍摄记录"))
                 .builtInValue(BuiltInWatermarkFieldKeys.DATE_TIME))
             val old = WatermarkSnapshotCodec.decode("""{"version":2,"altitude":0,"enabledSystemFields":["ELEVATION"]}""")!!
             assertNull(old.captureTimeZoneId)
             assertNull(old.saveToSystemGallery)
+            assertEquals(false, old.saveOriginalToSystemGallery)
             assertTrue(BuiltInWatermarkFieldKeys.ELEVATION in old.enabledSystemFields)
         } finally { java.util.TimeZone.setDefault(previous) }
     }

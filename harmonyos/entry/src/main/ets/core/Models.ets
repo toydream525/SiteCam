@@ -119,6 +119,7 @@ export class Settings {
   editQuality: number = 1;
   orientation: string = 'AUTO';
   albumCopy: boolean = false;
+  albumOriginal: boolean = false;
   guideDone: boolean = false;
   permissionHandled: boolean = false;
   systemPermissionsRequested: boolean = false;
@@ -150,10 +151,16 @@ export class Fix {
   /** HarmonyOS LocationSourceType value; -1 means the source was not reported. */
   sourceType: number = -1;
 }
+export class CaptureJobResult {
+  item:MediaItem=new MediaItem();
+  originalSaved:boolean=false;
+}
 export class Snapshot {
   presentationVersion: number = 2; // Missing in parsed v0.2.8 snapshots: retain legacy rendering.
   mirrorPreview:boolean=false;
   captureRatio: number = 0; // 0 preserves legacy/native framing; new photos freeze 3:4 or 4:3.
+  albumCopy: boolean = false;
+  albumOriginal: boolean = false;
   timestamp: number = Date.now();
   project: string = '';
   route: string = '';
@@ -214,7 +221,10 @@ export function safeName(s: string): string {
 }
 export function exportZipName(projects:Project[], timestamp:number):string {
   if(!projects.length)throw new Error('请选择工程');
-  return projects.length===1?safeName(projects[0].name)+'_'+dateText(timestamp)+'.zip':'SiteCam_'+timestamp+'.zip';
+  const first=projects.slice().sort((a:Project,b:Project)=>a.id-b.id)[0];
+  const prefix=Array.from(safeName(first.name)).slice(0,54).join('');
+  const suffix=projects.length>1?`等${projects.length}个工程`:'';
+  return prefix+suffix+'_'+dateText(timestamp)+'.zip';
 }
 /** The same current-fix boundary is used by capture output and address availability. */
 export function isCaptureFreshFix(fix: Fix|null, now: number = Date.now()): boolean {
