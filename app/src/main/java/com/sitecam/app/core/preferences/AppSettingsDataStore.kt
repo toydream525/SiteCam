@@ -36,6 +36,7 @@ class AppSettingsDataStore(
         val NAMING_PATTERN = stringPreferencesKey("naming_pattern")
         val PHOTO_PROFILE = stringPreferencesKey("photo_profile")
         val SAVE_TO_GALLERY = booleanPreferencesKey("save_to_gallery")
+        val SAVE_ORIGINAL_TO_GALLERY = booleanPreferencesKey("save_original_to_gallery")
         val CAPTURE_ORIENTATION = stringPreferencesKey("capture_orientation")
         val SHUTTER_SOUND_ENABLED = booleanPreferencesKey("shutter_sound_enabled")
         val JPEG_QUALITY = intPreferencesKey("jpeg_quality")
@@ -78,6 +79,7 @@ class AppSettingsDataStore(
             .getOrDefault(com.sitecam.app.core.media.PhotoQualityProfile.STANDARD)
     }
     val saveToSystemGallery = store.data.map { it[SAVE_TO_GALLERY] ?: false }
+    val saveOriginalToSystemGallery = store.data.map { it[SAVE_ORIGINAL_TO_GALLERY] ?: false }
     val captureOrientation = store.data.map {
         runCatching { com.sitecam.app.core.camera.CaptureOrientation.valueOf(it[CAPTURE_ORIENTATION].orEmpty()) }
             .getOrDefault(com.sitecam.app.core.camera.CaptureOrientation.AUTO)
@@ -92,6 +94,7 @@ class AppSettingsDataStore(
         store.edit { it[PHOTO_PROFILE] = value.name }
     }
     suspend fun setSaveToSystemGallery(value: Boolean) { store.edit { it[SAVE_TO_GALLERY] = value } }
+    suspend fun setSaveOriginalToSystemGallery(value: Boolean) { store.edit { it[SAVE_ORIGINAL_TO_GALLERY] = value } }
     suspend fun setCaptureOrientation(value: com.sitecam.app.core.camera.CaptureOrientation) {
         store.edit { it[CAPTURE_ORIENTATION] = value.name }
     }

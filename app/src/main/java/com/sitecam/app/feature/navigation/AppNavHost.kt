@@ -67,6 +67,54 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
+private fun GalleryWithDetail(
+    gallery: GalleryViewModel,
+    appContainer: AppContainer,
+    onBack: () -> Unit,
+    onAnnotate: (Long) -> Unit,
+    embedded: Boolean = false
+) {
+    var selectedId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val state by gallery.uiState.collectAsState()
+    val close = { selectedId = null }
+    BackHandler(selectedId != null, close)
+    val list: @Composable () -> Unit = {
+        GalleryScreen(gallery, onBack, { selectedId = it }, selectedMediaId = selectedId)
+    }
+    val detailPane: @Composable () -> Unit = {
+        val id = selectedId
+        if (id == null) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("选择照片或视频预览") }
+        } else key(id) {
+            val detailOwner = remember { object : androidx.lifecycle.ViewModelStoreOwner {
+                override val viewModelStore = androidx.lifecycle.ViewModelStore()
+            } }
+            DisposableEffect(detailOwner) { onDispose { detailOwner.viewModelStore.clear() } }
+            val detail: PhotoDetailViewModel = viewModel(
+                viewModelStoreOwner = detailOwner,
+                factory = PhotoDetailViewModel.provideFactory(appContainer, id)
+            )
+            val index = state.mediaItems.indexOfFirst { it.id == id }
+            val previous = if (index > 0) state.mediaItems[index - 1].id else null
+            val next = if (index >= 0) state.mediaItems.getOrNull(index + 1)?.id else null
+            androidx.compose.material3.MaterialTheme(colorScheme = androidx.compose.material3.darkColorScheme(primary = com.sitecam.app.ui.theme.WarningYellow)) {
+                PhotoDetailScreen(detail, onNavigateBack = close, onMissingMedia = close,
+                    onNavigateToAnnotation = onAnnotate,
+                    onPrevious = previous?.let { { selectedId = it } },
+                    onNext = next?.let { { selectedId = it } })
+            }
+        }
+    }
+    if (embedded) {
+        val paneState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
+        if (selectedId == null) paneState.SaveableStateProvider("gallery-list", list) else detailPane()
+    } else {
+        AdaptivePaneLayout(Modifier.fillMaxSize(), showSecondary = selectedId != null,
+            primary = { list() }, secondary = detailPane)
+    }
+}
+
+@Composable
 fun AppNavHost(
     navController: NavHostController,
     appContainer: AppContainer,
@@ -201,7 +249,8 @@ fun AppNavHost(
                 galleryPane = { id, onClose ->
                     key(id) {
                         val gallery: GalleryViewModel = viewModel(key = "project-gallery-$id", factory = GalleryViewModel.provideFactory(appContainer, id))
-                        GalleryScreen(gallery, onNavigateBack = onClose, onNavigateToDetail = { navController.navigate(Screen.PhotoDetail.createRoute(it)) })
+                        GalleryWithDetail(gallery, appContainer, onClose,
+                            onAnnotate = { navController.navigate(Screen.PhotoAnnotation.createRoute(it)) }, embedded = true)
                     }
                 }
             )
@@ -222,32 +271,8 @@ fun AppNavHost(
             val galleryViewModel: GalleryViewModel = viewModel(
                 factory = GalleryViewModel.provideFactory(appContainer, projectId)
             )
-            var selectedId by rememberSaveable { mutableStateOf<Long?>(null) }
-            BackHandler(selectedId != null) { selectedId = null }
-            AdaptivePaneLayout(Modifier.fillMaxSize(), showSecondary = selectedId != null,
-                primary = {
-                        GalleryScreen(
-                            viewModel = galleryViewModel,
-                            onNavigateBack = { navController.popBackStack() },
-                            onNavigateToDetail = { selectedId = it },
-                            selectedMediaId = selectedId
-                        )
-                }, secondary = {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        selectedId?.let { id ->
-                            key(id) {
-                                val detail: PhotoDetailViewModel = viewModel(
-                                    key = "gallery-detail-$id",
-                                    factory = PhotoDetailViewModel.provideFactory(appContainer, id)
-                                )
-                                androidx.compose.material3.MaterialTheme(colorScheme = androidx.compose.material3.darkColorScheme(primary = com.sitecam.app.ui.theme.WarningYellow)) {
-                                PhotoDetailScreen(detail, onNavigateBack = { selectedId = null }, onMissingMedia = { selectedId = null },
-                                    onNavigateToAnnotation = { navController.navigate(Screen.PhotoAnnotation.createRoute(it)) })
-                                }
-                            }
-                        } ?: Text("选择照片或视频预览")
-                    }
-                })
+            GalleryWithDetail(galleryViewModel, appContainer, onBack = { navController.popBackStack() },
+                onAnnotate = { navController.navigate(Screen.PhotoAnnotation.createRoute(it)) })
         }
 
         composable(

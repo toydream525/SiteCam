@@ -58,9 +58,23 @@ export function portraitControlsInitialHeight(width:number,fontScale:number,phon
 // Match Android CameraScreen: orientation follows the available window, never
 // a width breakpoint or sensor angle. Square windows use the right dock too.
 export function cameraLayout(width: number, height: number, ratio: number,
-  halfFolded: boolean = false, creaseTop: number = -1, creaseHeight: number = 0, coverScreen: boolean = false, density: number = 1, creases:WindowRect[]=[], fontScale:number=1, phoneGrip:boolean=false, portraitControlsContentHeight:number=0, referenceLandscape:boolean=false): CameraLayout {
+  halfFolded: boolean = false, creaseTop: number = -1, creaseHeight: number = 0, coverScreen: boolean = false, density: number = 1, creases:WindowRect[]=[], fontScale:number=1, phoneGrip:boolean=false, portraitControlsContentHeight:number=0, referenceLandscape:boolean=false, expandedInner:boolean=false): CameraLayout {
   const out = new CameraLayout();
   const w = Math.max(1, width), h = Math.max(1, height);
+  const shortEdge = Math.min(w, h);
+  if (expandedInner && !coverScreen && shortEdge >= 480 && Math.max(w, h) <= shortEdge * 1.25) {
+    out.side = true;
+    out.toolbarWidth = w;
+    out.controlsWidth = Math.min(shortEdge * .34, 248);
+    out.controlsX = w - out.controlsWidth;
+    out.controlsY = out.toolbarHeight;
+    out.controlsHeight = h - out.controlsY;
+    out.previewWidth = Math.min(out.controlsX, out.controlsHeight * ratio);
+    out.previewHeight = out.previewWidth / ratio;
+    out.previewX = (out.controlsX - out.previewWidth) / 2;
+    out.previewY = out.toolbarHeight + (out.controlsHeight - out.previewHeight) / 2;
+    return out;
+  }
   const panes=availablePanes(new WindowRect(0,0,w,h),creases);
   if(panes.length>1){
     const first=panes[0],second=panes[1];
@@ -178,6 +192,10 @@ export function windowOrientationTarget(mode: string, lockAuto: boolean): string
 // by API 15+ without accessing newer enum members on older systems.
 export function usesInnerScreen(foldable: boolean,status: number): boolean {
   return foldable && [1,3,11,12,13,21,22,23].includes(status);
+}
+
+export function isExpandedInnerScreen(foldable: boolean, status: number): boolean {
+  return foldable && [1,11,12].includes(status);
 }
 
 /** Treat a difference of at most one physical pixel as a square. */

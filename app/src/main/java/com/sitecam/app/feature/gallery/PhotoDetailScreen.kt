@@ -66,6 +66,11 @@ import com.sitecam.app.core.media.normalizedVideoRotation
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,7 +79,9 @@ fun PhotoDetailScreen(
     onNavigateBack: () -> Unit,
     onNavigateToAnnotation: (Long) -> Unit = {},
     modifier: Modifier = Modifier,
-    onMissingMedia: (() -> Unit)? = null
+    onMissingMedia: (() -> Unit)? = null,
+    onPrevious: (() -> Unit)? = null,
+    onNext: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val view = androidx.compose.ui.platform.LocalView.current
@@ -125,6 +132,13 @@ fun PhotoDetailScreen(
     val isRetrying by viewModel.isRetrying.collectAsState()
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showInfoSheet by remember { mutableStateOf(false) }
+    var showShareMenu by remember { mutableStateOf(false) }
+    val swipe = androidx.compose.runtime.rememberUpdatedState<(Int) -> Unit> { step ->
+        if (!isDeleting && !isRetrying && !showInfoSheet) {
+            (if (step < 0) onPrevious else onNext)?.invoke()
+        }
+    }
+    val onSwipe = remember { { step: Int -> swipe.value(step) } }
     // Android 10/11+ deletes media the app does not own only after this system request.
     var pendingDeleteItem by remember { mutableStateOf<com.sitecam.app.core.database.entity.MediaItemEntity?>(null) }
     val deleteConsent = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -162,7 +176,11 @@ fun PhotoDetailScreen(
                 }
                 is PhotoDetailEvent.RetryCompleted -> Toast.makeText(
                     context,
-                    if (event.cleanupWarning) "视频水印已成功，但旧原片清理失败，请稍后检查" else "视频水印已重试成功",
+                    when {
+                        event.originalCopyWarning -> "视频水印已成功，原片未能另存到系统相册"
+                        event.cleanupWarning -> "视频水印已成功，但旧原片清理失败，请稍后检查"
+                        else -> "视频水印已重试成功"
+                    },
                     Toast.LENGTH_LONG
                 ).show()
                 is PhotoDetailEvent.Error -> Toast.makeText(context, event.message, Toast.LENGTH_LONG).show()
@@ -186,6 +204,7 @@ fun PhotoDetailScreen(
         contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             TopAppBar(
+                modifier = Modifier.gallerySwipe(onSwipe.takeIf { item?.mediaType == "VIDEO" }),
                 title = {
                     Text(
                         text = item?.fileName ?: "媒体详情",
@@ -211,8 +230,23 @@ fun PhotoDetailScreen(
                     IconButton(onClick = { showInfoSheet = !showInfoSheet }) {
                         Icon(Icons.Default.Info, contentDescription = "详细信息", tint = Color.White)
                     }
-                    IconButton(onClick = { viewModel.requestShare(showEdited) }) {
-                        Icon(Icons.Default.Share, contentDescription = "分享", tint = Color.White)
+                    Box {
+                        IconButton(enabled = item != null, onClick = {
+                            if (item?.mediaType == "PHOTO" && issue != null) showShareMenu = true
+                            else viewModel.requestShare(showEdited)
+                        }) {
+                            Icon(Icons.Default.Share, contentDescription = "分享", tint = Color.White)
+                        }
+                        DropdownMenu(expanded = showShareMenu, onDismissRequest = { showShareMenu = false }) {
+                            DropdownMenuItem(text = { Text("分享照片") }, onClick = {
+                                showShareMenu = false
+                                viewModel.requestShare(showEdited)
+                            })
+                            DropdownMenuItem(text = { Text("分享照片及问题记录") }, onClick = {
+                                showShareMenu = false
+                                viewModel.requestShare(showEdited, includeIssue = true)
+                            })
+                        }
                     }
                     IconButton(onClick = { showDeleteConfirm = true }, enabled = !isDeleting && item != null) {
                         Icon(Icons.Default.Delete, contentDescription = "删除", tint = ErrorRed)
@@ -233,7 +267,12 @@ fun PhotoDetailScreen(
             item?.takeUnless { isDeleting || detailClosed }?.let { media ->
                 Column(modifier = Modifier.fillMaxSize()) {
                     Box(
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        modifier = Modifier.weight(1f).fillMaxWidth().semantics {
+                            customActions = buildList {
+                                if (onPrevious != null) add(CustomAccessibilityAction("上一项") { swipe.value(-1); true })
+                                if (onNext != null) add(CustomAccessibilityAction("下一项") { swipe.value(1); true })
+                            }
+                        },
                         contentAlignment = Alignment.Center
                     ) {
                         if (media.mediaType == "VIDEO") {
@@ -242,11 +281,13 @@ fun PhotoDetailScreen(
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 key(media.id, media.contentUri) {
-                                    InlineVideoPlayer(media.contentUri, Modifier.fillMaxSize())
+                                    InlineVideoPlayer(media.contentUri, Modifier.fillMaxSize(),
+                                        onSwipe.takeIf { onPrevious != null || onNext != null })
                                 }
                             }
                         } else {
-                            ZoomablePhoto(if (showEdited) annotation?.annotatedContentUri ?: media.contentUri else media.contentUri, media.fileName)
+                            ZoomablePhoto(if (showEdited) annotation?.annotatedContentUri ?: media.contentUri else media.contentUri,
+                                media.fileName, onSwipe.takeIf { onPrevious != null || onNext != null })
                         }
                     }
 

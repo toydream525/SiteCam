@@ -948,7 +948,9 @@ class CameraManager(private val context: Context) {
         } catch (_: Exception) { return false }
     }
 
-    suspend fun capturePhoto(targetRotation: Int): Pair<Bitmap, Int> = withContext(Dispatchers.Main) {
+    data class CapturedPhoto(val bitmap: Bitmap, val rotation: Int, val original: com.sitecam.app.core.media.CameraJpeg?)
+
+    suspend fun capturePhoto(targetRotation: Int, retainOriginal: Boolean = false): CapturedPhoto = withContext(Dispatchers.Main) {
         suspendCancellableCoroutine { continuation ->
             // Take the use case, set its rotation and start the capture on the
             // main thread — the same thread that binds and unbinds use cases —
@@ -966,8 +968,12 @@ class CameraManager(private val context: Context) {
                     override fun onCaptureSuccess(image: ImageProxy) {
                         try {
                             val rotationDegrees = image.imageInfo.rotationDegrees
-                            val bitmap = imageProxyToBitmap(image, Rect(image.cropRect))
-                            if (continuation.isActive) continuation.resume(Pair(bitmap, rotationDegrees))
+                            val buffer: ByteBuffer = image.planes[0].buffer
+                            val bytes = ByteArray(buffer.remaining())
+                            buffer.get(bytes)
+                            val bitmap = imageProxyToBitmap(image, Rect(image.cropRect), bytes)
+                            val original = if (retainOriginal) com.sitecam.app.core.media.CameraJpeg(bytes, image.width, image.height) else null
+                            if (continuation.isActive) continuation.resume(CapturedPhoto(bitmap, rotationDegrees, original))
                             else bitmap.recycle()
                         } catch (error: Throwable) {
                             // An OutOfMemoryError on a full-resolution frame must
@@ -1073,10 +1079,7 @@ class CameraManager(private val context: Context) {
         activeRecording?.resume()
     }
 
-    private fun imageProxyToBitmap(image: ImageProxy, cropRect: Rect): Bitmap {
-        val buffer: ByteBuffer = image.planes[0].buffer
-        val bytes = ByteArray(buffer.remaining())
-        buffer.get(bytes)
+    private fun imageProxyToBitmap(image: ImageProxy, cropRect: Rect, bytes: ByteArray): Bitmap {
         val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
             ?: throw IllegalStateException("Failed to decode ImageProxy byte stream to Bitmap")
 

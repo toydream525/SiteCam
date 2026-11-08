@@ -6,6 +6,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.view.View
+import android.view.MotionEvent
 import android.view.Window
 import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
@@ -18,6 +19,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -63,7 +65,7 @@ private class VideoViewBinding(val player: ExoPlayer) {
 }
 
 @Composable
-fun InlineVideoPlayer(uri: String, modifier: Modifier = Modifier) {
+fun InlineVideoPlayer(uri: String, modifier: Modifier = Modifier, onSwipe: ((Int) -> Unit)? = null) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var fullscreen by rememberSaveable(uri) { mutableStateOf(false) }
@@ -99,7 +101,7 @@ fun InlineVideoPlayer(uri: String, modifier: Modifier = Modifier) {
 
     BackHandler(enabled = fullscreen) { fullscreen = false }
     if (!fullscreen || window == null) {
-        VideoSurface(binding, modifier) { fullscreen = it }
+        VideoSurface(binding, modifier, onSwipe) { fullscreen = it }
     } else {
         Box(modifier.background(Color.Black))
         FullscreenVideo(binding, window) { fullscreen = it }
@@ -112,7 +114,7 @@ private fun Context.activity(): Activity? = when (this) {
     else -> null
 }
 
-private fun createVideoView(context: Context): PlayerView = PlayerView(context).apply {
+private fun createVideoView(context: Context, onSwipe: ((Int) -> Unit)? = null): PlayerView = PlayerView(context).apply {
     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
     setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
     setShowPreviousButton(false)
@@ -120,14 +122,47 @@ private fun createVideoView(context: Context): PlayerView = PlayerView(context).
     setShowRewindButton(false)
     setShowFastForwardButton(false)
     findViewById<View>(androidx.media3.ui.R.id.exo_settings)?.visibility = View.GONE
+    if (onSwipe != null) {
+        var startX = 0f
+        var startY = 0f
+        var eligible = false
+        val density = resources.displayMetrics.density
+        setOnTouchListener { view, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    startX = event.x
+                    startY = event.y
+                    eligible = startY < view.height - 88f * density
+                }
+                MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_CANCEL -> eligible = false
+                MotionEvent.ACTION_UP -> {
+                    val dx = event.x - startX
+                    val shouldSwipe = eligible && kotlin.math.abs(dx) >= 56f * density &&
+                        kotlin.math.abs(dx) > kotlin.math.abs(event.y - startY)
+                    eligible = false
+                    if (shouldSwipe) {
+                        MotionEvent.obtain(event).also { cancel ->
+                            cancel.action = MotionEvent.ACTION_CANCEL
+                            onTouchEvent(cancel)
+                            cancel.recycle()
+                        }
+                        onSwipe(if (dx < 0f) 1 else -1)
+                        return@setOnTouchListener true
+                    }
+                }
+            }
+            false
+        }
+    }
 }
 
 @Composable
-private fun VideoSurface(binding: VideoViewBinding, modifier: Modifier,
+private fun VideoSurface(binding: VideoViewBinding, modifier: Modifier, onSwipe: ((Int) -> Unit)?,
     onFullscreenChanged: (Boolean) -> Unit) {
+    val swipe by rememberUpdatedState(onSwipe)
     AndroidView(
         modifier = modifier.background(Color.Black),
-        factory = { createVideoView(it) },
+        factory = { context -> createVideoView(context) { swipe?.invoke(it) } },
         onReset = null,
         onRelease = { binding.detach(it) },
         update = { view ->

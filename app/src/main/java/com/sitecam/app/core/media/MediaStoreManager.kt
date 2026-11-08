@@ -29,6 +29,8 @@ data class SavedMediaResult(
     val rotation: Int = 0
 )
 
+data class CameraJpeg(val bytes: ByteArray, val width: Int, val height: Int)
+
 enum class MediaDeleteOutcome { DELETED, ALREADY_MISSING, FAILED }
 
 /**
@@ -62,8 +64,6 @@ class MediaStoreManager(private val context: Context) {
         orientation: Int = 0,
         saveToSystemGallery: Boolean = false
     ): SavedMediaResult = withContext(Dispatchers.IO) {
-        val sanitizedProject = NamingEngine.sanitizeFileName(projectName)
-        val relativePath = "${Environment.DIRECTORY_PICTURES}/SiteCam/$sanitizedProject"
         if (resolveMediaSaveTarget(saveToSystemGallery, Build.VERSION.SDK_INT, hasLegacyWritePermission()) == MediaSaveTarget.APP_PRIVATE) {
             return@withContext savePhotoToPrivateExternalFiles(
                 bitmap = bitmap,
@@ -75,12 +75,30 @@ class MediaStoreManager(private val context: Context) {
             )
         }
 
+        saveJpegToGallery(fileName, projectName, watermarkData, orientation, bitmap.width, bitmap.height) { stream ->
+            check(bitmap.compress(Bitmap.CompressFormat.JPEG, quality, stream)) { "无法压缩照片" }
+        }
+    }
+
+    suspend fun saveOriginalPhotoToGallery(
+        jpeg: CameraJpeg, fileName: String, projectName: String, watermarkData: WatermarkData, orientation: Int
+    ): SavedMediaResult = withContext(Dispatchers.IO) {
+        check(canSaveToSystemGallery()) { "无权保存到系统相册" }
+        saveJpegToGallery(fileName, projectName, watermarkData, orientation, jpeg.width, jpeg.height) { it.write(jpeg.bytes) }
+    }
+
+    private fun saveJpegToGallery(
+        fileName: String, projectName: String, watermarkData: WatermarkData, orientation: Int,
+        width: Int, height: Int, write: (OutputStream) -> Unit
+    ): SavedMediaResult {
+        val sanitizedProject = NamingEngine.sanitizeFileName(projectName)
+        val relativePath = "${Environment.DIRECTORY_PICTURES}/SiteCam/$sanitizedProject"
         var legacyFile: File? = null
         val contentValues = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
             put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-            put(MediaStore.Images.Media.WIDTH, bitmap.width)
-            put(MediaStore.Images.Media.HEIGHT, bitmap.height)
+            put(MediaStore.Images.Media.WIDTH, width)
+            put(MediaStore.Images.Media.HEIGHT, height)
             put(MediaStore.Images.Media.DATE_TAKEN, watermarkData.captureTimestamp)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -103,12 +121,10 @@ class MediaStoreManager(private val context: Context) {
                 ?: throw IllegalStateException("Failed to create MediaStore entry for $fileName")
         } catch (error: Exception) { legacyFile?.delete(); throw error }
 
-        try {
+        return try {
             val outputStream: OutputStream? = resolver.openOutputStream(imageUri)
             outputStream?.use { stream ->
-                check(bitmap.compress(Bitmap.CompressFormat.JPEG, quality, stream)) {
-                    "无法压缩照片"
-                }
+                write(stream)
                 stream.flush()
             } ?: throw IllegalStateException("Failed to open output stream for $imageUri")
 
@@ -130,8 +146,8 @@ class MediaStoreManager(private val context: Context) {
                 uri = imageUri,
                 fileName = resolveDisplayName(imageUri, fileName),
                 filePath = relativePath,
-                width = bitmap.width,
-                height = bitmap.height
+                width = width,
+                height = height
             )
         } catch (e: Exception) {
             resolver.delete(imageUri, null, null)
@@ -363,6 +379,9 @@ class MediaStoreManager(private val context: Context) {
             if (cursor.moveToFirst()) cursor.getString(0).orEmpty() else ""
         }?.takeIf { it.isNotBlank() } ?: fallback
     }
+
+    fun canSaveToSystemGallery(): Boolean =
+        resolveMediaSaveTarget(true, Build.VERSION.SDK_INT, hasLegacyWritePermission()) != MediaSaveTarget.APP_PRIVATE
 
     private fun hasLegacyWritePermission(): Boolean =
         ContextCompat.checkSelfPermission(

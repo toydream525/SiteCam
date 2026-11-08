@@ -11,12 +11,11 @@ data class ExportOptions(val photoProfile: PhotoQualityProfile? = null)
 
 fun exportZipName(projectNames: List<String>, timestamp: Long): String {
     require(projectNames.isNotEmpty()) { "请选择工程" }
-    return if (projectNames.size == 1) {
-        val date = SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(Date(timestamp))
-        "${NamingEngine.sanitizeFileName(projectNames.single())}_$date.zip"
-    } else {
-        "工程档案_$timestamp.zip"
-    }
+    val name = NamingEngine.sanitizeFileName(projectNames.first()).ifBlank { "工程" }
+    val prefix = name.substring(0, name.offsetByCodePoints(0, minOf(54, name.codePointCount(0, name.length))))
+    val suffix = if (projectNames.size > 1) "等${projectNames.size}个工程" else ""
+    val date = SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(Date(timestamp))
+    return "$prefix${suffix}_$date.zip"
 }
 
 fun selectExportMedia(items: List<MediaItemEntity>, projectIds: Set<Long>, mediaIds: Set<Long>?): List<MediaItemEntity> =

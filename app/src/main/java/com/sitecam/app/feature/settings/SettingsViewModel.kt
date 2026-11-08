@@ -26,6 +26,7 @@ data class SettingsUiState(
     val namingPattern: String = "{project}_{date}_{time}",
     val photoQualityProfile: com.sitecam.app.core.media.PhotoQualityProfile = com.sitecam.app.core.media.PhotoQualityProfile.STANDARD,
     val saveToSystemGallery: Boolean = false,
+    val saveOriginalToSystemGallery: Boolean = false,
     val shutterSoundEnabled: Boolean = true,
     val cameraControlStyle: String = "NORMAL",
     val snapshotEnabled: Boolean = true,
@@ -52,13 +53,17 @@ class SettingsViewModel(
         )
     }
 
-    val uiState: StateFlow<SettingsUiState> = combine(
+    private val cameraUiState = combine(
         baseUiState,
         appContainer.settingsDataStore.shutterSoundEnabled,
         appContainer.settingsDataStore.cameraControlStyle,
         appContainer.settingsDataStore.snapshotEnabled,
         appContainer.settingsDataStore.snapshotShutterSpeed
-    ) { state, shutterSound, controlStyle, snapshot, speed -> state.copy(shutterSoundEnabled = shutterSound, cameraControlStyle = controlStyle, snapshotEnabled = snapshot, snapshotShutterSpeed = speed) }.stateIn(
+    ) { state, shutterSound, controlStyle, snapshot, speed -> state.copy(shutterSoundEnabled = shutterSound, cameraControlStyle = controlStyle, snapshotEnabled = snapshot, snapshotShutterSpeed = speed) }
+
+    val uiState: StateFlow<SettingsUiState> = combine(cameraUiState, appContainer.settingsDataStore.saveOriginalToSystemGallery) { state, original ->
+        state.copy(saveOriginalToSystemGallery = original)
+    }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000L),
         initialValue = SettingsUiState()
@@ -75,6 +80,9 @@ class SettingsViewModel(
     }
     fun setSaveToSystemGallery(enabled: Boolean) {
         viewModelScope.launch { appContainer.settingsDataStore.setSaveToSystemGallery(enabled) }
+    }
+    fun setSaveOriginalToSystemGallery(enabled: Boolean) {
+        viewModelScope.launch { appContainer.settingsDataStore.setSaveOriginalToSystemGallery(enabled) }
     }
     fun setShutterSoundEnabled(enabled: Boolean) {
         viewModelScope.launch { appContainer.settingsDataStore.setShutterSoundEnabled(enabled) }
