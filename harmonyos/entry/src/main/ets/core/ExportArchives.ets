@@ -2,6 +2,8 @@ import { common } from '@kit.AbilityKit';
 import { fileIo as fs, fileUri, picker } from '@kit.CoreFileKit';
 import { preferences } from '@kit.ArkData';
 
+export const EXPORT_ARCHIVE_DIRECTORY = '/SiteCam/Exports';
+
 export class ExportArchive { id:string='';name:string='';size:number=0;date:number=0; }
 class ArchiveLocation {uri:string='';directory:boolean=false;}
 export class ArchiveListing {files:ExportArchive[]=[];unreadable:number=0;}
@@ -20,7 +22,6 @@ export class ExportArchives {
     const p=await this.prefs(),values=(await this.locations()).filter((v:ArchiveLocation)=>v.uri!==uri);
     await p.put('locations',JSON.stringify(values));await p.flush();
   }
-  async rememberFile(uri:string):Promise<void>{await this.remember(uri,false);}
   async chooseDirectory():Promise<boolean>{
     if(!canIUse('SystemCapability.FileManagement.UserFileService.FolderSelection')){
       const files=await new picker.DocumentViewPicker(this.context).select({fileSuffixFilters:['ZIP 压缩包|.zip'],maxSelectNumber:500});
@@ -34,7 +35,7 @@ export class ExportArchives {
   async list():Promise<ArchiveListing>{
     const result=new ArchiveListing(),files:Map<string,ExportArchive>=new Map();
     const add=async(path:string):Promise<void>=>{if(!path.toLowerCase().endsWith('.zip'))return;const stat=await fs.stat(path);if(!stat.isFile())return;const entry=new ExportArchive();entry.id=path;entry.name=path.substring(path.lastIndexOf('/')+1);entry.size=stat.size;entry.date=stat.mtime*1000;files.set(path,entry);};
-    const roots=[this.context.cacheDir,this.context.filesDir+'/SiteCam/Exports'];
+    const roots=[this.context.cacheDir,this.context.filesDir+EXPORT_ARCHIVE_DIRECTORY];
     for(const root of roots){try{if(!fs.accessSync(root))continue;for(const name of await fs.listFile(root))await add(root+'/'+name);}catch(e){result.unreadable++;}}
     for(const location of await this.locations()){
       try{

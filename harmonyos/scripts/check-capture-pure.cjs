@@ -90,6 +90,8 @@ const exportTime = new Date(2026, 9, 31, 23, 59).getTime();
 const project = new models.Project(); project.name = '建筑/工程';
 assert.equal(models.exportZipName([project], exportTime), '建筑_工程_2026-10-31.zip');
 assert.equal(models.exportZipName([project, new models.Project()], exportTime), '建筑_工程等2个工程_2026-10-31.zip');
+const spacedProject = new models.Project(); spacedProject.name = ' 北区+管线 工程 ';
+assert.equal(models.exportZipName([spacedProject], exportTime), '北区_管线_工程_2026-10-31.zip');
 settings.watermark.fontId = 'handwriting.ttf'; settings.watermark.textColor = '#1262AE'; settings.watermark.style = 'WHITEBOARD';
 const styled = models.captureSnapshot(project, settings, null);
 settings.watermark.fontId = ''; settings.watermark.textColor = '';

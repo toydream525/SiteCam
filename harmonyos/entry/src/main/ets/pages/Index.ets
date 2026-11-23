@@ -1051,7 +1051,29 @@ struct Index {
   private exportStart(ids: number[],mediaIds: number[]=[]): void {this.exportIds=ids.slice();this.exportMediaIds=mediaIds.slice();this.exportMediaProjectIds=this.exportMediaIds.map(id=>this.items.find((m:MediaItem)=>m.id===id)?.projectId||0);this.actionDialog=new CustomDialogController({customStyle:true,builder:ExportChoiceDialog({onManage:()=>this.openArchives(),onZip:(quality:number)=>{this.exportFolder=false;this.exportQuality=quality;this.startExport();},onFolder:(quality:number)=>{this.exportFolder=true;this.exportQuality=quality;this.startExport();},onCancel:()=>{}})});this.actionDialog!.open();}
   private startExport():void {if(this.busy){this.notify('当前操作尚未完成，请稍后重试');return;}this.exportRunning=true;this.exportCancelRequested=false;this.message='正在整理资料';void this.task(async()=>{try{await this.exportNow();}finally{this.exportRunning=false;this.message='';}});}
   private cancelExport():void {if(!this.exportRunning)return;this.exportCancelRequested=true;if(this.exporter)this.exporter.cancelled=true;this.message='正在取消导出';}
-  private async exportNow(): Promise<void> {const selectedMediaIds=this.exportMediaIds.slice();const selectedProjectIds=this.exportIds.slice();const liveItems=await store.media();const items=liveItems.filter(m=>selectedMediaIds.length?selectedMediaIds.includes(m.id):selectedProjectIds.includes(m.projectId));if(selectedMediaIds.length!==0){if(items.length!==selectedMediaIds.length)throw new Error('选中的资料已变化，请刷新后重试');for(let i=0;i<selectedMediaIds.length;i++){const live=items.find((m:MediaItem)=>m.id===selectedMediaIds[i]);if(!live||this.exportMediaProjectIds[i]!==live.projectId)throw new Error('选中的资料已移动，请刷新后重试');}}const projectIds=selectedMediaIds.length?Array.from(new Set(items.map(m=>m.projectId))):selectedProjectIds;const liveProjects=await store.projects('UPDATED',false,'ALL');const projects=liveProjects.filter(p=>projectIds.includes(p.id));if(!projects.length)throw new Error('请先选择工程');if(this.exportCancelRequested)throw new Error('已取消导出');const path=await this.exporter!.run(projects,items,this.exportFolder,this.exportQuality,v=>this.message=v);this.notify(this.exporter!.failures?`导出完成，${this.exporter!.failures} 项未成功，请查看报告`:'导出完成：'+path);}
+  private async exportNow(): Promise<void> {
+    const selectedMediaIds = this.exportMediaIds.slice();
+    const selectedProjectIds = this.exportIds.slice();
+    const liveItems = await store.media();
+    const items = liveItems.filter(m => selectedMediaIds.length ? selectedMediaIds.includes(m.id) : selectedProjectIds.includes(m.projectId));
+    if (selectedMediaIds.length) {
+      if (items.length !== selectedMediaIds.length) throw new Error('选中的资料已变化，请刷新后重试');
+      for (let i = 0; i < selectedMediaIds.length; i++) {
+        const live = items.find((m: MediaItem) => m.id === selectedMediaIds[i]);
+        if (!live || this.exportMediaProjectIds[i] !== live.projectId) throw new Error('选中的资料已移动，请刷新后重试');
+      }
+    }
+    const projectIds = selectedMediaIds.length ? Array.from(new Set(items.map(m => m.projectId))) : selectedProjectIds;
+    const liveProjects = await store.projects('UPDATED', false, 'ALL');
+    const projects = liveProjects.filter(p => projectIds.includes(p.id));
+    if (!projects.length) throw new Error('请先选择工程');
+    if (this.exportCancelRequested) throw new Error('已取消导出');
+    const folder = this.exportFolder;
+    const exporter = this.exporter!;
+    const path = await exporter.run(projects, items, folder, this.exportQuality, v => this.message = v, 'sitecam-export-share-anchor');
+    if (exporter.failures) this.notify(`导出完成，${exporter.failures} 项未成功，请查看报告`);
+    else if (folder) this.notify('导出完成：' + path);
+  }
   private shareDetail():void {
     const item=this.detail;
     if(!item.id||this.busy)return;
@@ -1494,7 +1516,7 @@ this.editorToolsScroll();
   onboardingRootPage() {OnboardingPageView({step:this.guideStep,viewportHeight:this.windowHeight,onNext:()=>this.task(async()=>{if(this.guideStep<3){this.guideStep++;}else{this.settings.guideDone=true;await this.persist();await this.navigate(this.guideReturn||(this.settings.permissionHandled?(this.settings.currentProject?'camera':'projects'):'permissions'),'forward');}}),onSkip:()=>this.task(async()=>{this.settings.guideDone=true;await this.persist();await this.navigate(this.guideReturn||(this.settings.permissionHandled?(this.settings.currentProject?'camera':'projects'):'permissions'),'forward');})});}
   @Builder
   exportPage() {this.header('工程资料导出','projects');Column({space:18}){Text(`已选 ${this.exportIds.length} 个工程`).fontSize(22).fontColor($r('app.color.text_accent'));Select([{value:'ZIP 压缩包'},{value:'总文件夹'}]).selected(this.exportFolder?1:0).value(this.exportFolder?'总文件夹':'ZIP 压缩包').onSelect(i=>this.exportFolder=i===1);Text('总文件夹通过系统授权保存到下载目录。').fontColor($r('app.color.text_secondary'));
-Text('照片导出质量').fontColor($r('app.color.text_primary'));Select([{value:'保持原文件'},...QUALITY_NAMES.map((value: string): SelectOption=>({value:value}))]).selected(this.exportQuality+1).value(this.exportQuality<0?'保持原文件':QUALITY_NAMES[this.exportQuality]).onSelect(i=>this.exportQuality=i-1);Text('包含工程信息、照片、视频、编辑成品、清单和报告。缺失或处理失败的资料会在报告中说明。').fontColor($r('app.color.text_secondary'));if(this.busy&&this.message)Text(this.message).fontSize(13).fontColor($r('app.color.text_accent'));Button('选择位置并导出').width('100%').enabled(!this.busy).onClick(()=>this.task(async()=>this.exportNow()));if(this.busy)Button('取消导出').onClick(()=>{this.exporter!.cancelled=true;});}.padding(20).layoutWeight(1);}
+Text('照片导出质量').fontColor($r('app.color.text_primary'));Select([{value:'保持原文件'},...QUALITY_NAMES.map((value: string): SelectOption=>({value:value}))]).selected(this.exportQuality+1).value(this.exportQuality<0?'保持原文件':QUALITY_NAMES[this.exportQuality]).onSelect(i=>this.exportQuality=i-1);Text('包含工程信息、照片、视频、编辑成品、清单和报告。缺失或处理失败的资料会在报告中说明。').fontColor($r('app.color.text_secondary'));Button(this.exportFolder?'选择位置并导出':'导出 ZIP 压缩包').width('100%').enabled(!this.busy).onClick(()=>this.startExport());}.padding(20).layoutWeight(1);}
   build() {Stack(){
     Stack(){
       if(!this.ready){
@@ -1550,5 +1572,5 @@ Text('照片导出质量').fontColor($r('app.color.text_primary'));Select([{valu
 
     if(this.projectUndoMessage){ProjectUndoBar({message:this.projectUndoMessage,barWidth:Math.max(1,Math.min(420,this.windowWidth-24)),onUndo:()=>this.undoProjectStatus(),onDismiss:()=>this.clearProjectUndo()}).position({x:this.contentRect().x+Math.max(8,(this.windowWidth-Math.max(1,Math.min(420,this.windowWidth-24)))/2),y:this.contentRect().y+Math.max(8,this.windowHeight-68)});}
     if(this.exportRunning){Rect().width('100%').height('100%').fill('#99000000');Column({space:16}){LoadingProgress().width(40).height(40);Text(this.message||'正在导出').fontSize(16).fontColor($r('app.color.text_primary'));Button(this.exportCancelRequested?'正在取消':'取消导出').height(48).enabled(!this.exportCancelRequested).fontColor('#231A00').backgroundColor(SITE_ACCENT).onClick(()=>this.cancelExport());}.width(Math.max(1,Math.min(400,this.windowWidth-32))).padding(24).backgroundColor($r('app.color.card_bg')).borderRadius(16);}
-  }.width('100%').height('100%').backgroundColor(this.page==='camera'?Color.Black:$r('app.color.page_bg'));}
+  }.width('100%').height('100%').id('sitecam-export-share-anchor').backgroundColor(this.page==='camera'?Color.Black:$r('app.color.page_bg'));}
 }

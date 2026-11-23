@@ -1,7 +1,7 @@
 import { LengthMetricsUnit } from '@kit.ArkUI';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { image } from '@kit.ImageKit';
-import { Snapshot, MediaItem, QUALITY_EDGES, QUALITY_JPEG, safeName, timeText, hydrateMediaFromSnapshot, fontFamily } from './Models';
+import { CaptureJobResult, Snapshot, MediaItem, QUALITY_EDGES, QUALITY_JPEG, safeName, timeText, hydrateMediaFromSnapshot, fontFamily } from './Models';
 import { paintWatermark, wrapText } from './WatermarkRenderer';
 
 /** Normalized coordinates are in the actual image rectangle (0..1), never in a letterbox view. */
@@ -165,17 +165,62 @@ export class ImageProcessor {
   // appended suffix away, so the path never changed and the loop never ended.
   path(name: string): string {const safe=safeName(name);let p=this.root+'/'+safe;for(let n=1;n<=9999&&fs.accessSync(p);n++)p=this.root+'/'+appendName(safe,'_'+n);if(fs.accessSync(p))p=this.root+'/'+appendName(safe,'_'+Date.now().toString(36)+Math.floor(Math.random()*1000));return p;}
   async write(path: string,data: ArrayBuffer): Promise<void>{const f=await fs.open(path,fs.OpenMode.CREATE|fs.OpenMode.READ_WRITE|fs.OpenMode.TRUNC);try{let done=0;while(done<data.byteLength){const n=await fs.write(f.fd,data.slice(done));if(n<=0)throw new Error('文件写入不完整');done+=n;}}finally{await fs.close(f);}}
-  async captureLocal(bytes: ArrayBuffer,s: Snapshot,quality: number,rotation: number): Promise<MediaItem>{
-    const target=this.path(`${safeName(s.project)}_${s.timestamp}.jpg`);let src:image.ImageSource|null=null,pm:image.PixelMap|null=null;const m=new MediaItem();m.timestamp=s.timestamp;m.snapshot=JSON.stringify(s);m.name=`${safeName(s.project)}_${s.timestamp}.jpg`;m.path=target;hydrateMediaFromSnapshot(m,s);
-    try{src=image.createImageSource(bytes);let orientation='1';try{orientation=await src.getImageProperty(image.PropertyKey.ORIENTATION);}catch(e){}
-      pm=await src.createPixelMap({editable:true});
-      // Camera rotation may be stored only in EXIF. Normalize pixels before
-      // mirroring, cropping or painting; the final JPEG is tagged upright.
-      const code=importOrientation(orientation);await orientPhotoPixels(pm,code);
-      if(rotation)await pm.rotate(rotation);if(s.mirrorPreview)await pm.flip(true,false);if(s.captureRatio>0){const size=(await pm.getImageInfo()).size;const width=Math.min(size.width,Math.floor(size.height*s.captureRatio));const height=Math.min(size.height,Math.floor(size.width/s.captureRatio));await pm.crop({x:Math.floor((size.width-width)/2),y:Math.floor((size.height-height)/2),size:{width:width,height:height}});}await this.resize(pm,quality);const info=await pm.getImageInfo();m.width=info.size.width;m.height=info.size.height;console.info(`SITECAM_CAPTURE_ORIENTATION exif=${code} extra=${rotation} mirror=${s.mirrorPreview} output=${m.width}x${m.height}`);const canvas=new OffscreenCanvas(m.width,m.height,LengthMetricsUnit.PX),ctx=canvas.getContext('2d');ctx.drawImage(pm,0,0,m.width,m.height);paintWatermark(ctx,m.width,m.height,s);const result=ctx.getPixelMap(0,0,m.width,m.height);try{await this.encode(result,target,quality);}finally{await result.release();}
-    }catch(e){await this.removePath(target);throw e as Error;}finally{try{await pm?.release();}finally{await src?.release();}}
-    // The encoded file is the only copy of the photo; EXIF must not take it down.
-    await this.exifQuiet(target,s);return m;
+  async captureLocal(bytes: ArrayBuffer, s: Snapshot, quality: number, rotation: number,
+    originalPath: string): Promise<CaptureJobResult> {
+    const result = new CaptureJobResult();
+    const item = result.item;
+    item.name = `${safeName(s.project)}_${s.timestamp}.jpg`;
+    item.path = this.path(item.name);
+    item.timestamp = s.timestamp;
+    item.snapshot = JSON.stringify(s);
+    hydrateMediaFromSnapshot(item, s);
+    let source: image.ImageSource | null = null;
+    let pixels: image.PixelMap | null = null;
+    try {
+      source = image.createImageSource(bytes);
+      let orientation = '1';
+      try { orientation = await source.getImageProperty(image.PropertyKey.ORIENTATION); } catch (e) {}
+      pixels = await source.createPixelMap({ editable: true });
+      const code = importOrientation(orientation);
+      await orientPhotoPixels(pixels, code);
+      if (rotation) await pixels.rotate(rotation);
+      if (s.mirrorPreview) await pixels.flip(true, false);
+      if (s.captureRatio > 0) {
+        const size = (await pixels.getImageInfo()).size;
+        const width = Math.min(size.width, Math.floor(size.height * s.captureRatio));
+        const height = Math.min(size.height, Math.floor(size.width / s.captureRatio));
+        await pixels.crop({ x: Math.floor((size.width - width) / 2), y: Math.floor((size.height - height) / 2),
+          size: { width: width, height: height } });
+      }
+      await this.resize(pixels, quality);
+      const info = await pixels.getImageInfo();
+      item.width = info.size.width;
+      item.height = info.size.height;
+      console.info(`SITECAM_CAPTURE_ORIENTATION exif=${code} extra=${rotation} mirror=${s.mirrorPreview} output=${item.width}x${item.height}`);
+      const canvas = new OffscreenCanvas(item.width, item.height, LengthMetricsUnit.PX);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(pixels, 0, 0, item.width, item.height);
+      paintWatermark(ctx, item.width, item.height, s);
+      const watermarked = ctx.getPixelMap(0, 0, item.width, item.height);
+      try { await this.encode(watermarked, item.path, quality); } finally { await watermarked.release(); }
+
+      if (originalPath) {
+        try {
+          await this.encode(pixels, originalPath, quality);
+          await this.exifQuiet(originalPath, s, false);
+          result.originalSaved = true;
+        } catch (e) {
+          console.warn('SITECAM_ORIGINAL_WRITE ' + String(e));
+        }
+      }
+    } catch (e) {
+      await this.removePath(item.path);
+      throw e as Error;
+    } finally {
+      try { await pixels?.release(); } finally { await source?.release(); }
+    }
+    await this.exifQuiet(item.path, s);
+    return result;
   }
   async prepareImport(uri:string):Promise<ImportedPhoto>{
     const out=new ImportedPhoto();out.path=this.path('import_'+Date.now()+'.part');const file=await fs.open(uri,fs.OpenMode.READ_ONLY);let source:image.ImageSource|null=null;
@@ -239,9 +284,9 @@ export class ImageProcessor {
     finally{try{await photo?.release();}finally{await source.release();}}
   }
   async encode(pm:image.PixelMap,path:string,q:number):Promise<void>{const packer=image.createImagePacker();try{const index=Math.max(0,Math.min(3,Math.round(q)));await this.write(path,await packer.packing(pm,{format:'image/jpeg',quality:QUALITY_JPEG[index]}));}finally{await packer.release();}}
-  async exif(path:string,s:Snapshot):Promise<void>{const src=image.createImageSource(path);try{const dt=timeText(s.timestamp).replace(/-/g,':');await src.modifyImageProperty(image.PropertyKey.DATE_TIME_ORIGINAL,dt);await src.modifyImageProperty(image.PropertyKey.DATE_TIME,dt);await src.modifyImageProperty(image.PropertyKey.ORIENTATION,'1');if(s.fix){await src.modifyImageProperty(image.PropertyKey.GPS_LATITUDE,degree(s.fix.latitude));await src.modifyImageProperty(image.PropertyKey.GPS_LATITUDE_REF,s.fix.latitude<0?'S':'N');await src.modifyImageProperty(image.PropertyKey.GPS_LONGITUDE,degree(s.fix.longitude));await src.modifyImageProperty(image.PropertyKey.GPS_LONGITUDE_REF,s.fix.longitude<0?'W':'E');}}finally{await src.release();}}
+  async exif(path:string,s:Snapshot,includeLocation:boolean=true):Promise<void>{const src=image.createImageSource(path);try{const dt=timeText(s.timestamp).replace(/-/g,':');await src.modifyImageProperty(image.PropertyKey.DATE_TIME_ORIGINAL,dt);await src.modifyImageProperty(image.PropertyKey.DATE_TIME,dt);await src.modifyImageProperty(image.PropertyKey.ORIENTATION,'1');if(includeLocation&&s.fix){await src.modifyImageProperty(image.PropertyKey.GPS_LATITUDE,degree(s.fix.latitude));await src.modifyImageProperty(image.PropertyKey.GPS_LATITUDE_REF,s.fix.latitude<0?'S':'N');await src.modifyImageProperty(image.PropertyKey.GPS_LONGITUDE,degree(s.fix.longitude));await src.modifyImageProperty(image.PropertyKey.GPS_LONGITUDE_REF,s.fix.longitude<0?'W':'E');}}finally{await src.release();}}
   /** EXIF is best effort: a metadata write failure must never delete the encoded image. */
-  private async exifQuiet(target:string,s:Snapshot):Promise<void>{try{await this.exif(target,s);}catch(e){console.warn('SITECAM_EXIF '+target+' '+String(e));}}
+  private async exifQuiet(target:string,s:Snapshot,includeLocation:boolean=true):Promise<void>{try{await this.exif(target,s,includeLocation);}catch(e){console.warn('SITECAM_EXIF '+target+' '+String(e));}}
   async editLocal(m:MediaItem,recipe:EditRecipe,quality:number):Promise<string>{const target=this.path(`${m.timestamp}_edited.jpg`);let src:image.ImageSource|null=null,pm:image.PixelMap|null=null;try{src=image.createImageSource(m.path);pm=await src.createPixelMap({editable:true});const steps:EditStep[]=recipe.steps.slice();for(const mark of recipe.marks){const step=new EditStep(mark.kind);step.mark=mark;steps.push(step);}if(recipe.cropW<1||recipe.cropH<1){const step=new EditStep('crop');step.mark.x=recipe.cropX;step.mark.y=recipe.cropY;step.mark.endX=recipe.cropX+recipe.cropW;step.mark.endY=recipe.cropY+recipe.cropH;steps.unshift(step);}if(recipe.rotation){const step=new EditStep('rotate');for(let i=0;i<Math.round(Math.abs(recipe.rotation)/90)%4;i++)steps.unshift(step);}if(recipe.flipX){const step=new EditStep('flipX');steps.unshift(step);}if(recipe.flipY){const step=new EditStep('flipY');steps.unshift(step);}
       for(const step of steps){if(step.kind==='rotate'){await pm!.rotate(90);continue;}if(step.kind==='flipX'){await pm!.flip(true,false);continue;}if(step.kind==='flipY'){await pm!.flip(false,true);continue;}const info: image.ImageInfo=await pm!.getImageInfo(); const cw: number=info.size.width; const ch: number=info.size.height;if(step.kind==='crop'){const l=Math.max(0,Math.min(1,Math.min(step.mark.x,step.mark.endX))),t=Math.max(0,Math.min(1,Math.min(step.mark.y,step.mark.endY))),rr=Math.max(l,Math.min(1,Math.max(step.mark.x,step.mark.endX))),bb=Math.max(t,Math.min(1,Math.max(step.mark.y,step.mark.endY)));await pm!.crop({x:Math.floor(l*cw),y:Math.floor(t*ch),size:{width:Math.max(1,Math.floor((rr-l)*cw)),height:Math.max(1,Math.floor((bb-t)*ch))}});continue;}const canvas: OffscreenCanvas=new OffscreenCanvas(cw,ch,LengthMetricsUnit.PX); const ctx: OffscreenCanvasRenderingContext2D=canvas.getContext('2d');ctx.drawImage(pm!,0,0,cw,ch);drawMark(ctx,step.mark,cw,ch);const next: image.PixelMap=ctx.getPixelMap(0,0,cw,ch);await pm!.release();pm=next;}
       await this.resize(pm!,quality);await this.encode(pm!,target,quality);

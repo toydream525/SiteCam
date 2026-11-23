@@ -150,14 +150,14 @@ class WatermarkEditorViewModel(
         appContainer.watermarkTemplateMutations.fieldEnabled(field.id, !field.isEnabled)
     }
 
-    fun addCustomField(label: String) {
+    fun addCustomField(label: String, value: String) {
         if (label.isBlank()) return
         val currentTemplateId = _template.value?.id ?: return
         val newField = WatermarkFieldEntity(
             templateId = currentTemplateId,
             fieldKey = "CUSTOM_${System.currentTimeMillis()}",
             label = label.trim(),
-            defaultValue = "",
+            defaultValue = value.trim(),
             displayOrder = 0,
             isEnabled = true
         )

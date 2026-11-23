@@ -1,5 +1,4 @@
 import { taskpool } from '@kit.ArkTS';
-import { WindowEnvironment } from './WindowEnvironment';
 import { LengthMetricsUnit } from '@kit.ArkUI';
 import { fileIo as fs, fileUri, picker } from '@kit.CoreFileKit';
 import { image } from '@kit.ImageKit';
@@ -73,6 +72,7 @@ export class MediaService extends ImageProcessor {
     const clean = path.toLowerCase().split('?')[0];
     const dot = clean.lastIndexOf('.');
     const ext = dot >= 0 ? clean.substring(dot + 1) : '';
+    if (ext === 'zip') return uniformTypeDescriptor.UniformDataType.ZIP_ARCHIVE;
     if (['jpg','jpeg','png','webp','gif','heic','heif','bmp'].includes(ext)) return uniformTypeDescriptor.UniformDataType.IMAGE;
     if (['mp4','mov','m4v','mkv','webm','3gp','avi'].includes(ext)) return uniformTypeDescriptor.UniformDataType.VIDEO;
     return uniformTypeDescriptor.UniformDataType.FILE;
@@ -81,13 +81,15 @@ export class MediaService extends ImageProcessor {
     if (!paths.length) throw new Error('没有可分享的资料');
     for(const path of paths){const file=await fs.open(path,fs.OpenMode.READ_ONLY);await fs.close(file);}
     const first = paths[0];
-    const data = new systemShare.SharedData({utd:this.shareType(first,video),uri:fileUri.getUriFromPath(first)});
+    const type = this.shareType(first, video);
+    const data = new systemShare.SharedData({utd:type,uri:fileUri.getUriFromPath(first)});
     for (let i=1;i<paths.length;i++) {
       const path = paths[i];
       data.addRecord({utd:this.shareType(path),uri:fileUri.getUriFromPath(path)});
     }
     const controller=new systemShare.ShareController(data);
-    const env=AppStorage.get<WindowEnvironment>('windowEnvironment')||new WindowEnvironment();
-    await controller.show(this.context,{previewMode:systemShare.SharePreviewMode.DETAIL,selectionMode:systemShare.SelectionMode.BATCH,anchor:anchor});
+    const selectionMode = paths.length === 1 && type === uniformTypeDescriptor.UniformDataType.ZIP_ARCHIVE
+      ? systemShare.SelectionMode.SINGLE : systemShare.SelectionMode.BATCH;
+    await controller.show(this.context, { previewMode: systemShare.SharePreviewMode.DETAIL, selectionMode, anchor });
   }
 }

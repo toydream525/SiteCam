@@ -14,6 +14,7 @@ import androidx.core.content.FileProvider
 import com.sitecam.app.core.watermark.model.WatermarkData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -29,7 +30,15 @@ data class SavedMediaResult(
     val rotation: Int = 0
 )
 
-data class CameraJpeg(val bytes: ByteArray, val width: Int, val height: Int)
+data class PhotoJpeg(val bytes: ByteArray, val width: Int, val height: Int) {
+    companion object {
+        fun encode(bitmap: Bitmap, quality: Int): PhotoJpeg {
+            val buffer = ByteArrayOutputStream()
+            check(bitmap.compress(Bitmap.CompressFormat.JPEG, quality, buffer)) { "无法压缩原图" }
+            return PhotoJpeg(buffer.toByteArray(), bitmap.width, bitmap.height)
+        }
+    }
+}
 
 enum class MediaDeleteOutcome { DELETED, ALREADY_MISSING, FAILED }
 
@@ -81,10 +90,10 @@ class MediaStoreManager(private val context: Context) {
     }
 
     suspend fun saveOriginalPhotoToGallery(
-        jpeg: CameraJpeg, fileName: String, projectName: String, watermarkData: WatermarkData, orientation: Int
+        jpeg: PhotoJpeg, fileName: String, projectName: String, watermarkData: WatermarkData
     ): SavedMediaResult = withContext(Dispatchers.IO) {
         check(canSaveToSystemGallery()) { "无权保存到系统相册" }
-        saveJpegToGallery(fileName, projectName, watermarkData, orientation, jpeg.width, jpeg.height) { it.write(jpeg.bytes) }
+        saveJpegToGallery(fileName, projectName, watermarkData, 0, jpeg.width, jpeg.height) { it.write(jpeg.bytes) }
     }
 
     private fun saveJpegToGallery(

@@ -33,7 +33,7 @@ fun WatermarkCustomizationScreen(viewModel: WatermarkEditorViewModel, onNavigate
         }
     }
     var tab by rememberSaveable { mutableStateOf("内容") }
-    var adding by remember { mutableStateOf(false) }
+    var adding by rememberSaveable { mutableStateOf(false) }
     var editing by remember { mutableStateOf<WatermarkFieldEntity?>(null) }
     var styles by remember { mutableStateOf(false) }
     @Composable fun preview(modifier: Modifier) {
@@ -131,14 +131,24 @@ fun WatermarkCustomizationScreen(viewModel: WatermarkEditorViewModel, onNavigate
     if(styles) WatermarkStylePickerDialog(state.template?.styleType ?: "CLASSIC", state.previewData,
         onDismiss = { styles = false }, onConfirm = { viewModel.updateStyleType(it); styles = false })
     if(adding || editing != null) {
-        var label by remember(editing, adding) { mutableStateOf(editing?.label ?: "") }
+        var label by rememberSaveable(editing?.id, adding) { mutableStateOf(editing?.label ?: "") }
+        var value by rememberSaveable { mutableStateOf("") }
         ModalBottomSheet(onDismissRequest = { adding = false; editing = null }) {
             Column(Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(if(adding) "新增字段" else "编辑字段", fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 OutlinedTextField(label, { label = it }, label = { Text("字段名称") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                if (adding) {
+                    OutlinedTextField(value, { value = it }, label = { Text("字段内容") },
+                        modifier = Modifier.fillMaxWidth(), maxLines = 3)
+                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = { adding = false; editing = null }, modifier = Modifier.weight(1f)) { Text("取消") }
-                    Button(onClick = { if(adding) viewModel.addCustomField(label.trim()) else editing?.let { viewModel.updateField(it, label.trim()) }; adding = false; editing = null },
+                    Button(onClick = {
+                        if (adding) viewModel.addCustomField(label, value)
+                        else editing?.let { viewModel.updateField(it, label.trim()) }
+                        adding = false
+                        editing = null
+                    },
                         enabled = label.isNotBlank(), modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(contentColor = Color.Black)) { Text(if(adding) "添加" else "保存") }
                 }
             }

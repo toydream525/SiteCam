@@ -1,5 +1,17 @@
 # 更新日志
 
+## v0.4.7 — 2026-11-23
+
+- 鸿蒙版支持通过系统分享转发工程压缩包。
+- 统一安卓和鸿蒙的工程压缩包命名。
+- 修复同时保存的无水印图和水印图画幅不一致的问题。
+- 安卓新增自定义水印字段时支持同时填写名称和内容。
+
+### 下载
+
+- Android：[Release APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.7/SiteCam-0.4.7-Android-Release.apk) · [Debug APK](https://github.com/toydream525/SiteCam/releases/download/v0.4.7/SiteCam-0.4.7-Android-Debug.apk)
+- HarmonyOS：[Release-Unsigned HAP](https://github.com/toydream525/SiteCam/releases/download/v0.4.7/SiteCam-0.4.7-HarmonyOS-Release-Unsigned.hap)，需自行签名后安装；[华为应用市场](appmarket://details?id=com.sitecam.app)的新版本以审核进度为准。
+
 ## v0.4.6 — 2026-11-08
 
 - 修复安卓竖屏拍摄控件显示异常。

@@ -222,7 +222,9 @@ export function safeName(s: string): string {
 export function exportZipName(projects:Project[], timestamp:number):string {
   if(!projects.length)throw new Error('请选择工程');
   const first=projects.slice().sort((a:Project,b:Project)=>a.id-b.id)[0];
-  const prefix=Array.from(safeName(first.name)).slice(0,54).join('');
+  // Match Android's NamingEngine before applying the shared ZIP name format.
+  const name = first.name.replace(/[\\/:*?"<>| \t\n\v\f\r+]/g, '_').replace(/^_+|_+$/g, '') || 'SiteCam';
+  const prefix=Array.from(name).slice(0,54).join('');
   const suffix=projects.length>1?`等${projects.length}个工程`:'';
   return prefix+suffix+'_'+dateText(timestamp)+'.zip';
 }

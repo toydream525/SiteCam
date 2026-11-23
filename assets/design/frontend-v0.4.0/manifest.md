@@ -125,3 +125,7 @@
 ## 50 · v0.4.6 相机与相册
 
 采用 `50-release-camera-and-media.svg`，对应展开态相机、Android 竖屏取景、相册切换、相册双存和问题照片分享。
+
+## 51 · Android 新增水印字段
+
+采用 `51-android-watermark-add-field.svg`，对应设置水印编辑页新增字段时同时填写名称和内容。

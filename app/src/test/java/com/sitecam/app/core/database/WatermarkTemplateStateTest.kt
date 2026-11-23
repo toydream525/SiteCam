@@ -202,6 +202,7 @@ class WatermarkTemplateStateTest {
             withTimeout(10_000) { editor.template.first { it?.styleType == "INFO_BOARD" } }
             editor.updateFontSizeScale(1.8f)
             editor.updateOpacity(.55f)
+            editor.addCustomField("工程名字", "天天快乐")
             editor.updateStyleType("MINIMAL")
             editor.viewModelScope.cancel()
             withTimeout(10_000) { dao.observeTemplate(id).first { it?.styleType == "MINIMAL" } }
@@ -210,6 +211,11 @@ class WatermarkTemplateStateTest {
             assertEquals("MINIMAL", saved.styleType)
             assertEquals(1.8f, saved.fontSizeScale)
             assertEquals(.55f, saved.opacity)
+            val field = withTimeout(10_000) { reopened.uiState.first { state ->
+                state.previewData.customFields.any { it.label == "工程名字" }
+            } }.previewData.customFields.single { it.label == "工程名字" }
+            assertEquals("天天快乐", field.value)
+            assertEquals("天天快乐", dao.getFieldsForTemplateSync(id).single { it.fieldKey == field.key }.defaultValue)
             // Camera's Room observer sees an editor-originated style selection.
             assertEquals(saved, dao.observeTemplate(id).first())
         } finally {

@@ -1,17 +1,9 @@
 import { ImageProcessor, EditRecipe } from './ImageProcessor';
-import { CaptureJobResult, Snapshot, MediaItem } from './Models';
+import { Snapshot, MediaItem } from './Models';
 
 @Concurrent
 export async function captureWorker(root: string,bytes: ArrayBuffer,snapshot: string,quality: number,rotation: number,originalPath:string): Promise<string> {
-  const processor=new ImageProcessor(root);
-  const result=new CaptureJobResult();
-  result.item=await processor.captureLocal(bytes,JSON.parse(snapshot) as Snapshot,quality,rotation);
-  if(originalPath){
-    try{await processor.write(originalPath,bytes);result.originalSaved=true;}
-    catch(e){
-      console.warn('SITECAM_ORIGINAL_WRITE '+String(e));
-    }
-  }
+  const result=await new ImageProcessor(root).captureLocal(bytes,JSON.parse(snapshot) as Snapshot,quality,rotation,originalPath);
   return JSON.stringify(result);
 }
 @Concurrent

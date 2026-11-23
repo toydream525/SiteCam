@@ -4,7 +4,7 @@ import zlib from '@ohos.zlib';
 import { image } from '@kit.ImageKit';
 import { Project, MediaItem, safeName, timeText, exportZipName } from './Models';
 import { MediaService } from './MediaService';
-import { ExportArchives } from './ExportArchives';
+import { EXPORT_ARCHIVE_DIRECTORY } from './ExportArchives';
 interface SnapshotFix {latitude:number;longitude:number;}
 interface SnapshotData {timestamp:number;fix:SnapshotFix|null;}
 export class ExportRecord {mediaId: number=0;exportPath: string='';annotationExportPath: string='';success: boolean=false;annotationSuccess: boolean=false;issueStatus: string='';bytes: number=0;width:number=0;height:number=0;error: string='';}
@@ -20,31 +20,58 @@ export class ExportService {
   private media: MediaService;
   constructor(context: common.UIAbilityContext,media: MediaService){this.context=context;this.media=media;}
   private checkCancelled(delivering:boolean=false):void {if(this.cancelled)throw new Error(delivering?'已取消导出，目标位置可能包含部分资料':'已取消导出');}
-  async run(projects: Project[],items: MediaItem[],folder: boolean,quality: number,onProgress: (value: string)=>void): Promise<string> {
-    this.cancelled=false;this.deliveryFailures=0;this.deliveryErrors=[];const token=Date.now();const stage=this.context.cacheDir+'/export_'+token;await fs.mkdir(stage);let output='';
+  async run(projects: Project[], items: MediaItem[], folder: boolean, quality: number,
+    onProgress: (value: string) => void, shareAnchor?: string): Promise<string> {
+    this.cancelled = false;
+    this.deliveryFailures = 0;
+    this.deliveryErrors = [];
+    const token = Date.now();
+    const stage = this.context.cacheDir + '/export_' + token;
+    await fs.mkdir(stage);
     try {
-      await this.stage(projects,items,stage,quality,onProgress);this.checkCancelled();onProgress('请选择保存位置');
-      if(folder) {const uris=await new picker.DocumentViewPicker(this.context).save({pickerMode:picker.DocumentPickerMode.DOWNLOAD});if(!uris.length)throw new Error('已取消选择目录');this.checkCancelled();onProgress('正在写入文件夹');output=new fileUri.FileUri(uris[0]).path+'/SiteCam_'+token;await fs.mkdir(output);await this.copyTree(stage,output,stage);this.checkCancelled(true);if(this.deliveryFailures>0){await this.writeDeliveryReports(output);throw new Error(`目标目录有 ${this.deliveryFailures} 项无法写入，已保留部分导出结果与失败报告`);}}
-      else {
-        const name=exportZipName(projects,token),zip=this.context.cacheDir+'/SiteCam_'+token+'.zip';
-        try{onProgress('正在生成压缩包');await zlib.compressFile(stage,zip,{});this.checkCancelled();output=await this.deliverZip(zip,name,onProgress);}
-        finally{if(fs.accessSync(zip))await fs.unlink(zip);}
+      await this.stage(projects, items, stage, quality, onProgress);
+      this.checkCancelled();
+      if (!folder) {
+        return await this.shareZip(stage, exportZipName(projects, Date.now()), onProgress, shareAnchor);
       }
+      onProgress('请选择保存位置');
+      const uris = await new picker.DocumentViewPicker(this.context).save({ pickerMode: picker.DocumentPickerMode.DOWNLOAD });
+      if (!uris.length) throw new Error('已取消选择目录');
+      this.checkCancelled();
+      onProgress('正在写入文件夹');
+      const output = new fileUri.FileUri(uris[0]).path + '/SiteCam_' + token;
+      await fs.mkdir(output);
+      await this.copyTree(stage, output, stage);
       this.checkCancelled(true);
-      if(!folder){try{await new ExportArchives(this.context).rememberFile(output);}catch(e){console.warn('SITECAM_ARCHIVE_INDEX '+String(e));}}
+      if (this.deliveryFailures > 0) {
+        await this.writeDeliveryReports(output);
+        throw new Error(`目标目录有 ${this.deliveryFailures} 项无法写入，已保留部分导出结果与失败报告`);
+      }
       return output;
-    }finally{await fs.rmdir(stage);}
+    } finally {
+      await fs.rmdir(stage);
+    }
   }
-  private async deliverZip(source:string,name:string,onProgress:(value:string)=>void):Promise<string>{
-    onProgress('请选择保存位置');
-    const chosen=await new picker.DocumentViewPicker(this.context).save({pickerMode:picker.DocumentPickerMode.DOWNLOAD});
-    if(!chosen.length)throw new Error('已取消保存');
-    this.checkCancelled();const directory=new fileUri.FileUri(chosen[0]).path;
-    let target=directory+'/'+name,index=0;
-    while(fs.accessSync(target)){index++;target=directory+'/'+name.replace(/\.zip$/i,' ('+index+').zip');}
-    onProgress('正在保存压缩包');
-    try{this.checkCancelled();await fs.copyFile(source,target);this.checkCancelled(true);return fileUri.getUriFromPath(target);}
-    catch(e){if(fs.accessSync(target))await fs.unlink(target);throw e as Error;}
+  private async shareZip(source: string, name: string, onProgress: (value: string) => void, anchor?: string): Promise<string> {
+    const directory = this.context.filesDir + EXPORT_ARCHIVE_DIRECTORY;
+    if (!fs.accessSync(directory)) await fs.mkdir(directory, true);
+    const stem = name.slice(0, -4);
+    let target = directory + '/' + name;
+    for (let index = 1; fs.accessSync(target); index++) {
+      target = `${directory}/${stem} (${index}).zip`;
+    }
+    try {
+      this.checkCancelled();
+      onProgress('正在生成压缩包');
+      await zlib.compressFile(source, target, {});
+      this.checkCancelled();
+      onProgress('正在打开系统分享');
+      await this.media.share([target], false, anchor);
+      return target;
+    } catch (e) {
+      await this.media.removePath(target);
+      throw e as Error;
+    }
   }
   failures: number=0;
   async stage(projects: Project[],items: MediaItem[],stage: string,quality: number,onProgress: (value: string)=>void): Promise<void> {

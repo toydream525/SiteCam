@@ -25,6 +25,7 @@ import com.sitecam.app.core.location.SiteLocation
 import com.sitecam.app.core.media.NamingEngine
 import com.sitecam.app.core.media.PendingVideoStore
 import com.sitecam.app.core.media.MediaOperationCoordinator
+import com.sitecam.app.core.media.PhotoJpeg
 import com.sitecam.app.core.watermark.model.WatermarkData
 import com.sitecam.app.core.watermark.model.WatermarkSnapshotCodec
 import com.sitecam.app.core.watermark.model.resolveWatermarkFields
@@ -1130,7 +1131,7 @@ class CameraViewModel(
 
     private data class PhotoFrame(val bitmap: Bitmap, val rotation: Int, val surfaceRotation: Int,
         val timestamp: Long, val location: CaptureLocation, val watermark: WatermarkData, val mirrored: Boolean,
-        val original: com.sitecam.app.core.media.CameraJpeg?)
+        val saveOriginal: Boolean)
 
     fun capturePhoto() {
         if (_isProjectSwitching.value || _isCapturing.value || cameraManager.videoRecordingState.value != CameraManager.VideoRecordingState.IDLE) return
@@ -1172,9 +1173,9 @@ class CameraViewModel(
                             latitude = location.latitude, longitude = location.longitude,
                             altitude = location.altitude, addressText = location.address, locationStatus = location.status)
                         val rotation = cameraManager.currentTargetRotation()
-                        val capture = cameraManager.capturePhoto(rotation, retainOriginal = original)
+                        val capture = cameraManager.capturePhoto(rotation)
                         PhotoFrame(capture.bitmap, capture.rotation, rotation, timestamp, location, watermark,
-                            cameraManager.previewIsMirrored(), capture.original)
+                            cameraManager.previewIsMirrored(), original)
                     },
                     save = { frame -> lastSaved = savePhotoFrame(frame, project, profile, gallery, pattern, quickIssue, burst) },
                     discard = { frame -> if (!frame.bitmap.isRecycled) frame.bitmap.recycle() }
@@ -1203,6 +1204,11 @@ class CameraViewModel(
         val watermarkData = frame.watermark
         var watermarkedBitmap: Bitmap? = null
         try {
+            val quality = profile.jpegQuality
+            var originalJpeg: PhotoJpeg? = null
+            val prepareOriginal: ((Bitmap) -> Unit)? = if (frame.saveOriginal) { bitmap ->
+                originalJpeg = runCatching { PhotoJpeg.encode(bitmap, quality) }.getOrNull()
+            } else null
             val fileName = NamingEngine.generateFileName(
                 projectName = project.name, categoryName = project.categoryName,
                 timestamp = captureTimestamp, pattern = namingPattern
@@ -1213,11 +1219,11 @@ class CameraViewModel(
                 rotationDegrees = rotationDegrees,
                 targetAspectRatio = if (surfaceRotation == android.view.Surface.ROTATION_90 || surfaceRotation == android.view.Surface.ROTATION_270) 4f / 3f else 3f / 4f,
                 qualityProfile = profile,
-                mirrorHorizontally = frame.mirrored
+                mirrorHorizontally = frame.mirrored,
+                beforeWatermark = prepareOriginal
             )
             watermarkedBitmap = renderedBitmap
 
-            val quality = profile.jpegQuality
             val saveResult = appContainer.mediaStoreManager.savePhotoToMediaStore(
                 bitmap = renderedBitmap,
                 fileName = fileName,
@@ -1257,16 +1263,17 @@ class CameraViewModel(
                 withContext(NonCancellable) { runCatching { appContainer.mediaStoreManager.deleteMediaUri(saveResult.uri) } }
                 throw dbError
             }
-            val originalCopyFailed = frame.original?.let { jpeg ->
+            val originalSaved = originalJpeg?.let { jpeg ->
                 withContext(NonCancellable) {
                     runCatching {
                         appContainer.mediaStoreManager.saveOriginalPhotoToGallery(
                             jpeg = jpeg, fileName = fileName.substringBeforeLast('.') + "_原图.jpg",
-                            projectName = project.name, watermarkData = watermarkData, orientation = rotationDegrees
+                            projectName = project.name, watermarkData = watermarkData
                         )
-                    }.isFailure
+                    }.isSuccess
                 }
             } ?: false
+            val originalCopyFailed = frame.saveOriginal && !originalSaved
 
             _latestThumbnailUri.value = saveResult.uri.toString()
             _latestMediaType.value = "PHOTO"

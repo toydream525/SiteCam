@@ -948,9 +948,9 @@ class CameraManager(private val context: Context) {
         } catch (_: Exception) { return false }
     }
 
-    data class CapturedPhoto(val bitmap: Bitmap, val rotation: Int, val original: com.sitecam.app.core.media.CameraJpeg?)
+    data class CapturedPhoto(val bitmap: Bitmap, val rotation: Int)
 
-    suspend fun capturePhoto(targetRotation: Int, retainOriginal: Boolean = false): CapturedPhoto = withContext(Dispatchers.Main) {
+    suspend fun capturePhoto(targetRotation: Int): CapturedPhoto = withContext(Dispatchers.Main) {
         suspendCancellableCoroutine { continuation ->
             // Take the use case, set its rotation and start the capture on the
             // main thread — the same thread that binds and unbinds use cases —
@@ -972,8 +972,7 @@ class CameraManager(private val context: Context) {
                             val bytes = ByteArray(buffer.remaining())
                             buffer.get(bytes)
                             val bitmap = imageProxyToBitmap(image, Rect(image.cropRect), bytes)
-                            val original = if (retainOriginal) com.sitecam.app.core.media.CameraJpeg(bytes, image.width, image.height) else null
-                            if (continuation.isActive) continuation.resume(CapturedPhoto(bitmap, rotationDegrees, original))
+                            if (continuation.isActive) continuation.resume(CapturedPhoto(bitmap, rotationDegrees))
                             else bitmap.recycle()
                         } catch (error: Throwable) {
                             // An OutOfMemoryError on a full-resolution frame must

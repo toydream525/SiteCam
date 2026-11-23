@@ -30,17 +30,28 @@ export class CaptureOrientationChecks {
           snapshot.captureRatio=4/3;snapshot.mirrorPreview=mirror;snapshot.watermark.widthRatio=.3;
           snapshot.watermark.fontScale=.6;snapshot.watermark.textColor='#FFFFFF';
           snapshot.watermark.fields=[new Field('project','工程','方向回归')];
-          const output=await service.capture(buffer,snapshot,3,0);result.output=output.path;
-          const decoded=await CaptureOrientationChecks.read(output.path);result.width=decoded.width;result.height=decoded.height;
+          const originalPath=folder+'/'+code+'_'+mirror+'_original.jpg';
+          const output=await service.capture(buffer,snapshot,3,0,originalPath);result.output=output.item.path;
+          const decoded=await CaptureOrientationChecks.read(output.item.path);result.width=decoded.width;result.height=decoded.height;
           if(decoded.width!==320||decoded.height!==240)throw new Error('Unexpected final dimensions');
+          if(!output.originalSaved)throw new Error('Original was not saved');
+          const original=await CaptureOrientationChecks.read(originalPath);
+          if(original.width!==decoded.width||original.height!==decoded.height)throw new Error('Photo dimensions differ');
           const colors:number[][]=mirror?[[30,180,50],[220,40,30],[25,50,210],[230,180,30]]:[[220,40,30],[30,180,50],[230,180,30],[25,50,210]];
           const points:number[][]=[[80,60],[240,60],[80,144],[240,144]];
           for(let i=0;i<points.length;i++) {
             const offset=(points[i][1]*320+points[i][0])*4;
-            for(let channel=0;channel<3;channel++)if(Math.abs(decoded.rgba[offset+channel]-colors[i][channel])>30)throw new Error('Scene corner '+i+' has wrong orientation');
+            for(let channel=0;channel<3;channel++){
+              if(Math.abs(decoded.rgba[offset+channel]-colors[i][channel])>30)throw new Error('Scene corner '+i+' has wrong orientation');
+              if(Math.abs(original.rgba[offset+channel]-decoded.rgba[offset+channel])>30)throw new Error('Original scene corner '+i+' differs');
+            }
           }
           const mask=new Uint8Array(320*240);let white=0;
-          for(let i=0;i<mask.length;i++){const p=i*4;mask[i]=decoded.rgba[p]>205&&decoded.rgba[p+1]>205&&decoded.rgba[p+2]>205?1:0;white+=mask[i];}
+          for(let i=0;i<mask.length;i++){
+            const p=i*4;
+            if(original.rgba[p]>205&&original.rgba[p+1]>205&&original.rgba[p+2]>205)throw new Error('Original contains white watermark pixels');
+            mask[i]=decoded.rgba[p]>205&&decoded.rgba[p+1]>205&&decoded.rgba[p+2]>205?1:0;white+=mask[i];
+          }
           if(white<5)throw new Error('Watermark missing');
           if(reference){let changed=0;for(let i=0;i<mask.length;i++)if(mask[i]!==reference[i])changed++;if(changed>Math.max(12,white*.12))throw new Error('Watermark moved or rotated with image');}else reference=mask;
           result.pass=true;

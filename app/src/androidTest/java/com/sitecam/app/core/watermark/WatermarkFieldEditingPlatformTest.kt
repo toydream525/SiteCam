@@ -40,32 +40,30 @@ class WatermarkFieldEditingPlatformTest {
                 vm = ViewModelProvider(store, WatermarkEditorViewModel.provideFactory(container, templateId))[WatermarkEditorViewModel::class.java]
             }
             compose.setContent { MaterialTheme { WatermarkCustomizationScreen(vm, {}) } }
-            compose.waitUntil(10000) { vm.uiState.value.fields.size == 6 }
-            compose.onNodeWithText("工程名称").performScrollTo()
-            compose.onAllNodesWithContentDescription("编辑")[0].performClick()
-            compose.onAllNodes(hasSetTextAction()).assertCountEquals(1)
-            compose.onNode(hasSetTextAction()).performTextReplacement("今日水印")
+            val builtInCount = builtInWatermarkFieldsForTemplate(templateId).size
+            compose.waitUntil(10000) { vm.uiState.value.fields.size == builtInCount }
+            compose.onNodeWithText("字段").performClick()
+            compose.onNodeWithContentDescription("编辑 工程名称").performScrollTo().performClick()
+            compose.onNode(hasSetTextAction() and hasText("字段名称")).performTextReplacement("今日水印")
             compose.onNodeWithText("保存").performClick()
             compose.waitUntil(10000) { vm.uiState.value.fields.first().label == "今日水印" }
             assertEquals("原有工程内容", dao.getFieldsForTemplateSync(templateId).first().defaultValue)
 
             compose.onNodeWithText("新增字段").performScrollTo().performClick()
-            compose.onAllNodes(hasSetTextAction()).assertCountEquals(1)
-            compose.onNode(hasSetTextAction()).performTextReplacement("首行标签")
+            compose.onNode(hasSetTextAction() and hasText("字段名称")).performTextReplacement("首行标签")
+            compose.onNode(hasSetTextAction() and hasText("字段内容")).performTextReplacement("天天快乐")
             compose.onNodeWithText("添加", useUnmergedTree = true).performClick()
-            compose.waitUntil(10000) { vm.uiState.value.fields.size == 7 }
+            compose.waitUntil(10000) { vm.uiState.value.fields.size == builtInCount + 1 }
             val added = dao.getFieldsForTemplateSync(templateId).last()
-            assertEquals("", added.defaultValue)
-            // Contents are entered in the camera editor; supply that saved value here.
-            dao.updateField(added.copy(defaultValue = "首行内容"))
-            repeat(6) {
+            assertEquals("天天快乐", added.defaultValue)
+            repeat(builtInCount) {
                 instrumentation.runOnMainSync { vm.moveFieldUp(vm.uiState.value.fields.indexOfFirst { it.id == added.id }) }
-                val expected = 5 - it
+                val expected = builtInCount - 1 - it
                 compose.waitUntil(10000) { vm.uiState.value.fields.indexOfFirst { f -> f.id == added.id } == expected }
             }
             val saved = dao.getFieldsForTemplateSync(templateId)
             assertEquals(added.id, saved.first().id)
-            assertEquals("首行内容", saved.first().defaultValue)
+            assertEquals("天天快乐", saved.first().defaultValue)
             assertEquals("今日水印", saved[1].label)
             assertEquals("原有工程内容", saved[1].defaultValue)
             // A new resolver reads persisted rows, as it does after restarting the app.

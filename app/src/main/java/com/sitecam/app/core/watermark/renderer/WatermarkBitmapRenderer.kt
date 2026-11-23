@@ -13,6 +13,7 @@ object WatermarkBitmapRenderer {
     /**
      * Renders the watermark onto the given bitmap and returns a newly created watermarked bitmap.
      * Runs strictly on the Default dispatcher to avoid blocking the main UI thread.
+     * The optional callback reads the framed pixels synchronously before they are painted or recycled.
      */
     suspend fun renderWatermarkOnBitmap(
         sourceBitmap: Bitmap,
@@ -20,7 +21,8 @@ object WatermarkBitmapRenderer {
         rotationDegrees: Int = 0,
         targetAspectRatio: Float? = null,
         qualityProfile: com.sitecam.app.core.media.PhotoQualityProfile = com.sitecam.app.core.media.PhotoQualityProfile.ORIGINAL,
-        mirrorHorizontally: Boolean = false
+        mirrorHorizontally: Boolean = false,
+        beforeWatermark: ((Bitmap) -> Unit)? = null
     ): Bitmap = withContext(Dispatchers.Default) {
         val orientedBitmap: Bitmap = if (rotationDegrees != 0) {
             val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
@@ -55,6 +57,7 @@ object WatermarkBitmapRenderer {
 
         val resizedBitmap = com.sitecam.app.core.media.PhotoCompression.resize(framedBitmap, qualityProfile)
         if (resizedBitmap !== framedBitmap) framedBitmap.recycle()
+        beforeWatermark?.invoke(resizedBitmap)
 
         // Ensure bitmap is mutable
         val mutableBitmap: Bitmap = if (resizedBitmap.isMutable) {
