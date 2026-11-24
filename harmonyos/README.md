@@ -78,7 +78,7 @@ HDC=/Applications/DevEco-Studio.app/Contents/sdk/default/openharmony/toolchains/
 
 脚本会停止指定模拟器上的 SiteCam 进程，请勿在有未保存工作的设备上运行。测试数据库与主应用分离，每次运行结果写入新的 `verification/runtime-时间戳.json`，也可用 `--output` 指定新文件；已有结果文件不覆盖。仅精确的“没有可用 H.264 编解码器”标为环境跳过；缺原生模块、SPS/PPS、封装及编码帧错误均判失败。现有结果文件不代表本轮已重新运行。
 
-测试页另有“验证相册副本”和“验证文件夹导出”，用于系统交互，需在模拟器操作授权。测试报告和完整限制见 [VERIFICATION.md](VERIFICATION.md)。用户指南在 `entry/src/main/resources/rawfile/USER_GUIDE.md`。
+测试页另有“验证相册副本”和“验证文件夹导出”，用于系统交互，需在模拟器操作授权。用户指南在 `entry/src/main/resources/rawfile/USER_GUIDE.md`。
 
 ## 官方参考
 

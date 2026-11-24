@@ -114,6 +114,6 @@ Capture jobsite photos with structured watermarks, organize media by project, lo
 <div align="center">
 
 Developed by [ninjaaqua](https://github.com/toydream525) · Open source under the [**MIT License**](LICENSE).<br />
-[Development Guide](docs/DEVELOPMENT.md) &nbsp;·&nbsp; [Progress](PROGRESS.md) &nbsp;·&nbsp; [Official Website](https://yuriaqua.com/sitecam/)
+[Development Guide](docs/DEVELOPMENT.md) &nbsp;·&nbsp; [Changelog](CHANGELOG.md) &nbsp;·&nbsp; [Official Website](https://yuriaqua.com/sitecam/)
 
 </div>

@@ -1,5 +1,0 @@
-state 0 selected photo + edited preview retained; split False
-state 2 selected photo + edited preview retained; split True
-state 0 selected photo + edited preview retained; split False
-state 2 selected photo + edited preview retained; split True
-PASS

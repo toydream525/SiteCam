@@ -116,6 +116,6 @@
 <div align="center">
 
 本项目由 [ninjaaqua](https://github.com/toydream525) 独立开发，采用 [**MIT 开源许可**](LICENSE)。<br />
-欢迎参与贡献：[开发说明](docs/DEVELOPMENT.md) &nbsp;·&nbsp; [开发进度](PROGRESS.md) &nbsp;·&nbsp; [项目官网](https://yuriaqua.com/sitecam/)
+欢迎参与贡献：[开发说明](docs/DEVELOPMENT.md) &nbsp;·&nbsp; [更新日志](CHANGELOG.md) &nbsp;·&nbsp; [项目官网](https://yuriaqua.com/sitecam/)
 
 </div>

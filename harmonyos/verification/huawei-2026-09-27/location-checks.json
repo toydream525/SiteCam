@@ -1,5 +1,0 @@
-{
-  "runtime": "existing TypeScript with injected platform dependencies",
-  "freshFixAndAddressBoundaries": true,
-  "servicePermissionFreshRequestAndRaceBoundaries": true
-}

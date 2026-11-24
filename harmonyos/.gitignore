@@ -7,5 +7,4 @@ local.properties
 *.cer
 .cxx/
 dist/
-verification/*.png
-verification/*.zip
+verification/

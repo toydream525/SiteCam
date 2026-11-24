@@ -14,7 +14,8 @@ build/
 /.capture_*.sh
 /.install_*.sh
 /.rebuild_*.sh
+docs/verification/
+harmonyos/verification/
 
 .kotlin/
 dist/
-PC_PVZ-Fusion-4.0.zip
